@@ -1384,34 +1384,56 @@ function attachRowHandlers(){
       if(!e) return;
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
       slot.innerHTML = editRowHtml(e);
-      slot.querySelector(`[data-save="${id}"]`).addEventListener("click", ()=>{
+      slot.querySelector(`[data-save="${id}"]`).addEventListener("click", async ()=>{
         const before = { name:e.name, discordId:e.discordId, grade:e.grade, role:e.role };
-        e.name = slot.querySelector(`[data-edit-name="${id}"]`).value.trim() || e.name;
-        e.discordId = slot.querySelector(`[data-edit-discord="${id}"]`).value.trim() || e.discordId;
-        e.grade = slot.querySelector(`[data-edit-grade="${id}"]`).value;
-        e.role = slot.querySelector(`[data-edit-role="${id}"]`).value;
-        const changes = [];
-        if(before.name!==e.name) changes.push(`nom "${before.name}" → "${e.name}"`);
-        if(before.discordId!==e.discordId) changes.push(`ID Discord "${before.discordId}" → "${e.discordId}"`);
-        if(before.grade!==e.grade) changes.push(`grade ${before.grade} → ${e.grade}`);
-        if(before.role!==e.role) changes.push(`rôle "${before.role||'—'}" → "${e.role||'—'}"`);
-        if(changes.length) logHistory("Modification", e.name, changes.join(", "));
-        saveState(); renderAll(); toast(`${e.name} mis à jour`);
+        const newName = slot.querySelector(`[data-edit-name="${id}"]`).value.trim() || e.name;
+        const newDiscordId = slot.querySelector(`[data-edit-discord="${id}"]`).value.trim() || e.discordId;
+        const newGrade = slot.querySelector(`[data-edit-grade="${id}"]`).value;
+        const newRole = slot.querySelector(`[data-edit-role="${id}"]`).value;
+        const saveBtn = slot.querySelector(`[data-save="${id}"]`);
+        saveBtn.disabled = true; const original = saveBtn.textContent; saveBtn.textContent = "Vérification…";
+        try{
+          // Action sensible : passe par la fonction serveur, qui
+          // revérifie le jeton et le grade avant d'écrire quoi que ce
+          // soit sur Firebase (demandé le 07/09 — protection réelle,
+          // pas juste un blocage visuel).
+          await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole });
+          e.name = newName; e.discordId = newDiscordId; e.grade = newGrade; e.role = newRole;
+          const changes = [];
+          if(before.name!==e.name) changes.push(`nom "${before.name}" → "${e.name}"`);
+          if(before.discordId!==e.discordId) changes.push(`ID Discord "${before.discordId}" → "${e.discordId}"`);
+          if(before.grade!==e.grade) changes.push(`grade ${before.grade} → ${e.grade}`);
+          if(before.role!==e.role) changes.push(`rôle "${before.role||'—'}" → "${e.role||'—'}"`);
+          if(changes.length) logHistory("Modification", e.name, changes.join(", "));
+          saveState(); renderAll(); toast(`${e.name} mis à jour (vérifié serveur)`);
+        }catch(err){
+          toast(`✕ Refusé : ${err.message}`);
+          saveBtn.disabled = false; saveBtn.textContent = original;
+        }
       });
       slot.querySelector(`[data-cancel="${id}"]`).addEventListener("click", ()=>{ slot.innerHTML = ""; });
     });
   });
 
   document.querySelectorAll("[data-licencier]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
+    btn.addEventListener("click", async ()=>{
       const id = btn.getAttribute("data-licencier");
       const e = employees.find(x=>x.id===id);
       if(!e) return;
       if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
-      employees = employees.filter(x=>x.id!==id);
-      saveState(); renderAll();
-      logHistory("Licenciement", e.name, "manuel");
-      toast(`${e.name} licencié et retiré du roster`);
+      btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
+      try{
+        // Action sensible : même passage obligé par le serveur que pour
+        // "Modifier" (demandé le 07/09).
+        await protectedAction("licencier", { id });
+        employees = employees.filter(x=>x.id!==id);
+        saveState(); renderAll();
+        logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
+        toast(`${e.name} licencié et retiré du roster`);
+      }catch(err){
+        toast(`✕ Refusé : ${err.message}`);
+        btn.disabled = false; btn.textContent = original;
+      }
     });
   });
 
@@ -2256,6 +2278,11 @@ document.getElementById("signalementSecretTitle").addEventListener("click", ()=>
 const DISCORD_CLIENT_ID = "1546550001864282122";
 const DISCORD_REDIRECT_URI = "https://roster-ems.netlify.app/.netlify/functions/discord-callback"; // à adapter à ta vraie adresse Netlify
 
+// Jeton de session — gardé UNIQUEMENT en mémoire JS (jamais localStorage,
+// cohérent avec "pas de mémorisation, reconnexion à chaque fois"). Perdu
+// à chaque rechargement, exactement comme le reste de la session.
+let currentSessionToken = null;
+
 function goToDiscordLogin(){
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
@@ -2271,11 +2298,32 @@ function showGate(errorMsg){
   document.getElementById("accessGate").style.display = "";
   document.getElementById("appContent").style.display = "none";
   document.getElementById("accessGateError").textContent = errorMsg || "";
+  currentSessionToken = null;
 }
 function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
   document.getElementById("discordAuthStatus").innerHTML = `✅ Connecté(e) en tant que <b>${esc(session.name)}</b> — grade : <b>${esc(session.grade)}</b>`;
+}
+
+// Point de passage unique pour les actions sensibles — envoie le jeton,
+// la fonction serveur revérifie tout elle-même avant d'écrire quoi que
+// ce soit (voir netlify/functions/protected-write.js). Jamais un appel
+// direct à Firebase pour ces actions-là.
+async function protectedAction(action, payload){
+  if(!currentSessionToken){
+    toast("Session expirée — reconnecte-toi avec Discord.");
+    showGate("Ta session a expiré, reconnecte-toi.");
+    throw new Error("no session token");
+  }
+  const res = await fetch("/.netlify/functions/protected-write", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ token: currentSessionToken, action, payload }),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  return data;
 }
 
 // Déconnexion manuelle (bouton) — repasse derrière l'écran de blocage
@@ -2292,6 +2340,7 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
   const params = new URLSearchParams(window.location.search);
   if(params.get("discord_ok")==="1"){
     const session = { id: params.get("discord_id"), name: params.get("discord_name"), grade: params.get("discord_grade") };
+    currentSessionToken = params.get("discord_token") || null;
     window.history.replaceState(null, "", window.location.pathname);
     showApp(session);
     return;
