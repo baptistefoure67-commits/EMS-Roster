@@ -64,14 +64,22 @@ exports.handler = async function (event) {
 
     // 3) Cherche cet ID Discord dans le Roster — jamais l'inverse (le
     // frontend ne doit jamais pouvoir affirmer lui-même son grade).
+    // Accès réservé à MC et au-dessus (DG, D, CD, ADD, MC) — un Stagiaire
+    // ou n'importe quel autre grade dans le Roster est refusé ici (07/09).
+    const ALLOWED_GRADES = ["DG", "D", "CD", "ADD", "MC"];
     const rosterRes = await fetch(ROSTER_URL);
     const rosterData = rosterRes.ok ? await rosterRes.json() : null;
     const employees = (rosterData && rosterData.employees) || [];
-    const match = employees.find((e) => e.discordId === discordId && !e.licencie);
+    const anyMatch = employees.find((e) => e.discordId === discordId && !e.licencie);
+    const match = anyMatch && ALLOWED_GRADES.includes(anyMatch.grade) ? anyMatch : null;
 
     if (!match) {
-      // ID Discord non trouvé dans le Roster → accès refusé, message clair.
-      return redirectWithError(SITE_URL, `Ton compte Discord (${discordUsername}) n'est pas dans le Roster EMS — accès refusé.`);
+      // Message précis selon le cas : absent du Roster, ou présent mais
+      // grade insuffisant — plus clair que "accès refusé" tout court.
+      const reason = !anyMatch
+        ? `Ton compte Discord (${discordUsername}) n'est pas dans le Roster EMS.`
+        : `${anyMatch.name} (${anyMatch.grade}) n'a pas le grade minimum requis (MC et au-dessus).`;
+      return redirectWithError(SITE_URL, `${reason} Accès refusé.`);
     }
 
     // 4) Pour l'étape 1 uniquement : on renvoie le nom/grade trouvés dans
