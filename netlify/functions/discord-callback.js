@@ -11,17 +11,18 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
+const { sign, TOKEN_LIFETIME_MS } = require("./session-token");
 
 exports.handler = async function (event) {
-  const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, SITE_URL } = process.env;
+  const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, SITE_URL, SESSION_SECRET } = process.env;
 
   // Garde-fou : si les variables d'environnement ne sont pas encore
   // configurées côté Netlify, on le dit clairement plutôt que de planter
   // sans explication.
-  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SITE_URL) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SITE_URL || !SESSION_SECRET) {
     return {
       statusCode: 500,
-      body: "Configuration manquante côté serveur (variables d'environnement Discord non définies sur Netlify).",
+      body: "Configuration manquante côté serveur (variables d'environnement non définies sur Netlify).",
     };
   }
 
@@ -82,16 +83,19 @@ exports.handler = async function (event) {
       return redirectWithError(SITE_URL, `${reason} Accès refusé.`);
     }
 
-    // 4) Pour l'étape 1 uniquement : on renvoie le nom/grade trouvés dans
-    // l'adresse de retour, pour affichage seulement. Ce n'est PAS encore
-    // une session sécurisée (n'importe qui pourrait modifier l'adresse à
-    // la main pour l'instant) — ça sera corrigé à l'étape 2, avant
-    // d'accrocher la moindre action sensible à cette information.
+    // 4) Génère un jeton signé — c'est LUI qui prouvera l'accès pour les
+    // actions sensibles (étape 2), jamais le nom/grade en clair seuls
+    // (ceux-là restent affichables mais ne suffisent plus à agir).
+    const token = sign(
+      { discordId, name: match.name, grade: match.grade, exp: Date.now() + TOKEN_LIFETIME_MS },
+      SESSION_SECRET
+    );
     const params = new URLSearchParams({
       discord_ok: "1",
       discord_id: discordId,
       discord_name: match.name,
       discord_grade: match.grade,
+      discord_token: token,
     });
     return {
       statusCode: 302,
