@@ -2292,11 +2292,11 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
   const params = new URLSearchParams(window.location.search);
   if(params.get("discord_ok")==="1"){
     const session = { id: params.get("discord_id"), name: params.get("discord_name"), grade: params.get("discord_grade") };
-    history.replaceState(null, "", window.location.pathname);
+    window.history.replaceState(null, "", window.location.pathname);
     showApp(session);
     return;
   } else if(params.get("discord_ok")==="0"){
-    history.replaceState(null, "", window.location.pathname);
+    window.history.replaceState(null, "", window.location.pathname);
     showGate(params.get("discord_error")||"Connexion refusée.");
     return;
   }
