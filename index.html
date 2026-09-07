@@ -2255,7 +2255,6 @@ document.getElementById("signalementSecretTitle").addEventListener("click", ()=>
 // ═══════════════════════════════════════════════════════════════════
 const DISCORD_CLIENT_ID = "1546550001864282122";
 const DISCORD_REDIRECT_URI = "https://roster-ems.netlify.app/.netlify/functions/discord-callback"; // à adapter à ta vraie adresse Netlify
-const DISCORD_SESSION_KEY = "rosterDiscordSession_v1";
 
 function goToDiscordLogin(){
   const params = new URLSearchParams({
@@ -2279,20 +2278,20 @@ function showApp(session){
   document.getElementById("discordAuthStatus").innerHTML = `✅ Connecté(e) en tant que <b>${esc(session.name)}</b> — grade : <b>${esc(session.grade)}</b>`;
 }
 
+// Déconnexion manuelle (bouton) — repasse derrière l'écran de blocage
+// immédiatement, sans avoir à recharger la page.
 document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
-  localStorage.removeItem(DISCORD_SESSION_KEY);
   showGate();
 });
 
-// Au retour de Discord (via la fonction Netlify), le nom/grade trouvés
-// arrivent dans l'adresse — on les enregistre localement (pour ne pas
-// avoir à se reconnecter à chaque rechargement de page), on nettoie
-// l'adresse, puis on affiche l'outil ou le refus.
+// Aucune mémorisation de la connexion (demandé le 07/09) — recharger la
+// page, la fermer, ou revenir plus tard oblige à repasser par Discord à
+// chaque fois. Seul le retour DIRECT de Discord (juste après avoir
+// autorisé) donne accès, jamais un ancien état mémorisé.
 (function checkDiscordAuthReturn(){
   const params = new URLSearchParams(window.location.search);
   if(params.get("discord_ok")==="1"){
     const session = { id: params.get("discord_id"), name: params.get("discord_name"), grade: params.get("discord_grade") };
-    localStorage.setItem(DISCORD_SESSION_KEY, JSON.stringify(session));
     history.replaceState(null, "", window.location.pathname);
     showApp(session);
     return;
@@ -2301,12 +2300,6 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
     showGate(params.get("discord_error")||"Connexion refusée.");
     return;
   }
-  // Pas de retour Discord dans l'adresse — regarde si une connexion est
-  // déjà mémorisée depuis une visite précédente.
-  try{
-    const raw = localStorage.getItem(DISCORD_SESSION_KEY);
-    if(raw){ showApp(JSON.parse(raw)); return; }
-  }catch(e){}
   showGate();
 })();
 
