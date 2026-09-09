@@ -380,7 +380,8 @@
       </div>
 
       <label class="field-label" style="display:block;margin-bottom:4px;font-size:0.8rem;">Explication (obligatoire)</label>
-      <textarea id="signalementReasonInput" rows="3" style="width:100%;margin-bottom:14px;" placeholder="Décris concrètement ce que tu as observé…" maxlength="2000"></textarea>
+      <textarea id="signalementReasonInput" rows="3" style="width:100%;margin-bottom:4px;" placeholder="Décris concrètement ce que tu as observé…" maxlength="2000"></textarea>
+      <div id="signalementReasonHint" style="font-size:0.74rem;color:var(--text-faint);margin-bottom:14px;">Minimum 10 caractères.</div>
 
       <button type="button" class="btn-primary" id="signalementSubmitBtn" disabled style="width:100%;">Envoyer anonymement</button>
       <div id="signalementStatusMsg" style="margin-top:10px;font-size:0.82rem;"></div>
@@ -721,17 +722,11 @@ const STORAGE_KEY = "emsRosterV1";
 let employees = [];
 
 async function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ employees = JSON.parse(raw); return; }
-  }catch(e){ console.warn("Lecture localStorage impossible :", e); }
-  // Rien en local (première ouverture sur ce navigateur/PC) — on tente
-  // de charger la dernière sauvegarde cloud AVANT de se rabattre sur la
-  // liste de départ figée dans le code, pour ne plus jamais montrer une
-  // version périmée par erreur (demandé le 08/09, suite au cas vécu par
-  // un collègue qui s'est retrouvé avec l'ancienne liste de départ).
-  // Important : ne joue JAMAIS ce rôle si quelque chose existe déjà en
-  // local — jamais d'écrasement d'une modification en cours.
+  // Toujours essayer le cloud EN PREMIER maintenant (demandé le 09/09) —
+  // c'est lui la vraie source de vérité, pour que tout le monde parte
+  // toujours de la même version fraîche à l'ouverture, plutôt que de
+  // rester coincé sur une vieille copie locale. Se rabat sur le local
+  // puis sur la liste de départ UNIQUEMENT si le cloud est injoignable.
   try{
     const res = await fetch(ROSTER_CLOUD_URL);
     if(res.ok){
@@ -742,10 +737,34 @@ async function loadState(){
         return;
       }
     }
-  }catch(e){ console.warn("Chargement cloud initial impossible :", e); }
+  }catch(e){ console.warn("Chargement cloud initial impossible, on regarde en local :", e); }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){ employees = JSON.parse(raw); return; }
+  }catch(e){ console.warn("Lecture localStorage impossible :", e); }
   employees = SEED_EMPLOYEES.map(e=>({...e}));
   saveState();
 }
+
+// Sauvegarde automatique en quittant la page (fermeture d'onglet,
+// navigation ailleurs) — demandé le 09/09. Utilise fetch avec
+// keepalive:true, conçu justement pour survivre à la fermeture de la
+// page (contrairement à un fetch normal, qui serait interrompu).
+// Échoue silencieusement si la permission manque (ex: MC) — exactement
+// comme un clic manuel sur "Sauvegarder" échouerait pour ce même niveau.
+function autoSaveOnLeave(){
+  if(!currentFirebaseIdToken) return; // pas connecté ou jeton pas encore prêt — rien à tenter
+  try{
+    fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({employees, savedAt: Date.now()}),
+      keepalive: true,
+    });
+  }catch(e){ /* échec silencieux — on quitte de toute façon */ }
+}
+window.addEventListener("pagehide", autoSaveOnLeave);
+window.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") autoSaveOnLeave(); });
 function saveState(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(employees)); }
   catch(e){ console.warn("Sauvegarde localStorage impossible :", e); }
@@ -2383,11 +2402,20 @@ function signalementSelectedCategories(){
 const signalementReasonInput = document.getElementById("signalementReasonInput");
 signalementReasonInput.addEventListener("input", updateSignalementSubmitState);
 
+const SIGNALEMENT_REASON_MIN_LENGTH = 10; // doit correspondre exactement à la règle Firebase, sinon le message d'erreur serveur reste incompréhensible ("Permission denied" au lieu d'un vrai message)
+
 function updateSignalementSubmitState(){
   const hasPerson = signalementPersonSelect.value !== "";
   const hasCategory = signalementSelectedCategories().length > 0;
-  const hasReason = signalementReasonInput.value.trim().length > 0;
+  const reasonLength = signalementReasonInput.value.trim().length;
+  const hasReason = reasonLength >= SIGNALEMENT_REASON_MIN_LENGTH;
   document.getElementById("signalementSubmitBtn").disabled = !(hasPerson && hasCategory && hasReason);
+  const hint = document.getElementById("signalementReasonHint");
+  if(hint){
+    if(reasonLength === 0){ hint.textContent = `Minimum ${SIGNALEMENT_REASON_MIN_LENGTH} caractères.`; hint.style.color = "var(--text-faint)"; }
+    else if(reasonLength < SIGNALEMENT_REASON_MIN_LENGTH){ hint.textContent = `Encore ${SIGNALEMENT_REASON_MIN_LENGTH - reasonLength} caractère(s) minimum.`; hint.style.color = "var(--amber)"; }
+    else { hint.textContent = "✓ Motif suffisamment détaillé."; hint.style.color = "var(--green)"; }
+  }
 }
 
 document.getElementById("signalementSubmitBtn").addEventListener("click", async ()=>{
