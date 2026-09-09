@@ -14,12 +14,11 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
+const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 const { sign, TOKEN_LIFETIME_MS } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { resolveUserLevel, LEVEL_LABEL } = require("./permissions");
+const { resolveUserLevel, can, LEVEL_LABEL } = require("./permissions");
 const { logAction } = require("./logs");
-
-const PILLBOX_MIN_LEVELS = ["ADD", "CD", "D", "OWNER"]; // MC exclu pour Pillbox, sauf OWNER (déjà indépendant du grade Roster)
 
 exports.handler = async function (event) {
   const {
@@ -120,11 +119,19 @@ exports.handler = async function (event) {
       return redirectWithError(targetSiteUrl, `${reason} Accès refusé.`);
     }
 
-    // 4bis) Pillbox exige ADD et au-dessus — un MC (hors OWNER, déjà
-    // couvert par resolveUserLevel) est refusé ICI, côté serveur,
-    // jamais laissé au frontend de Pillbox de décider tout seul.
-    if (origin === "pillbox" && !PILLBOX_MIN_LEVELS.includes(level)) {
-      return redirectWithError(targetSiteUrl, `${displayName} (${level}) — accès au Terminal Paie réservé à ADD et au-dessus.`);
+    // 4bis) Pillbox exige la permission use_pillbox_terminal — passe
+    // maintenant par le VRAI système (grade + exceptions individuelles),
+    // plus par une liste codée en dur (09/09). Réutilise le jeton
+    // jetable déjà obtenu plus haut pour lire les exceptions.
+    if (origin === "pillbox") {
+      let individualOverrides = null;
+      try {
+        const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${throwawayData.idToken}`);
+        individualOverrides = indivRes.ok ? await indivRes.json() : null;
+      } catch (e) { /* si injoignable, on retombe simplement sur la permission de grade */ }
+      if (!can(level, "use_pillbox_terminal", null, discordId, individualOverrides)) {
+        return redirectWithError(targetSiteUrl, `${displayName} (${level}) — accès au Terminal Paie refusé.`);
+      }
     }
 
     // 5) Génère un jeton signé — c'est LUI qui prouvera l'accès pour les
