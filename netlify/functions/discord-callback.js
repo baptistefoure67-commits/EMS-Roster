@@ -2,12 +2,15 @@
 // discord-callback.js — Fonction Netlify (serveur), JAMAIS envoyée au
 // navigateur. C'est le SEUL endroit qui connaît le Client Secret Discord
 // (lu depuis une variable d'environnement Netlify, jamais écrit en dur
-// ici) — exactement le point que le cahier des charges impose.
+// ici).
 //
-// ÉTAPE 1 (celle-ci) : juste se connecter, retrouver le grade dans le
-// Roster, et l'afficher. AUCUNE protection d'action n'est encore en
-// place à ce stade — ça viendra à l'étape 2 (vérification des
-// permissions côté serveur pour une vraie action).
+// Sert désormais DEUX outils (Roster ET Pillbox Terminal Paie, 09/09) —
+// le paramètre OAuth "state" dit lequel a initié la connexion, pour
+// savoir où rediriger ET quel niveau minimum exiger. Comportement du
+// Roster inchangé (state absent ou "roster" → MC et au-dessus, comme
+// avant) ; Pillbox exige ADD et au-dessus (MC refusé, sauf OWNER dont
+// l'exception est déjà gérée indépendamment du Roster, voir
+// permissions.js).
 // ═══════════════════════════════════════════════════════════════════
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
@@ -16,15 +19,20 @@ const { createFirebaseCustomToken } = require("./firebase-token");
 const { resolveUserLevel, LEVEL_LABEL } = require("./permissions");
 const { logAction } = require("./logs");
 
+const PILLBOX_MIN_LEVELS = ["ADD", "CD", "D", "OWNER"]; // MC exclu pour Pillbox, sauf OWNER (déjà indépendant du grade Roster)
+
 exports.handler = async function (event) {
   const {
     DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, SITE_URL, SESSION_SECRET,
-    FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY,
+    FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY, PILLBOX_SITE_URL,
   } = process.env;
 
   // Garde-fou : si les variables d'environnement ne sont pas encore
   // configurées côté Netlify, on le dit précisément (laquelle manque)
-  // plutôt que de planter sans explication.
+  // plutôt que de planter sans explication. PILLBOX_SITE_URL n'est
+  // exigée QUE si c'est effectivement Pillbox qui se connecte (voir
+  // plus bas) — ne casse rien pour le Roster si elle n'est pas encore
+  // configurée.
   const required = { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, SITE_URL, SESSION_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY };
   const missing = Object.entries(required).filter(([,v]) => !v).map(([k]) => k);
   if (missing.length) {
@@ -35,6 +43,11 @@ exports.handler = async function (event) {
   }
 
   const code = event.queryStringParameters && event.queryStringParameters.code;
+  const origin = (event.queryStringParameters && event.queryStringParameters.state) === "pillbox" ? "pillbox" : "roster";
+  const targetSiteUrl = origin === "pillbox" ? PILLBOX_SITE_URL : SITE_URL;
+  if (origin === "pillbox" && !PILLBOX_SITE_URL) {
+    return { statusCode: 500, body: "Configuration manquante côté serveur — variable PILLBOX_SITE_URL absente sur Netlify." };
+  }
   if (!code) {
     return { statusCode: 400, body: "Code Discord manquant dans la requête." };
   }
@@ -56,7 +69,7 @@ exports.handler = async function (event) {
     });
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
-      return redirectWithError(SITE_URL, `Échec de l'échange avec Discord (${tokenRes.status}) : ${errText.slice(0, 200)}`);
+      return redirectWithError(targetSiteUrl, `Échec de l'échange avec Discord (${tokenRes.status}) : ${errText.slice(0, 200)}`);
     }
     const tokenData = await tokenRes.json();
 
@@ -65,7 +78,7 @@ exports.handler = async function (event) {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     if (!userRes.ok) {
-      return redirectWithError(SITE_URL, "Impossible de récupérer l'identité Discord.");
+      return redirectWithError(targetSiteUrl, "Impossible de récupérer l'identité Discord.");
     }
     const discordUser = await userRes.json();
     const discordId = discordUser.id;
@@ -73,7 +86,23 @@ exports.handler = async function (event) {
 
     // 3) Cherche cet ID Discord dans le Roster — jamais l'inverse (le
     // frontend ne doit jamais pouvoir affirmer lui-même son grade/niveau).
-    const rosterRes = await fetch(ROSTER_URL);
+    // rosterEmsData.read exige désormais une vraie connexion (09/09,
+    // fermeture de la lecture publique) — mais à CE stade précis, on ne
+    // connaît pas encore le niveau de la personne (c'est justement ce
+    // qu'on cherche !). On mint donc un jeton Firebase JETABLE, sans
+    // niveau particulier, juste pour satisfaire "être connecté" le
+    // temps de cette lecture — jamais transmis au navigateur, jamais
+    // réutilisé pour autre chose.
+    const throwawayToken = createFirebaseCustomToken({
+      clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: `lookup:${discordId}`, claims: {},
+    });
+    const throwawayExch = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: throwawayToken, returnSecureToken: true }),
+    });
+    const throwawayData = await throwawayExch.json();
+    if (!throwawayExch.ok) return redirectWithError(targetSiteUrl, "Impossible de vérifier ton grade (échec technique côté Firebase).");
+    const rosterRes = await fetch(`${ROSTER_URL}?auth=${throwawayData.idToken}`);
     const rosterData = rosterRes.ok ? await rosterRes.json() : null;
     const employees = (rosterData && rosterData.employees) || [];
     const rosterMatch = employees.find((e) => e.discordId === discordId && !e.licencie) || null;
@@ -88,7 +117,14 @@ exports.handler = async function (event) {
       const reason = !rosterMatch
         ? `Ton compte Discord (${discordUsername}) n'est pas dans le Roster EMS.`
         : `${rosterMatch.name} (${rosterMatch.grade}) n'a pas un grade reconnu par le système de permissions.`;
-      return redirectWithError(SITE_URL, `${reason} Accès refusé.`);
+      return redirectWithError(targetSiteUrl, `${reason} Accès refusé.`);
+    }
+
+    // 4bis) Pillbox exige ADD et au-dessus — un MC (hors OWNER, déjà
+    // couvert par resolveUserLevel) est refusé ICI, côté serveur,
+    // jamais laissé au frontend de Pillbox de décider tout seul.
+    if (origin === "pillbox" && !PILLBOX_MIN_LEVELS.includes(level)) {
+      return redirectWithError(targetSiteUrl, `${displayName} (${level}) — accès au Terminal Paie réservé à ADD et au-dessus.`);
     }
 
     // 5) Génère un jeton signé — c'est LUI qui prouvera l'accès pour les
@@ -126,7 +162,7 @@ exports.handler = async function (event) {
     // Journalise chaque connexion réussie — utile pour repérer une
     // activité inhabituelle plus tard (voir logs.js).
     await logAction({
-      action: "connexion",
+      action: origin === "pillbox" ? "connexion_pillbox" : "connexion",
       authorDiscordId: discordId,
       authorName: displayName,
       authorLevel: level,
@@ -144,10 +180,10 @@ exports.handler = async function (event) {
     });
     return {
       statusCode: 302,
-      headers: { Location: `${SITE_URL}?${params.toString()}` },
+      headers: { Location: `${targetSiteUrl}?${params.toString()}` },
     };
   } catch (err) {
-    return redirectWithError(SITE_URL, `Erreur inattendue : ${err.message}`);
+    return redirectWithError(targetSiteUrl, `Erreur inattendue : ${err.message}`);
   }
 };
 
