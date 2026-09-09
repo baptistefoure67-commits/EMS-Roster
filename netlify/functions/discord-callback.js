@@ -23,12 +23,14 @@ exports.handler = async function (event) {
   } = process.env;
 
   // Garde-fou : si les variables d'environnement ne sont pas encore
-  // configurées côté Netlify, on le dit clairement plutôt que de planter
-  // sans explication.
-  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !SITE_URL || !SESSION_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
+  // configurées côté Netlify, on le dit précisément (laquelle manque)
+  // plutôt que de planter sans explication.
+  const required = { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, SITE_URL, SESSION_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY };
+  const missing = Object.entries(required).filter(([,v]) => !v).map(([k]) => k);
+  if (missing.length) {
     return {
       statusCode: 500,
-      body: "Configuration manquante côté serveur (variables d'environnement non définies sur Netlify).",
+      body: `Configuration manquante côté serveur — variable(s) absente(s) sur Netlify : ${missing.join(", ")}.`,
     };
   }
 
