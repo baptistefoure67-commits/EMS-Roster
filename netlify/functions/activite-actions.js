@@ -96,7 +96,6 @@ exports.handler = async function (event) {
       if (activiteStreak && activiteStreak[key] !== undefined) mergedStreak[key] = activiteStreak[key];
     });
 
-    console.log("DEBUG activite-actions — scope:", scope, "level:", session.level, "relevantKeys:", [...relevantKeys], "mergedData vide ?", Object.keys(mergedData).length === 0, "mergedStreak vide ?", Object.keys(mergedStreak).length === 0);
     // "streak" peut légitimement finir vide (personne n'a encore de
     // série enregistrée) — dans ce cas, envoyer null plutôt qu'un objet
     // vide {}, car la règle Firebase exige l'un OU l'autre (jamais un
@@ -107,11 +106,7 @@ exports.handler = async function (event) {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: mergedData, streak: streakToSend, savedAt: Date.now() }),
     });
-    if (!saveRes.ok) {
-      const t = await saveRes.text().catch(()=>"");
-      console.log("DEBUG activite-actions — échec Firebase, statut:", saveRes.status, "corps:", t);
-      return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` });
-    }
+    if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
 
     await logAction({
       action: "envoi_pillbox",
