@@ -268,6 +268,8 @@
     <button type="button" class="tab-btn" id="tabOperationBtn">🎓 Opération</button>
     <button type="button" class="tab-btn" id="tabFormateurBtn">📚 Formateur</button>
     <button type="button" class="tab-btn" id="tabPsychologueBtn">🧠 Psychologue</button>
+    <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
+    <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
   </div>
 
   <div id="rosterView">
@@ -323,6 +325,14 @@
     <div class="roles-grid" id="rolesGrid"></div>
   </div>
 
+  <!-- Réservé à CD/D/OWNER (can modify_role_label) — masqué par défaut. -->
+  <div class="card" id="gradeLabelsCard" style="display:none;">
+    <details class="addbox">
+      <summary>Libellés des grades (modifiable)</summary>
+      <div id="gradeLabelsEditor" style="margin-top:12px;"></div>
+    </details>
+  </div>
+
   <div id="duplicatesWarning" style="display:none;"></div>
   <div id="gradeSections"></div>
 
@@ -346,7 +356,7 @@
 
   <div id="signalementView" style="display:none;">
     <div class="card">
-      <h1 style="font-size:1rem;margin:0 0 2px;" id="signalementSecretTitle">🔒 Signalement anonyme</h1>
+      <h1 style="font-size:1rem;margin:0 0 2px;">🔒 Signalement anonyme</h1>
       <div class="sub" style="margin-bottom:10px;">Grades à responsabilité (Médecin/Responsable Formateur, Psychologue, Légiste, Médecin Chef).</div>
       <div style="display:flex;align-items:center;gap:10px;background:var(--bg-0);border:1px dashed var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:0.78rem;">
         🔒 Ton identité n'est jamais enregistrée nulle part — aucun champ de ce formulaire ne l'inclut.
@@ -392,6 +402,16 @@
         <button type="button" class="btn-ghost btn-small" id="signalementRefreshBtn" style="float:right;">↻ Actualiser</button>
       </div>
       <div id="signalementPendingList" class="sub">Chargement…</div>
+    </div>
+
+    <!-- Réservé à ADD et au-dessus (masqué pour MC en JS) — les
+         propositions envoyées par des MC, à valider/refuser/compléter. -->
+    <div class="card" id="propositionsCard" style="display:none;">
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:10px;">
+        📩 Propositions de signalement en attente (MC)
+        <button type="button" class="btn-ghost btn-small" id="propositionsRefreshBtn" style="float:right;">↻ Actualiser</button>
+      </div>
+      <div id="propositionsList" class="sub">Chargement…</div>
     </div>
   </div>
 
@@ -484,6 +504,50 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     </div>
   </div>
 
+  <!-- Réservé à ADD et au-dessus (can view_logs) — masqué par défaut,
+       affiché en JS selon le niveau réel. -->
+  <div id="logsView" style="display:none;">
+    <div class="card">
+      <div class="special-title">🗒️ Journal des actions</div>
+      <div class="special-sub" style="margin-bottom:10px;">Chaque action sensible (connexion, modification, licenciement, signalement, permission) est enregistrée ici automatiquement — impossible à modifier ou supprimer depuis cette interface.</div>
+      <div class="special-controls" style="margin-top:0;">
+        <input type="text" id="logsFilterAuthor" placeholder="Filtrer par auteur..." style="flex:1;min-width:160px;">
+        <input type="text" id="logsFilterTarget" placeholder="Filtrer par personne concernée..." style="flex:1;min-width:160px;">
+        <select id="logsFilterAction">
+          <option value="">Toutes les actions</option>
+          <option value="connexion">Connexion</option>
+          <option value="modification_employe">Modification employé</option>
+          <option value="licenciement">Licenciement</option>
+          <option value="signalement_officiel">Signalement officiel</option>
+          <option value="proposition_signalement">Proposition de signalement</option>
+          <option value="validation_proposition">Validation de proposition</option>
+          <option value="refus_proposition">Refus de proposition</option>
+          <option value="demande_infos_proposition">Demande d'infos (proposition)</option>
+          <option value="modification_permission">Modification de permission</option>
+          <option value="modification_libelle_grade">Modification de libellé</option>
+          <option value="envoi_pillbox">Envoi vers Pillbox</option>
+        </select>
+        <button type="button" class="btn-primary btn-small" id="logsFilterBtn">Filtrer</button>
+        <button type="button" class="btn-ghost btn-small" id="logsRefreshBtn">↻ Actualiser</button>
+      </div>
+      <div class="special-controls" style="margin-top:8px;">
+        <label style="font-size:0.78rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;">Du <input type="date" id="logsFilterDateFrom"></label>
+        <label style="font-size:0.78rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;">Au <input type="date" id="logsFilterDateTo"></label>
+        <input type="text" id="logsFilterSearch" placeholder="Recherche libre dans tout le log..." style="flex:1;min-width:200px;">
+      </div>
+      <div id="logsList" class="special-list" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- Réservé à D et OWNER (can manage_permissions) — masqué par défaut. -->
+  <div id="permissionsView" style="display:none;">
+    <div class="card">
+      <div class="special-title">🔑 Gestion des permissions</div>
+      <div class="special-sub" style="margin-bottom:10px;">Coche ou décoche une permission pour un niveau — ça s'applique immédiatement à tout le monde. OWNER a toujours tout, ce tableau ne le concerne pas.</div>
+      <div id="permissionsTable" class="sub">Chargement…</div>
+    </div>
+  </div>
+
   </div>
 
 </div>
@@ -513,6 +577,61 @@ const GRADE_LABEL = {
   MLP:"Médecin Légiste Pompier", MP:"Médecin Psychologue", MF:"Médecin Formateur", M:"Médecin",
   INF:"Infirmier", A:"Ambulancier", WDV:"WDV", STG:"Stagiaire",
 };
+// Libellés personnalisés (CD/D/OWNER) — appliqués PAR-DESSUS les valeurs
+// ci-dessus dès qu'ils sont chargés. On mute l'objet existant (jamais
+// remplacé) pour que toutes les fonctions qui lisent déjà GRADE_LABEL[x]
+// voient le changement sans rien avoir à modifier ailleurs (09/09).
+async function fetchGradeLabelsSilent(){
+  try{
+    const res = await fetch("/.netlify/functions/manage-labels");
+    const data = await res.json().catch(()=>({}));
+    if(data && data.labels) Object.assign(GRADE_LABEL, data.labels);
+  }catch(err){ console.error("Chargement des libellés personnalisés impossible:", err); }
+  renderAll();
+  renderGradeLabelsEditor();
+}
+
+// Affiche/remplit l'éditeur de libellés — réservé à CD/D/OWNER (juste
+// pour l'affichage ; la vraie vérification reste dans
+// manage-labels.js, jamais ici).
+function renderGradeLabelsEditor(){
+  const card = document.getElementById("gradeLabelsCard");
+  const canEdit = ["CD","D","OWNER"].includes(currentUserLevel);
+  card.style.display = canEdit ? "" : "none";
+  if(!canEdit) return;
+  const box = document.getElementById("gradeLabelsEditor");
+  box.innerHTML = GRADE_ORDER.map(g=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <span class="grade-badge" style="background:${GRADE_COLOR[g]};min-width:44px;text-align:center;">${g}</span>
+      <input type="text" data-grade-label-input="${g}" value="${esc(GRADE_LABEL[g])}" style="flex:1;" maxlength="60">
+      <button type="button" class="btn-ghost btn-small" data-grade-label-save="${g}">Enregistrer</button>
+    </div>
+  `).join("");
+  box.querySelectorAll("[data-grade-label-save]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const g = btn.dataset.gradeLabelSave;
+      const input = box.querySelector(`[data-grade-label-input="${g}"]`);
+      const newLabel = input.value.trim();
+      if(!newLabel) return;
+      btn.disabled = true;
+      try{
+        const res = await fetch("/.netlify/functions/manage-labels", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ token: currentSessionToken, grade: g, label: newLabel }),
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || `${res.status}`);
+        GRADE_LABEL[g] = newLabel;
+        renderAll();
+        toast(`✓ Libellé de ${g} mis à jour`);
+      }catch(err){
+        toast(`✕ Refusé : ${err.message}`);
+      }finally{
+        btn.disabled = false;
+      }
+    });
+  });
+}
 // Couleur d'accent par grade : dégradé "échelle hiérarchique" du doré (haut gradé)
 // vers le bleu-gris (stagiaire), calculé une fois au chargement.
 const GRADE_COLOR = {};
@@ -601,11 +720,29 @@ const SEED_EMPLOYEES = [
 const STORAGE_KEY = "emsRosterV1";
 let employees = [];
 
-function loadState(){
+async function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){ employees = JSON.parse(raw); return; }
   }catch(e){ console.warn("Lecture localStorage impossible :", e); }
+  // Rien en local (première ouverture sur ce navigateur/PC) — on tente
+  // de charger la dernière sauvegarde cloud AVANT de se rabattre sur la
+  // liste de départ figée dans le code, pour ne plus jamais montrer une
+  // version périmée par erreur (demandé le 08/09, suite au cas vécu par
+  // un collègue qui s'est retrouvé avec l'ancienne liste de départ).
+  // Important : ne joue JAMAIS ce rôle si quelque chose existe déjà en
+  // local — jamais d'écrasement d'une modification en cours.
+  try{
+    const res = await fetch(ROSTER_CLOUD_URL);
+    if(res.ok){
+      const data = await res.json();
+      if(data && Array.isArray(data.employees) && data.employees.length){
+        employees = data.employees;
+        saveState();
+        return;
+      }
+    }
+  }catch(e){ console.warn("Chargement cloud initial impossible :", e); }
   employees = SEED_EMPLOYEES.map(e=>({...e}));
   saveState();
 }
@@ -1044,6 +1181,16 @@ function renderAll(){
 function empRowHtml(e, isLicencie){
   const roleTag = e.role ? `<span class="emp-role-tag">${esc(e.role)}</span>` : "";
   const licDate = isLicencie && e.licencieDate ? `<span class="licencie-date">le ${esc(e.licencieDate)}</span>` : "";
+  // Modifier/Licencier/Réintégrer restent réservés à ADD et au-dessus —
+  // masqués ici pour un MC (juste le confort visuel, la vraie
+  // protection reste côté serveur dans protected-write.js).
+  const canManageRoster = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+  const canViewHistory = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+  const historyBtn = canViewHistory ? `<button class="btn-ghost btn-small" data-view-history="${esc(e.name)}" title="Voir l'historique de cette personne">🕘</button>` : "";
+  const actionsHtml = !canManageRoster ? historyBtn : (isLicencie
+    ? `${historyBtn}<button class="btn-ghost btn-small" data-reintegrer="${e.id}">Réintégrer</button>`
+    : `${historyBtn}<button class="btn-ghost btn-small" data-edit="${e.id}">Modifier</button>
+       <button class="btn-danger btn-small" data-licencier="${e.id}">Licencier</button>`);
   return `
     <div class="emp-row ${isLicencie?'licencie':''}" data-id="${e.id}">
       <span class="emp-name">${esc(e.name)}</span>
@@ -1051,11 +1198,7 @@ function empRowHtml(e, isLicencie){
       ${roleTag}
       ${licDate}
       <span class="emp-actions">
-        ${isLicencie
-          ? `<button class="btn-ghost btn-small" data-reintegrer="${e.id}">Réintégrer</button>`
-          : `<button class="btn-ghost btn-small" data-edit="${e.id}">Modifier</button>
-             <button class="btn-danger btn-small" data-licencier="${e.id}">Licencier</button>`
-        }
+        ${actionsHtml}
       </span>
     </div>
     <div class="edit-slot" data-edit-slot="${e.id}"></div>
@@ -1365,6 +1508,14 @@ function buildPlainList(){
 
 function attachRowHandlers(){
 
+  document.querySelectorAll("[data-view-history]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      switchTab("Logs");
+      const input = document.getElementById("logsFilterTarget");
+      if(input){ input.value = el.getAttribute("data-view-history"); }
+      loadLogs();
+    });
+  });
   document.querySelectorAll("[data-copy-id]").forEach(el=>{
     el.addEventListener("click", ()=>copyToClipboard(el.getAttribute("data-copy-id")));
   });
@@ -1480,6 +1631,7 @@ document.getElementById("btnAnalyzeEms").addEventListener("click", ()=>{
   // Formateur/Psychologue — plus besoin de recoller le tableau une
   // deuxième fois ailleurs (demandé le 07/09).
   weekAbsences = parseWeekAbsences(text);
+  saveWeekAbsences();
   renderActiviteTab("formateur"); renderActiviteTab("psychologue");
 });
 
@@ -1639,7 +1791,7 @@ document.getElementById("btnRosterCloudSave").addEventListener("click", async ()
   const original = btn.textContent;
   btn.textContent = "☁️ Sauvegarde en cours…";
   try{
-    const res = await fetch(ROSTER_CLOUD_URL, {
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({employees, savedAt: Date.now()}),
@@ -1789,7 +1941,17 @@ let activiteStreak = {};
 // Absences non vide) — liste de {idUnique, name}, sert UNIQUEMENT à
 // mettre la série en pause au moment de clôturer la semaine, jamais à
 // modifier les chiffres eux-mêmes.
+const WEEK_ABSENCES_KEY = "rosterWeekAbsences_v1";
 let weekAbsences = [];
+function loadWeekAbsences(){
+  try{
+    const raw = localStorage.getItem(WEEK_ABSENCES_KEY);
+    weekAbsences = raw ? JSON.parse(raw) : [];
+  }catch(e){ weekAbsences = []; }
+}
+function saveWeekAbsences(){
+  try{ localStorage.setItem(WEEK_ABSENCES_KEY, JSON.stringify(weekAbsences)); }catch(e){}
+}
 
 function activiteKeyFor(e){ return e.idUnique ? `id:${e.idUnique}` : `name:${e.name.trim().toLowerCase()}`; }
 
@@ -1970,52 +2132,146 @@ document.addEventListener("input", (e)=>{
 //  - absent(e) cette semaine → série inchangée (pause, ni +1 ni remise à 0)
 //  - 0 activité (les deux champs à 0) et pas absent(e) → +1 semaine de suite
 //  - au moins une activité → série remise à 0 (repart de zéro)
-function closeActiviteWeek(type){
+const AUTO_SIGNALEMENT_STREAK_THRESHOLD = 2; // même seuil que l'alerte visuelle
+
+// Crée automatiquement un signalement quand la série de quelqu'un ATTEINT
+// le seuil (jamais à chaque semaine suivante tant que ça continue — juste
+// au moment où ça franchit le seuil, pour ne pas spammer). Utilise le
+// même chemin (signalements/signalements_test) que les signalements
+// manuels, donc visible au même endroit dans Pillbox — juste marqué
+// "auto:true" pour qu'on sache d'où ça vient.
+async function createAutoSignalement(e, streak, categoryLabel){
+  const entry = {
+    personName: e.name,
+    personId: e.idUnique || null,
+    personGrade: (e.grade||"").toUpperCase(),
+    category: "inactivite",
+    reason: `Signalement automatique : ${streak} semaines de suite sans ${categoryLabel} (généré par le suivi d'activité, aucune saisie humaine).`,
+    createdAt: Date.now(),
+    auto: true,
+  };
+  const key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  try{
+    await fetch(signalementsUrl().replace(".json", `/${key}.json`), {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(entry),
+    });
+  }catch(err){ console.error("Échec du signalement automatique:", err); }
+}
+
+// Met à jour la série AVANT de remettre les compteurs à 0 :
+//  - absent(e) cette semaine → série inchangée (pause, ni +1 ni remise à 0)
+//  - 0 activité (les deux champs à 0) et pas absent(e) → +1 semaine de suite
+//  - au moins une activité → série remise à 0 (repart de zéro)
+// Envoie aussi automatiquement un signalement dès que la série franchit
+// le seuil pour la première fois (demandé le 08/09).
+async function closeActiviteWeek(type){
   const isFormateur = type==="formateur";
   const grades = isFormateur ? ["MF","RF"] : ["MP","RP"];
   const [f1,f2] = isFormateur ? ["recrutements","formations"] : ["testsPsy","ppa"];
-  employees.filter(e=>!e.licencie && grades.includes((e.grade||"").toUpperCase())).forEach(e=>{
+  const categoryLabel = isFormateur ? "recrutement/formation" : "PPA/test psy";
+  const concerned = employees.filter(e=>!e.licencie && grades.includes((e.grade||"").toUpperCase()));
+  for(const e of concerned){
     const key = activiteKeyFor(e);
     const rec = activiteData[key] || {};
+    const before = activiteStreak[key]?.streak || 0;
+    let after = before;
     if(isAbsentThisWeek(e)){
       // pause : on ne touche pas à la série, on ne fait que garder les
       // compteurs à 0 comme si de rien n'était (une semaine d'absence
       // n'est ni comptée ni décomptée).
     } else if((rec[f1]||0)===0 && (rec[f2]||0)===0){
-      activiteStreak[key] = { streak: (activiteStreak[key]?.streak||0) + 1 };
+      after = before + 1;
+      activiteStreak[key] = { streak: after };
     } else {
+      after = 0;
       activiteStreak[key] = { streak: 0 };
     }
+    // Signalement auto UNIQUEMENT au moment où on franchit le seuil
+    // (avant < seuil, après >= seuil) — jamais si on était déjà au-dessus.
+    if(before < AUTO_SIGNALEMENT_STREAK_THRESHOLD && after >= AUTO_SIGNALEMENT_STREAK_THRESHOLD){
+      await createAutoSignalement(e, after, categoryLabel);
+    }
     activiteData[key] = {...rec, [f1]:0, [f2]:0};
-  });
+  }
   saveActiviteData(); saveActiviteStreak();
+  // Sauvegarde aussi dans le cloud automatiquement — plus besoin de
+  // cliquer "Sauvegarder" séparément après une clôture (demandé le
+  // 08/09). Précise le type pour ne fusionner que la bonne catégorie
+  // (bug corrigé le 09/09 — appelait sans portée, ce qui envoyait
+  // toujours les deux catégories mélangées).
+  await saveActiviteToCloud(type);
 }
 
-document.getElementById("btnActiviteFormateurReset").addEventListener("click", ()=>{
-  if(!confirm("Clôturer la semaine pour Formateur ? Les compteurs repassent à 0 et l'historique de série est mis à jour (les personnes absentes cette semaine ne comptent pas).")) return;
-  closeActiviteWeek("formateur");
+document.getElementById("btnActiviteFormateurReset").addEventListener("click", async ()=>{
+  if(!confirm("Clôturer la semaine pour Formateur ? Les compteurs repassent à 0, l'historique de série est mis à jour, et un signalement automatique part si quelqu'un franchit le seuil (les personnes absentes cette semaine ne comptent pas).")) return;
+  toast("Clôture en cours…");
+  await closeActiviteWeek("formateur");
   renderActiviteTab("formateur");
-  toast("Semaine Formateur clôturée");
+  toast("Semaine Formateur clôturée et sauvegardée dans le cloud");
 });
-document.getElementById("btnActivitePsyReset").addEventListener("click", ()=>{
-  if(!confirm("Clôturer la semaine pour Psychologue ? Les compteurs repassent à 0 et l'historique de série est mis à jour (les personnes absentes cette semaine ne comptent pas).")) return;
-  closeActiviteWeek("psychologue");
+document.getElementById("btnActivitePsyReset").addEventListener("click", async ()=>{
+  if(!confirm("Clôturer la semaine pour Psychologue ? Les compteurs repassent à 0, l'historique de série est mis à jour, et un signalement automatique part si quelqu'un franchit le seuil (les personnes absentes cette semaine ne comptent pas).")) return;
+  toast("Clôture en cours…");
+  await closeActiviteWeek("psychologue");
   renderActiviteTab("psychologue");
-  toast("Semaine Psychologue clôturée");
+  toast("Semaine Psychologue clôturée et sauvegardée dans le cloud");
 });
 
-async function saveActiviteToCloud(){
+// Envoie le suivi d'activité vers le cloud — passe désormais par une
+// vraie vérification serveur (activite-actions.js), qui revérifie le
+// niveau et le scope avant d'écrire quoi que ce soit (point 14 du
+// cahier des charges : même un appel direct à l'API doit être refusé
+// si la permission manque, pas juste caché côté interface). scope:
+// "formateur" | "psychologue" | "all" (réservé ADD+, utilisé par la
+// clôture automatique qui vient de traiter les deux à la fois).
+async function saveActiviteToCloud(scope){
+  if(!currentSessionToken){
+    toast("Session expirée — reconnecte-toi avec Discord.");
+    showGate("Ta session a expiré, reconnecte-toi.");
+    return;
+  }
   try{
-    const res = await fetch(ACTIVITE_CLOUD_URL, {
-      method:"PUT", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({data: activiteData, streak: activiteStreak, savedAt: Date.now()}),
+    const res = await fetch("/.netlify/functions/activite-actions", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, scope: scope || "all", activiteData, activiteStreak }),
     });
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
     toast("✓ Suivi d'activité envoyé vers Pillbox");
   }catch(err){
     toast(`✕ Échec de l'envoi : ${err.message}`);
   }
 }
+// Déclenchement automatique de la clôture depuis Pillbox : quand Pillbox
+// clique "J'ai terminé cette semaine", il écrit un horodatage
+// (weekFinishedAt) sur ce même chemin cloud. Ici, on compare ça à la
+// dernière clôture qu'on a nous-même traitée (mémorisée en local) — si
+// Pillbox a terminé une semaine plus récente que notre dernière clôture,
+// on déclenche automatiquement closeActiviteWeek() pour les deux,
+// sans avoir besoin de cliquer le bouton manuel (demandé le 08/09).
+const LAST_ACTIVITE_RESET_HANDLED_KEY = "rosterLastActiviteResetHandled_v1";
+async function checkPillboxWeekFinishedSignal(){
+  let lastHandled = 0;
+  try{ lastHandled = parseInt(localStorage.getItem(LAST_ACTIVITE_RESET_HANDLED_KEY), 10) || 0; }catch(e){}
+  try{
+    const res = await fetch(ACTIVITE_CLOUD_URL);
+    if(!res.ok) return;
+    const data = await res.json();
+    const signal = data && data.weekFinishedAt;
+    if(signal && signal > lastHandled){
+      // Récupère d'abord les dernières données cloud (Pillbox a pu tourner
+      // sur un autre PC entre-temps) avant de clôturer, pour ne pas
+      // clôturer une version périmée.
+      if(data.data) activiteData = data.data;
+      if(data.streak) activiteStreak = data.streak;
+      await closeActiviteWeek("formateur");
+      await closeActiviteWeek("psychologue");
+      try{ localStorage.setItem(LAST_ACTIVITE_RESET_HANDLED_KEY, String(signal)); }catch(e){}
+      toast("Semaine clôturée automatiquement (signalée terminée depuis Pillbox)");
+    }
+  }catch(err){ console.error("Vérification du signal de fin de semaine impossible:", err); }
+}
+
 async function loadActiviteFromCloud(){
   try{
     const res = await fetch(ACTIVITE_CLOUD_URL);
@@ -2032,21 +2288,29 @@ async function loadActiviteFromCloud(){
     toast(`✕ Échec du chargement : ${err.message}`);
   }
 }
-document.getElementById("btnActiviteCloudSave").addEventListener("click", saveActiviteToCloud);
+document.getElementById("btnActiviteCloudSave").addEventListener("click", ()=>saveActiviteToCloud("formateur"));
 document.getElementById("btnActiviteCloudLoad").addEventListener("click", loadActiviteFromCloud);
-document.getElementById("btnActivitePsyCloudSave").addEventListener("click", saveActiviteToCloud);
+document.getElementById("btnActivitePsyCloudSave").addEventListener("click", ()=>saveActiviteToCloud("psychologue"));
 document.getElementById("btnActivitePsyCloudLoad").addEventListener("click", loadActiviteFromCloud);
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Logs","Permissions"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
     document.getElementById(`${name.charAt(0).toLowerCase()+name.slice(1)}View`).style.display = (name===active) ? "" : "none";
   });
-  if(active==="Signalement"){ refreshSignalementPersonList(); loadSignalementPending(); }
-  if(active==="Formateur") renderActiviteTab("formateur");
-  if(active==="Psychologue") renderActiviteTab("psychologue");
+  if(active==="Signalement"){
+    refreshSignalementPersonList();
+    loadSignalementPending();
+    loadPropositionsPending();
+    const submitBtn = document.getElementById("signalementSubmitBtn");
+    if(submitBtn) submitBtn.textContent = currentUserLevel==="MC" ? "Proposer un signalement" : "Envoyer anonymement";
+  }
+  if(active==="Formateur"){ renderActiviteTab("formateur"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("formateur")); }
+  if(active==="Psychologue"){ renderActiviteTab("psychologue"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("psychologue")); }
+  if(active==="Logs") loadLogs();
+  if(active==="Permissions") loadPermissionsTable();
 }
 TAB_IDS.forEach(name=>{
   document.getElementById(`tab${name}Btn`).addEventListener("click", ()=>switchTab(name));
@@ -2138,42 +2402,48 @@ document.getElementById("signalementSubmitBtn").addEventListener("click", async 
   submitBtn.textContent = "Envoi en cours…";
   statusMsg.innerHTML = "";
 
-  const entry = {
+  const payload = {
     personName: person.name,
     personId: person.id || null,
     personGrade: person.grade,
     category: cats.join(","),
     reason: reason,
-    createdAt: Date.now(),
   };
   // Rattache un instantané des chiffres d'activité AU MOMENT du
-  // signalement (Partie 4) — pour garder le contexte factuel exact même
-  // si ces chiffres changent ensuite. Uniquement pour les postes suivis
-  // (MF/RF : recrutements+formations ; MP/RP : tests psy+PPA) — rien
-  // pour les autres grades concernés (MC, MLP, RL), qui n'ont pas de
-  // suivi chiffré équivalent.
+  // signalement — pour garder le contexte factuel exact même si ces
+  // chiffres changent ensuite. Uniquement pour les postes suivis (MF/RF
+  // : recrutements+formations ; MP/RP : tests psy+PPA).
   const actKey = person.id ? `id:${person.id}` : `name:${person.name.trim().toLowerCase()}`;
   const act = activiteData[actKey];
   if(act && ["MF","RF"].includes(person.grade)){
-    entry.activiteSnapshot = { recrutements: act.recrutements||0, formations: act.formations||0 };
+    payload.activiteSnapshot = { recrutements: act.recrutements||0, formations: act.formations||0 };
   } else if(act && ["MP","RP"].includes(person.grade)){
-    entry.activiteSnapshot = { testsPsy: act.testsPsy||0, ppa: act.ppa||0 };
+    payload.activiteSnapshot = { testsPsy: act.testsPsy||0, ppa: act.ppa||0 };
   }
-  const key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  // MC ne peut que PROPOSER (jamais créer directement un signalement
+  // officiel) — ADD et au-dessus créent directement l'officiel. Le
+  // choix ici n'est qu'un confort d'affichage : la fonction serveur
+  // revérifie de toute façon le niveau réel avant d'accepter quoi que
+  // ce soit (08/09).
+  const isMc = currentUserLevel === "MC";
+  const action = isMc ? "proposeSignalement" : "createSignalementOfficial";
 
   try{
-    const url = signalementsUrl().replace(".json", `/${key}.json`);
-    const res = await fetch(url, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(entry) });
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    statusMsg.innerHTML = `<span style="color:var(--green);">✓ Signalement envoyé anonymement.</span><br>🔑 Ton code pour le retirer plus tard (à noter MAINTENANT, il ne sera plus jamais réaffiché) : <b style="user-select:all;">${key}</b>`;
+    await signalementServerAction(action, payload);
+    if(isMc){
+      statusMsg.innerHTML = `<span style="color:var(--green);">✓ Proposition envoyée aux ADD et au-dessus — en attente de validation.</span>`;
+    } else {
+      statusMsg.innerHTML = `<span style="color:var(--green);">✓ Signalement officiel créé.</span>`;
+    }
     signalementReasonInput.value = "";
     document.querySelectorAll("#signalementCategoryButtons .cat-btn").forEach(b=>b.classList.remove("active"));
     signalementPersonSelect.value = "";
     loadSignalementPending();
   }catch(err){
-    statusMsg.innerHTML = `<span style="color:var(--red);">✕ Échec de l'envoi (${esc(err.message)}). Réessaie dans un instant.</span>`;
+    statusMsg.innerHTML = `<span style="color:var(--red);">✕ Refusé : ${esc(err.message)}</span>`;
   }finally{
-    submitBtn.textContent = "Envoyer anonymement";
+    submitBtn.textContent = isMc ? "Proposer un signalement" : "Envoyer anonymement";
     updateSignalementSubmitState();
   }
 });
@@ -2188,7 +2458,7 @@ function signalementTimeAgo(ts){
 
 async function loadSignalementPending(){
   const list = document.getElementById("signalementPendingList");
-  const isAdmin = localStorage.getItem("signalementAdmin")==="1";
+  const isAdmin = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
   list.textContent = "Chargement…";
   try{
     const res = await fetch(signalementsUrl());
@@ -2221,6 +2491,209 @@ document.getElementById("signalementPendingList").addEventListener("click", (e)=
 });
 document.getElementById("signalementRefreshBtn").addEventListener("click", loadSignalementPending);
 
+// ═══════════════════════════════════════════════════════════════════
+// PROPOSITIONS DE SIGNALEMENT (circuit MC → ADD+) — 08/09
+// ═══════════════════════════════════════════════════════════════════
+const PROPOSITIONS_URL = `${SIGNALEMENTS_BASE}/signalementPropositions.json`;
+const PROPOSITION_STATUS_LABEL = {
+  pending: "⏳ En attente de validation",
+  accepted: "✅ Acceptée",
+  refused: "❌ Refusée",
+  needs_info: "❓ Infos complémentaires demandées",
+};
+
+function canValidateSignalement(){
+  return ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+}
+
+async function loadPropositionsPending(){
+  const card = document.getElementById("propositionsCard");
+  const list = document.getElementById("propositionsList");
+  card.style.display = canValidateSignalement() ? "" : "none";
+  if(!canValidateSignalement()) return;
+  list.textContent = "Chargement…";
+  try{
+    const res = await fetch(PROPOSITIONS_URL);
+    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const data = await res.json();
+    if(!data){ list.textContent = "Aucune proposition en attente."; return; }
+    const entries = Object.entries(data)
+      .filter(([,p]) => p.status === "pending")
+      .sort((a,b)=> (b[1].createdAt||0)-(a[1].createdAt||0));
+    if(!entries.length){ list.textContent = "Aucune proposition en attente."; return; }
+    list.innerHTML = entries.map(([key,p])=>{
+      const cats = (p.category||"").split(",").map(c=>SIGNALEMENT_CATEGORY_LABEL[c]||c).join(" · ");
+      return `<div style="font-size:0.82rem;padding:8px 0;border-bottom:1px solid var(--border-soft);">
+        <div><b>${esc(p.authorName||"?")}</b> (${esc(p.authorLevel||"?")}) propose un signalement pour <b>${esc(p.personName)}</b>${p.personGrade?` (${esc(SIGNALEMENT_GRADE_LABEL[p.personGrade]||p.personGrade)})`:""}</div>
+        <span style="display:inline-block;font-size:0.72rem;font-weight:700;color:var(--amber);background:rgba(251,191,36,.12);border-radius:5px;padding:1px 6px;margin:4px 0;">${esc(cats)}</span>
+        <div style="margin-top:2px;">${esc(p.reason||"")}</div>
+        <div style="margin-top:2px;color:var(--text-faint);">${signalementTimeAgo(p.createdAt||Date.now())}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-primary btn-small" data-prop-validate="${esc(key)}">✅ Accepter</button>
+          <button type="button" class="btn-danger btn-small" data-prop-refuse="${esc(key)}">❌ Refuser</button>
+          <button type="button" class="btn-ghost btn-small" data-prop-info="${esc(key)}">❓ Demander des infos</button>
+        </div>
+      </div>`;
+    }).join("");
+  }catch(err){
+    list.textContent = `Impossible de charger les propositions (${err.message}).`;
+  }
+}
+document.getElementById("propositionsRefreshBtn").addEventListener("click", loadPropositionsPending);
+document.getElementById("propositionsList").addEventListener("click", async (e)=>{
+  const validateBtn = e.target.closest("[data-prop-validate]");
+  const refuseBtn = e.target.closest("[data-prop-refuse]");
+  const infoBtn = e.target.closest("[data-prop-info]");
+  try{
+    if(validateBtn){
+      if(!confirm("Accepter cette proposition et créer le signalement officiel ?")) return;
+      await signalementServerAction("validateProposition", { propositionId: validateBtn.dataset.propValidate });
+      toast("✓ Proposition acceptée — signalement officiel créé.");
+    } else if(refuseBtn){
+      if(!confirm("Refuser cette proposition ?")) return;
+      await signalementServerAction("refuseProposition", { propositionId: refuseBtn.dataset.propRefuse });
+      toast("Proposition refusée.");
+    } else if(infoBtn){
+      const message = prompt("Quelles informations demander au MC ?");
+      if(message === null) return;
+      await signalementServerAction("requestMoreInfo", { propositionId: infoBtn.dataset.propInfo, message });
+      toast("Demande d'informations envoyée.");
+    } else return;
+    loadPropositionsPending();
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════
+// LOGS (ADD et au-dessus) — 08/09
+// ═══════════════════════════════════════════════════════════════════
+const LOG_ACTION_LABEL = {
+  connexion: "Connexion",
+  modification_employe: "Modification employé",
+  licenciement: "Licenciement",
+  signalement_officiel: "Signalement officiel",
+  proposition_signalement: "Proposition de signalement",
+  validation_proposition: "Validation de proposition",
+  refus_proposition: "Refus de proposition",
+  demande_infos_proposition: "Demande d'infos (proposition)",
+  modification_permission: "Modification de permission",
+};
+
+async function loadLogs(){
+  const list = document.getElementById("logsList");
+  if(!currentSessionToken){ list.textContent = "Session expirée."; return; }
+  list.textContent = "Chargement…";
+  const params = new URLSearchParams({ token: currentSessionToken });
+  const author = document.getElementById("logsFilterAuthor").value.trim();
+  const target = document.getElementById("logsFilterTarget").value.trim();
+  const actionType = document.getElementById("logsFilterAction").value;
+  const dateFrom = document.getElementById("logsFilterDateFrom").value;
+  const dateTo = document.getElementById("logsFilterDateTo").value;
+  const search = document.getElementById("logsFilterSearch").value.trim();
+  if(author) params.set("author", author);
+  if(target) params.set("target", target);
+  if(actionType) params.set("actionType", actionType);
+  if(dateFrom) params.set("dateFrom", String(new Date(dateFrom+"T00:00:00").getTime()));
+  if(dateTo) params.set("dateTo", String(new Date(dateTo+"T23:59:59").getTime()));
+  if(search) params.set("search", search);
+  try{
+    const res = await fetch(`/.netlify/functions/get-logs?${params.toString()}`);
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    if(!data.entries || !data.entries.length){ list.textContent = "Aucune entrée pour ce filtre."; return; }
+    list.innerHTML = data.entries.map(e=>`
+      <div class="special-row" style="grid-template-columns:1fr;display:block;padding:10px 11px;">
+        <div><b>${esc(LOG_ACTION_LABEL[e.action]||e.action)}</b> — ${new Date(e.createdAt).toLocaleString("fr-FR")}</div>
+        <div style="color:var(--text-dim);font-size:0.78rem;margin-top:2px;">
+          Par <b>${esc(e.authorName||"?")}</b> (${esc(e.authorLevel||"?")})
+          ${e.targetName?` → concernait <b>${esc(e.targetName)}</b>`:""}
+        </div>
+        ${e.oldValue||e.newValue ? `<div style="font-size:0.76rem;color:var(--text-faint);margin-top:2px;">${e.oldValue?`Avant : ${esc(e.oldValue)}`:""}${e.oldValue&&e.newValue?" — ":""}${e.newValue?`Après : ${esc(e.newValue)}`:""}</div>` : ""}
+        ${e.details ? `<div style="font-size:0.76rem;color:var(--text-faint);margin-top:2px;">${esc(e.details)}</div>` : ""}
+      </div>
+    `).join("");
+  }catch(err){
+    list.textContent = `Impossible de charger les journaux (${err.message}).`;
+  }
+}
+document.getElementById("logsRefreshBtn").addEventListener("click", loadLogs);
+document.getElementById("logsFilterBtn").addEventListener("click", loadLogs);
+
+// ═══════════════════════════════════════════════════════════════════
+// GESTION DES PERMISSIONS (D et OWNER) — 08/09
+// ═══════════════════════════════════════════════════════════════════
+const PERMISSION_LABEL = {
+  view_roster: "Consulter le Roster",
+  manage_roster: "Modifier/Licencier un employé",
+  manage_ppa: "Gérer les PPA",
+  manage_psy: "Gérer le suivi Psychologue",
+  manage_formations: "Gérer les Formations",
+  manage_recruitments: "Gérer les Recrutements",
+  propose_signalement: "Proposer un signalement",
+  create_signalement: "Créer un signalement officiel",
+  validate_signalement: "Valider/refuser une proposition",
+  manage_retrogradation: "Gérer les rétrogradations",
+  send_pillbox_formation: "Envoyer Formation vers Pillbox",
+  send_pillbox_psychologie: "Envoyer Psychologie vers Pillbox",
+  send_pillbox_all: "Envoyer TOUT vers Pillbox",
+  view_logs: "Consulter les logs",
+  view_member_history: "Consulter l'historique d'un membre",
+  modify_role_label: "Modifier les libellés de rôle",
+  manage_advanced_settings: "Paramètres avancés",
+  manage_permissions: "Gérer les permissions (très sensible)",
+};
+const EDITABLE_LEVELS = ["MC","ADD","CD","D"]; // jamais OWNER, toujours tout
+
+async function loadPermissionsTable(){
+  const box = document.getElementById("permissionsTable");
+  if(!currentSessionToken){ box.textContent = "Session expirée."; return; }
+  box.textContent = "Chargement…";
+  try{
+    const res = await fetch(`/.netlify/functions/manage-permissions?token=${encodeURIComponent(currentSessionToken)}`);
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    const allPerms = Object.keys(PERMISSION_LABEL);
+    box.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+      <thead><tr>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border-soft);">Permission</th>
+        ${EDITABLE_LEVELS.map(l=>`<th style="padding:6px;border-bottom:1px solid var(--border-soft);">${l}</th>`).join("")}
+      </tr></thead>
+      <tbody>
+        ${allPerms.map(p=>`<tr>
+          <td style="padding:6px;color:var(--text-dim);">${esc(PERMISSION_LABEL[p])}</td>
+          ${EDITABLE_LEVELS.map(l=>`<td style="text-align:center;padding:6px;">
+            <input type="checkbox" data-perm="${p}" data-level="${l}" ${data.permissions?.[l]?.[p] ? "checked" : ""} ${p==="manage_permissions" && currentUserLevel!=="OWNER" ? "disabled title='Seul OWNER peut modifier ceci'" : ""}>
+          </td>`).join("")}
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
+    box.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+      cb.addEventListener("change", async ()=>{
+        cb.disabled = true;
+        try{
+          const res = await fetch("/.netlify/functions/manage-permissions", {
+            method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, level: cb.dataset.level, permissionName: cb.dataset.perm, value: cb.checked }),
+          });
+          const d = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(d.error || `${res.status}`);
+          toast(`✓ ${PERMISSION_LABEL[cb.dataset.perm]} pour ${cb.dataset.level} : ${cb.checked ? "activé" : "désactivé"}`);
+        }catch(err){
+          cb.checked = !cb.checked; // annule visuellement si refusé
+          toast(`✕ Refusé : ${err.message}`);
+        }finally{
+          if(!(cb.dataset.perm==="manage_permissions" && currentUserLevel!=="OWNER")) cb.disabled = false;
+        }
+      });
+    });
+  }catch(err){
+    box.textContent = `Impossible de charger les permissions (${err.message}).`;
+  }
+}
+
+
 // ── Retrait par code ──
 document.getElementById("signalementWithdrawBtn").addEventListener("click", async ()=>{
   const code = document.getElementById("signalementWithdrawCodeInput").value.trim();
@@ -2242,27 +2715,10 @@ document.getElementById("signalementWithdrawBtn").addEventListener("click", asyn
   }
 });
 
-// ── Mode admin caché : 5 clics rapides sur le titre, comme dans l'outil
-// de signalement autonome — même mot de passe à changer avant de partager. ──
-const SIGNALEMENT_ADMIN_SECRET = "pillbox-signalement-2026";
-let signalementClickTimes = [];
-document.getElementById("signalementSecretTitle").addEventListener("click", ()=>{
-  const now = Date.now();
-  signalementClickTimes = signalementClickTimes.filter(t => now - t < 3000);
-  signalementClickTimes.push(now);
-  if(signalementClickTimes.length >= 5){
-    signalementClickTimes = [];
-    if(localStorage.getItem("signalementAdmin")==="1"){ alert("Mode admin déjà activé sur cet appareil."); return; }
-    const pass = prompt("Mot de passe admin :");
-    if(pass===SIGNALEMENT_ADMIN_SECRET){
-      localStorage.setItem("signalementAdmin","1");
-      alert("Mode admin activé sur cet appareil.");
-      loadSignalementPending();
-    } else if(pass!==null){
-      alert("Mot de passe incorrect.");
-    }
-  }
-});
+// Mode admin par mot de passe entièrement supprimé (08/09) — les droits
+// de gestion des signalements dépendent désormais uniquement du niveau
+// réel (ADD/CD/D/OWNER), déterminé côté serveur à la connexion Discord.
+// Plus aucun mot de passe, plus aucun bouton "mode admin".
 
 // ═══════════════════════════ INIT ═══════════════════════════
 // ═══════════════════════════════════════════════════════════════════
@@ -2277,11 +2733,46 @@ document.getElementById("signalementSecretTitle").addEventListener("click", ()=>
 // ═══════════════════════════════════════════════════════════════════
 const DISCORD_CLIENT_ID = "1546550001864282122";
 const DISCORD_REDIRECT_URI = "https://roster-ems.netlify.app/.netlify/functions/discord-callback"; // à adapter à ta vraie adresse Netlify
+// Clé Web publique de ton projet Firebase (PAS un secret — c'est fait pour
+// être visible dans le code, exactement comme le Client ID Discord).
+// Console Firebase → ⚙️ Paramètres du projet → onglet "Général" → tout en
+// bas dans "Vos applications" → "Clé API Web". À remplacer une fois
+// récupérée (voir le guide donné à part).
+const FIREBASE_WEB_API_KEY = "AIzaSyCUS94X-UrMX-Jc8nts5I58mI00MgrdY7I";
 
 // Jeton de session — gardé UNIQUEMENT en mémoire JS (jamais localStorage,
 // cohérent avec "pas de mémorisation, reconnexion à chaque fois"). Perdu
 // à chaque rechargement, exactement comme le reste de la session.
 let currentSessionToken = null;
+// Niveau réel de la personne connectée (MC/ADD/CD/D/OWNER) — déterminé
+// UNIQUEMENT côté serveur à la connexion Discord, jamais choisi ou
+// modifiable depuis ce fichier. Sert seulement à adapter l'AFFICHAGE
+// (afficher/cacher des boutons) — la vraie protection reste toujours
+// côté serveur pour chaque action sensible (08/09).
+let currentUserLevel = null;
+// Jeton d'identité Firebase — c'est LUI qui prouve à Firebase lui-même
+// (pas juste à ce site) que tu es bien connecté(e) avec le bon grade.
+// Ajouté (?auth=...) aux écritures sensibles sur Firebase (08/09).
+let currentFirebaseIdToken = null;
+
+// Échange le jeton personnalisé Firebase (reçu de Discord-callback)
+// contre un vrai "jeton d'identité" utilisable — étape obligatoire de
+// Firebase Auth, via son propre point d'accès public.
+async function exchangeFirebaseCustomToken(customToken){
+  try{
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || `${res.status}`);
+    return data.idToken;
+  }catch(err){
+    console.error("Échange du jeton Firebase impossible:", err);
+    return null;
+  }
+}
 
 function goToDiscordLogin(){
   const params = new URLSearchParams({
@@ -2299,11 +2790,17 @@ function showGate(errorMsg){
   document.getElementById("appContent").style.display = "none";
   document.getElementById("accessGateError").textContent = errorMsg || "";
   currentSessionToken = null;
+  currentFirebaseIdToken = null;
+  currentUserLevel = null;
 }
 function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
-  document.getElementById("discordAuthStatus").innerHTML = `✅ Connecté(e) en tant que <b>${esc(session.name)}</b> — grade : <b>${esc(session.grade)}</b>`;
+  document.getElementById("discordAuthStatus").innerHTML = `${session.level==="OWNER"?"👑":"✅"} <b>${esc(session.name)}</b> — ${esc(session.levelLabel)}`;
+  document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","OWNER"].includes(currentUserLevel) ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = ["D","OWNER"].includes(currentUserLevel) ? "" : "none";
+  renderGradeLabelsEditor();
+  renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
 }
 
 // Point de passage unique pour les actions sensibles — envoie le jeton,
@@ -2326,6 +2823,34 @@ async function protectedAction(action, payload){
   return data;
 }
 
+// Même principe, pour le circuit MC → ADD+ des signalements (proposer,
+// valider, refuser, demander des infos, créer un signalement officiel).
+async function signalementServerAction(action, payload){
+  if(!currentSessionToken){
+    toast("Session expirée — reconnecte-toi avec Discord.");
+    showGate("Ta session a expiré, reconnecte-toi.");
+    throw new Error("no session token");
+  }
+  const res = await fetch("/.netlify/functions/signalement-actions", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ token: currentSessionToken, action, payload }),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  return data;
+}
+
+// Ajoute le vrai jeton Firebase à une URL Firebase pour une écriture
+// authentifiée — à utiliser pour toute écriture directe (hors
+// protectedAction ci-dessus) sur un chemin dont la règle Firebase exige
+// désormais une vraie connexion (rosterEmsData en premier, 08/09).
+function withFirebaseAuth(url){
+  if(!currentFirebaseIdToken) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}auth=${currentFirebaseIdToken}`;
+}
+
 // Déconnexion manuelle (bouton) — repasse derrière l'écran de blocage
 // immédiatement, sans avoir à recharger la page.
 document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
@@ -2336,13 +2861,23 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
 // page, la fermer, ou revenir plus tard oblige à repasser par Discord à
 // chaque fois. Seul le retour DIRECT de Discord (juste après avoir
 // autorisé) donne accès, jamais un ancien état mémorisé.
-(function checkDiscordAuthReturn(){
+(async function checkDiscordAuthReturn(){
   const params = new URLSearchParams(window.location.search);
   if(params.get("discord_ok")==="1"){
-    const session = { id: params.get("discord_id"), name: params.get("discord_name"), grade: params.get("discord_grade") };
+    const session = { id: params.get("discord_id"), name: params.get("discord_name"), level: params.get("discord_level"), levelLabel: params.get("discord_level_label") };
+    currentUserLevel = session.level;
     currentSessionToken = params.get("discord_token") || null;
+    const firebaseCustomToken = params.get("firebase_token") || null;
     window.history.replaceState(null, "", window.location.pathname);
     showApp(session);
+    // Échange le jeton Firebase en arrière-plan — l'app est déjà
+    // affichée entre-temps (juste les écritures sensibles attendront ce
+    // jeton, via withFirebaseAuth() qui renvoie l'URL sans rien y
+    // ajouter tant qu'il n'est pas prêt, donc rien ne casse).
+    if(firebaseCustomToken){
+      currentFirebaseIdToken = await exchangeFirebaseCustomToken(firebaseCustomToken);
+      if(!currentFirebaseIdToken) toast("⚠ Authentification Firebase impossible — certaines sauvegardes cloud risquent d'être refusées.");
+    }
     return;
   } else if(params.get("discord_ok")==="0"){
     window.history.replaceState(null, "", window.location.pathname);
@@ -2352,14 +2887,19 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
   showGate();
 })();
 
-loadState();
-loadHistory();
-loadSpecialSelection();
-loadActiviteData();
-populateGradeSelects();
-renderRoles();
-renderAll();
-refreshSignalementPersonList();
+(async ()=>{
+  await loadState();
+  loadHistory();
+  loadSpecialSelection();
+  loadActiviteData();
+  loadWeekAbsences();
+  populateGradeSelects();
+  renderRoles();
+  renderAll();
+  refreshSignalementPersonList();
+  checkPillboxWeekFinishedSignal();
+  fetchGradeLabelsSilent();
+})();
 </script>
 </body>
 </html>
