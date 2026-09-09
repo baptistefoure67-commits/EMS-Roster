@@ -49,6 +49,8 @@ exports.handler = async function (event) {
     if (q.author) entries = entries.filter(e => (e.authorName||"").toLowerCase().includes(q.author.toLowerCase()));
     if (q.target) entries = entries.filter(e => (e.targetName||"").toLowerCase().includes(q.target.toLowerCase()));
     if (q.actionType) entries = entries.filter(e => e.action === q.actionType);
+    if (q.dateFrom) entries = entries.filter(e => (e.createdAt||0) >= Number(q.dateFrom));
+    if (q.dateTo) entries = entries.filter(e => (e.createdAt||0) <= Number(q.dateTo));
     if (q.search) {
       const s = q.search.toLowerCase();
       entries = entries.filter(e => JSON.stringify(e).toLowerCase().includes(s));
