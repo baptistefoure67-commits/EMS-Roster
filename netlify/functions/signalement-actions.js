@@ -63,16 +63,10 @@ exports.handler = async function (event) {
       const entry = { personName, personId: personId || null, personGrade: personGrade || null, category: cats.join(","), reason: reason.trim(), createdAt: Date.now() };
       if (activiteSnapshot) entry.activiteSnapshot = activiteSnapshot;
       const sigKey = crypto.randomUUID();
-      console.log("DEBUG createSignalementOfficial — entry envoyée:", JSON.stringify(entry));
-      console.log("DEBUG createSignalementOfficial — session.level:", session.level, "discordId:", session.discordId);
       const res = await fetch(authedUrl(SIGNALEMENTS_URL.replace(".json", `/${sigKey}.json`)), {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry),
       });
-      if (!res.ok) {
-        const t = await res.text().catch(()=>"");
-        console.log("DEBUG createSignalementOfficial — échec Firebase, statut:", res.status, "corps:", t);
-        return json(502, { error: `Échec (${res.status}) : ${t.slice(0,200)}` });
-      }
+      if (!res.ok) { const t = await res.text().catch(()=>""); return json(502, { error: `Échec (${res.status}) : ${t.slice(0,200)}` }); }
 
       await logAction({
         action: "signalement_officiel", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
