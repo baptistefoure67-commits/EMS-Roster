@@ -654,64 +654,14 @@ const ROLES_REF = [
 
 // Liste de départ (pré-remplie depuis ta liste + grades relevés sur le tableau EMS).
 // Ne sert que si le navigateur n'a encore rien en mémoire, ou après "Réinitialiser".
+// Liste de départ VIDE (09/09) — plus aucune donnée d'employé réelle
+// écrite en dur dans ce fichier public. Auparavant, 57 employés (nom,
+// ID Discord, grade) étaient directement lisibles par n'importe qui via
+// "Afficher le code source", sans connexion ni Firebase — faille
+// corrigée en vidant cette liste. Le Roster se peuple désormais
+// UNIQUEMENT via le cloud (voir loadState()) ou un import manuel — plus
+// aucun repli automatique vers des données fictives ou réelles ici.
 const SEED_EMPLOYEES = [
-  ["Alex Nezox","518159800257740811","STG"],
-  ["Alexandre Fournier","852160127766757436","A"],
-  ["Alvaro Alvarese","1143075408846262274","STG"],
-  ["Kevin Lay","1281693242433208404","STG"],
-  ["Lilia Garcia","1119204462104432710","STG"],
-  ["Lucas Lutor","912693796943315014","STG"],
-  ["Malbac Morales","495763579081981963","WDV"],
-  ["Moha Sato","895307108201951272","STG"],
-  ["Nathan Molda","1313567565687165029","STG"],
-  ["Sébastien Paul","1040990811757744138","WDV"],
-  ["Taylor Walker","654362533888786472","STG"],
-  ["Aaliyah Babidi","888085010949738536","A"],
-  ["Ali Mala","1495185160528859277","A"],
-  ["Ava Kobayashi","747513913221972081","A"],
-  ["Aziz Bendoudalik","1212332086782861424","A"],
-  ["Blue Billy","887775855760261141","A"],
-  ["Bryan Creed","953003956622213140","A"],
-  ["Carl Bobinson","998694338517270679","A"],
-  ["Carlos Dosbrostacos","766390725813600306","A"],
-  ["Carlos Wesley","1001628351045312573","A"],
-  ["Cash Money","1063874622329729065","A"],
-  ["Diego Moretti","1252679987115458611","A"],
-  ["Izra Babidi","803729590928408617","WDV"],
-  ["Lorenzo Moretti","1110207349731360808","WDV"],
-  ["Miguel Santos","1343667746478493706","WDV"],
-  ["Mourrah Keuch","937448938682855504","A"],
-  ["Nico Sbord","1112119345427001435","A"],
-  ["Noah James","1129745085744025620","WDV"],
-  ["Pablo Akada","727204057973784617","A"],
-  ["Ryan Connor","1043291927237378049","A"],
-  ["Santos Messi","1357993550096371793","WDV"],
-  ["Tito Barinet","182290937190416384","A"],
-  ["Djam Mas","871023722520264714","INF"],
-  ["Franco Descuaro","1075897299416400072","INF"],
-  ["Marouan Raba","1496878959273705542","INF"],
-  ["Ray Cooper","911686634351759370","INF"],
-  ["Jason Flaga","936693580527972363","M"],
-  ["William Bradford","1155340672077926463","M"],
-  ["Leto Mendez","263758146177204225","MF"],
-  ["Yanisse Doumbia","857336800137969695","MF"],
-  ["Eve Gunther","336843152679763968","MP"],
-  ["Jean-Louis Boualem","1129046423896334426","MP"],
-  ["Leyah Akada","1339800960637075547","RF"],
-  ["Yanis Bou","1123331104724746311","RF"],
-  ["Maxwells House","963532965609082971","RP"],
-  ["Aiden Ishigami","227444055594893312","MC"],
-  ["Baptiste Fore","861557966083850250","MC"],
-  ["Cloé White","881570935679909918","MC"],
-  ["Ibra Salvatore","236199452786950154","MC"],
-  ["Kais Salvatore","1305227744631586858","MC"],
-  ["Moussa Sako","701698983466106903","MC"],
-  ["Aaron Stopenski","873209274023690303","ADD"],
-  ["Weed Crazy","142072774880395265","ADD"],
-  ["Jack Dubois","711192575301779488","CD"],
-  ["Tio War","408669016039882752","CD"],
-  ["Michel Gérard","1047212037886971986","D"],
-  ["Papy Alucard Saotome","51487127135243469","DG"],
 ].map(([name,discordId,grade],i)=>({
   id:"seed-"+i, name, discordId, grade, role:"", licencie:false, licencieDate:null, idUnique:null,
 }));
@@ -722,22 +672,25 @@ const STORAGE_KEY = "emsRosterV1";
 let employees = [];
 
 async function loadState(){
-  // Toujours essayer le cloud EN PREMIER maintenant (demandé le 09/09) —
-  // c'est lui la vraie source de vérité, pour que tout le monde parte
-  // toujours de la même version fraîche à l'ouverture, plutôt que de
-  // rester coincé sur une vieille copie locale. Se rabat sur le local
-  // puis sur la liste de départ UNIQUEMENT si le cloud est injoignable.
-  try{
-    const res = await fetch(ROSTER_CLOUD_URL);
-    if(res.ok){
-      const data = await res.json();
-      if(data && Array.isArray(data.employees) && data.employees.length){
-        employees = data.employees;
-        saveState();
-        return;
+  // Le cloud n'est interrogé QUE si un jeton Firebase authentifié est
+  // déjà disponible — depuis que rosterEmsData.read exige une vraie
+  // connexion (09/09, fermeture de la lecture publique), un appel sans
+  // jeton échouerait de toute façon. Avant la connexion, on reste sur
+  // le local (ou vide) ; la vraie donnée arrive juste après le login,
+  // quand cette fonction est rappelée (voir showApp()).
+  if(currentFirebaseIdToken){
+    try{
+      const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
+      if(res.ok){
+        const data = await res.json();
+        if(data && Array.isArray(data.employees) && data.employees.length){
+          employees = data.employees;
+          saveState();
+          return;
+        }
       }
-    }
-  }catch(e){ console.warn("Chargement cloud initial impossible, on regarde en local :", e); }
+    }catch(e){ console.warn("Chargement cloud impossible, on regarde en local :", e); }
+  }
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){ employees = JSON.parse(raw); return; }
@@ -1743,7 +1696,7 @@ document.getElementById("btnCloudSend").addEventListener("click", async ()=>{
   try{
     // ── Étape 1 : vérifier ce qu'il y a déjà côté Pillbox avant d'envoyer ──
     btn.textContent = "☁️ Vérification en cours…";
-    const currentRes = await fetch(CLOUD_DB_URL);
+    const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
     let currentText = "";
     if(currentRes.ok){
       const data = await currentRes.json().catch(()=>null);
@@ -2898,13 +2851,19 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
     const firebaseCustomToken = params.get("firebase_token") || null;
     window.history.replaceState(null, "", window.location.pathname);
     showApp(session);
-    // Échange le jeton Firebase en arrière-plan — l'app est déjà
-    // affichée entre-temps (juste les écritures sensibles attendront ce
-    // jeton, via withFirebaseAuth() qui renvoie l'URL sans rien y
-    // ajouter tant qu'il n'est pas prêt, donc rien ne casse).
+    // Échange le jeton Firebase — indispensable maintenant pour LIRE le
+    // Roster (rosterEmsData.read exige une vraie connexion depuis le
+    // 09/09, fermeture de la lecture publique). Tant que ce jeton n'est
+    // pas prêt, l'app affiche ce qu'elle a en local (souvent rien) —
+    // dès qu'il arrive, on recharge pour de vrai depuis le cloud.
     if(firebaseCustomToken){
       currentFirebaseIdToken = await exchangeFirebaseCustomToken(firebaseCustomToken);
-      if(!currentFirebaseIdToken) toast("⚠ Authentification Firebase impossible — certaines sauvegardes cloud risquent d'être refusées.");
+      if(!currentFirebaseIdToken){
+        toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
+      } else {
+        await loadState();
+        populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+      }
     }
     return;
   } else if(params.get("discord_ok")==="0"){
