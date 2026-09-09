@@ -542,16 +542,49 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 
   <!-- Réservé à D et OWNER (can manage_permissions) — masqué par défaut. -->
   <div id="permissionsView" style="display:none;">
-    <div class="card">
-      <div class="special-title">🔑 Gestion des permissions</div>
+    <div class="card" id="permissionsGradeTableCard">
+      <div class="special-title">🔑 Gestion des permissions par grade</div>
       <div class="special-sub" style="margin-bottom:10px;">Coche ou décoche une permission pour un niveau — ça s'applique immédiatement à tout le monde. OWNER a toujours tout, ce tableau ne le concerne pas.</div>
       <div id="permissionsTable" class="sub">Chargement…</div>
+    </div>
+
+    <!-- Réservé à CD/D/DG/OWNER (can manage_individual_permissions). -->
+    <div class="card" id="individualPermissionsCard" style="display:none;">
+      <div class="special-title">👤 Exceptions individuelles</div>
+      <div class="special-sub" style="margin-bottom:10px;">Donne ou retire une permission précise à UNE personne, sans toucher à son grade. Une décision d'un niveau supérieur l'emporte toujours sur celle d'un niveau inférieur (DG &gt; D &gt; CD).</div>
+      <select id="individualPermPersonSelect" style="width:100%;margin-bottom:10px;">
+        <option value="">— Choisir une personne —</option>
+      </select>
+      <div id="individualPermPersonInfo" class="sub"></div>
+      <div id="individualPermTable" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- ADD : créer une demande + voir les siennes. CD+ : voir et traiter les demandes en attente. -->
+    <div class="card" id="permissionRequestsCard" style="display:none;">
+      <div class="special-title">📨 Demandes de permissions</div>
+      <div id="permissionRequestCreateBox" style="display:none;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border-soft);">
+        <div class="special-sub" style="margin-bottom:8px;">Demande une exception individuelle pour quelqu'un — un CD minimum devra valider avant que ça s'applique.</div>
+        <select id="permReqPersonSelect" style="width:100%;margin-bottom:8px;">
+          <option value="">— Personne concernée —</option>
+        </select>
+        <select id="permReqPermissionSelect" style="width:100%;margin-bottom:8px;">
+          <option value="">— Permission concernée —</option>
+        </select>
+        <select id="permReqValueSelect" style="width:100%;margin-bottom:8px;">
+          <option value="true">Autoriser</option>
+          <option value="false">Refuser</option>
+        </select>
+        <button type="button" class="btn-primary btn-small" id="permReqCreateBtn">Créer la demande</button>
+        <div id="permReqCreateMsg" style="margin-top:8px;font-size:0.82rem;"></div>
+      </div>
+      <div id="permissionRequestsList" class="sub">Chargement…</div>
     </div>
   </div>
 
   </div>
 
 </div>
+
 
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;align-items:center;justify-content:center;">
   <div class="card" style="max-width:640px;width:92%;max-height:80vh;overflow-y:auto;">
@@ -597,7 +630,7 @@ async function fetchGradeLabelsSilent(){
 // manage-labels.js, jamais ici).
 function renderGradeLabelsEditor(){
   const card = document.getElementById("gradeLabelsCard");
-  const canEdit = ["CD","D","OWNER"].includes(currentUserLevel);
+  const canEdit = ["CD","D","DG","OWNER"].includes(currentUserLevel);
   card.style.display = canEdit ? "" : "none";
   if(!canEdit) return;
   const box = document.getElementById("gradeLabelsEditor");
@@ -1156,8 +1189,8 @@ function empRowHtml(e, isLicencie){
   // Modifier/Licencier/Réintégrer restent réservés à ADD et au-dessus —
   // masqués ici pour un MC (juste le confort visuel, la vraie
   // protection reste côté serveur dans protected-write.js).
-  const canManageRoster = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
-  const canViewHistory = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+  const canManageRoster = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canViewHistory = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   const historyBtn = canViewHistory ? `<button class="btn-ghost btn-small" data-view-history="${esc(e.name)}" title="Voir l'historique de cette personne">🕘</button>` : "";
   const actionsHtml = !canManageRoster ? historyBtn : (isLicencie
     ? `${historyBtn}<button class="btn-ghost btn-small" data-reintegrer="${e.id}">Réintégrer</button>`
@@ -2282,7 +2315,7 @@ function switchTab(active){
   if(active==="Formateur"){ renderActiviteTab("formateur"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("formateur")); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("psychologue")); }
   if(active==="Logs") loadLogs();
-  if(active==="Permissions") loadPermissionsTable();
+  if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
 }
 TAB_IDS.forEach(name=>{
   document.getElementById(`tab${name}Btn`).addEventListener("click", ()=>switchTab(name));
@@ -2439,7 +2472,7 @@ function signalementTimeAgo(ts){
 
 async function loadSignalementPending(){
   const list = document.getElementById("signalementPendingList");
-  const isAdmin = ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+  const isAdmin = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   list.textContent = "Chargement…";
   try{
     const res = await fetch(signalementsUrl());
@@ -2484,7 +2517,7 @@ const PROPOSITION_STATUS_LABEL = {
 };
 
 function canValidateSignalement(){
-  return ["ADD","CD","D","OWNER"].includes(currentUserLevel);
+  return ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
 }
 
 async function loadPropositionsPending(){
@@ -2624,10 +2657,19 @@ const PERMISSION_LABEL = {
   modify_role_label: "Modifier les libellés de rôle",
   manage_advanced_settings: "Paramètres avancés",
   manage_permissions: "Gérer les permissions (très sensible)",
+  use_pillbox_terminal: "Accéder au Terminal Paie (Pillbox)",
+  manage_individual_permissions: "Gérer les exceptions individuelles",
+  request_individual_permission: "Demander une exception individuelle",
+  review_permission_requests: "Valider/refuser une demande",
+  cancel_lower_decisions: "Annuler une décision d'un niveau inférieur",
+  reopen_week: "Réouvrir une semaine de paie",
+  delete_week: "Supprimer une semaine de paie",
 };
-const EDITABLE_LEVELS = ["MC","ADD","CD","D"]; // jamais OWNER, toujours tout
+const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
 async function loadPermissionsTable(){
+  document.getElementById("permissionsGradeTableCard").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  if(!["D","DG","OWNER"].includes(currentUserLevel)) return;
   const box = document.getElementById("permissionsTable");
   if(!currentSessionToken){ box.textContent = "Session expirée."; return; }
   box.textContent = "Chargement…";
@@ -2673,6 +2715,185 @@ async function loadPermissionsTable(){
     box.textContent = `Impossible de charger les permissions (${err.message}).`;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// EXCEPTIONS INDIVIDUELLES (09/09) — réservé à CD/D/DG/OWNER.
+// ═══════════════════════════════════════════════════════════════════
+const INDIVIDUAL_PERM_KEYS = Object.keys(PERMISSION_LABEL).filter(k => k !== "manage_permissions"); // manage_permissions reste géré par grade uniquement, trop sensible pour une exception
+let individualPermsCache = null;
+
+async function renderIndividualPermissionsCard(){
+  const card = document.getElementById("individualPermissionsCard");
+  const canManage = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+  card.style.display = canManage ? "" : "none";
+  if(!canManage) return;
+
+  const select = document.getElementById("individualPermPersonSelect");
+  const currentValue = select.value;
+  select.innerHTML = `<option value="">— Choisir une personne —</option>` +
+    employees.filter(e=>!e.licencie).map(e=>`<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
+  select.value = currentValue;
+
+  try{
+    const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
+    const data = await res.json().catch(()=>({}));
+    if(res.ok) individualPermsCache = data.individualPermissions || {};
+  }catch(err){ /* le tableau se rechargera au prochain changement de sélection */ }
+
+  renderIndividualPermTableForSelected();
+}
+document.getElementById("individualPermPersonSelect").addEventListener("change", renderIndividualPermTableForSelected);
+
+function renderIndividualPermTableForSelected(){
+  const select = document.getElementById("individualPermPersonSelect");
+  const discordId = select.value;
+  const info = document.getElementById("individualPermPersonInfo");
+  const table = document.getElementById("individualPermTable");
+  if(!discordId){ info.textContent = ""; table.innerHTML = ""; return; }
+  const emp = employees.find(e=>e.discordId===discordId);
+  info.textContent = emp ? `${emp.name} — grade actuel : ${emp.grade}` : "";
+
+  const myLayer = currentUserLevel === "OWNER" ? "DG" : currentUserLevel; // même règle que côté serveur
+  const personEntry = (individualPermsCache && individualPermsCache[discordId]) || {};
+
+  table.innerHTML = INDIVIDUAL_PERM_KEYS.map(perm=>{
+    const layers = personEntry[perm] || { CD:null, D:null, DG:null };
+    // couche active = la plus haute qui a une valeur
+    let activeLayer = null, activeValue = null;
+    for(const l of ["DG","D","CD"]){
+      if(layers[l] === true || layers[l] === false){ activeLayer = l; activeValue = layers[l]; break; }
+    }
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
+      <span style="flex:1;">${esc(PERMISSION_LABEL[perm]||perm)}</span>
+      <button type="button" class="btn-small ${activeValue===null?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="cancel">Hériter</button>
+      <button type="button" class="btn-small ${activeValue===true?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="true">Autorisé</button>
+      <button type="button" class="btn-small ${activeValue===false?'btn-danger':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="false">Refusé</button>
+      ${activeLayer ? `<span style="font-size:0.7rem;color:var(--text-faint);">(${activeLayer})</span>` : ""}
+    </div>`;
+  }).join("");
+
+  table.querySelectorAll("[data-indiv-set]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const perm = btn.dataset.indivSet;
+      const valueStr = btn.dataset.indivValue;
+      btn.disabled = true;
+      try{
+        const payload = valueStr === "cancel"
+          ? { token: currentSessionToken, action:"cancel", targetDiscordId: discordId, permissionName: perm, cancelLayer: myLayer }
+          : { token: currentSessionToken, action:"set", targetDiscordId: discordId, permissionName: perm, value: valueStr === "true" };
+        const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || `${res.status}`);
+        individualPermsCache = individualPermsCache || {};
+        individualPermsCache[discordId] = individualPermsCache[discordId] || {};
+        individualPermsCache[discordId][perm] = data.current;
+        renderIndividualPermTableForSelected();
+        toast(`✓ ${PERMISSION_LABEL[perm]} mis à jour`);
+      }catch(err){
+        toast(`✕ Refusé : ${err.message}`);
+      }finally{
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DEMANDES DE PERMISSIONS (09/09) — ADD crée, CD+ traite.
+// ═══════════════════════════════════════════════════════════════════
+async function renderPermissionRequestsCard(){
+  const card = document.getElementById("permissionRequestsCard");
+  const isAdd = currentUserLevel === "ADD";
+  const canReview = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+  card.style.display = (isAdd || canReview) ? "" : "none";
+  if(!isAdd && !canReview) return;
+
+  document.getElementById("permissionRequestCreateBox").style.display = isAdd ? "" : "none";
+  if(isAdd){
+    const personSelect = document.getElementById("permReqPersonSelect");
+    personSelect.innerHTML = `<option value="">— Personne concernée —</option>` +
+      employees.filter(e=>!e.licencie).map(e=>`<option value="${esc(e.discordId)}" data-name="${esc(e.name)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
+    const permSelect = document.getElementById("permReqPermissionSelect");
+    permSelect.innerHTML = `<option value="">— Permission concernée —</option>` +
+      INDIVIDUAL_PERM_KEYS.map(k=>`<option value="${k}">${esc(PERMISSION_LABEL[k])}</option>`).join("");
+  }
+
+  const list = document.getElementById("permissionRequestsList");
+  list.textContent = "Chargement…";
+  try{
+    // Pas de fonction de lecture dédiée pour l'instant — on relit
+    // directement via manage-individual-permissions n'est pas adapté ;
+    // on utilise donc une lecture directe (lecture seule, chemin déjà
+    // protégé par "auth != null" au niveau Firebase).
+    const idToken = currentFirebaseIdToken;
+    if(!idToken){ list.textContent = "Session Firebase pas encore prête, réessaie dans un instant."; return; }
+    const res = await fetch(`https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPermissionRequests.json?auth=${idToken}`);
+    const all = res.ok ? (await res.json()) : {};
+    const entries = Object.entries(all || {}).sort((a,b)=>(b[1].requestedAt||0)-(a[1].requestedAt||0));
+    // Limitation connue : un ADD voit ici TOUTES les demandes, pas
+    // seulement les siennes (le client ne connaît pas son propre
+    // discordId séparément du jeton signé) — pas un souci de sécurité
+    // (un ADD ne peut de toute façon rien y faire, review_permission_requests
+    // lui est refusé), juste un affichage moins filtré qu'idéal.
+    if(!entries.length){ list.textContent = "Aucune demande pour l'instant."; return; }
+    list.innerHTML = entries.map(([id, r])=>{
+      const statusLabel = { pending:"⏳ En attente", accepted:"✅ Acceptée", refused:"❌ Refusée", cancelled:"◌ Annulée" }[r.status] || r.status;
+      const canAct = canReview && r.status === "pending";
+      return `<div style="font-size:0.82rem;padding:8px 0;border-bottom:1px solid var(--border-soft);">
+        <div><b>${esc(r.requestedByName||"?")}</b> demande <b>${esc(PERMISSION_LABEL[r.permissionName]||r.permissionName)}</b> = ${r.requestedValue ? "Autorisé" : "Refusé"} pour <b>${esc(r.targetName||r.targetDiscordId)}</b></div>
+        <div style="color:var(--text-faint);margin-top:2px;">${statusLabel}${r.reviewedByName ? ` — traité par ${esc(r.reviewedByName)} (${esc(r.reviewedByLevel)})` : ""}</div>
+        ${canAct ? `<div style="margin-top:6px;display:flex;gap:8px;">
+          <button type="button" class="btn-primary btn-small" data-req-approve="${id}">✅ Accepter</button>
+          <button type="button" class="btn-danger btn-small" data-req-refuse="${id}">❌ Refuser</button>
+        </div>` : ""}
+      </div>`;
+    }).join("");
+    list.querySelectorAll("[data-req-approve],[data-req-refuse]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const requestId = btn.dataset.reqApprove || btn.dataset.reqRefuse;
+        const action = btn.dataset.reqApprove ? "approve" : "refuse";
+        try{
+          const res = await fetch("/.netlify/functions/permission-requests", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, action, requestId }),
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || `${res.status}`);
+          toast(action === "approve" ? "✓ Demande acceptée, permission appliquée." : "Demande refusée.");
+          renderPermissionRequestsCard();
+        }catch(err){
+          toast(`✕ Refusé : ${err.message}`);
+        }
+      });
+    });
+  }catch(err){
+    list.textContent = `Impossible de charger les demandes (${err.message}).`;
+  }
+}
+document.getElementById("permReqCreateBtn").addEventListener("click", async ()=>{
+  const personSelect = document.getElementById("permReqPersonSelect");
+  const permSelect = document.getElementById("permReqPermissionSelect");
+  const valueSelect = document.getElementById("permReqValueSelect");
+  const msg = document.getElementById("permReqCreateMsg");
+  const discordId = personSelect.value;
+  const permission = permSelect.value;
+  if(!discordId || !permission){ msg.innerHTML = `<span style="color:var(--red);">Choisis une personne et une permission.</span>`; return; }
+  const targetName = personSelect.options[personSelect.selectedIndex].dataset.name;
+  try{
+    const res = await fetch("/.netlify/functions/permission-requests", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"create", targetDiscordId: discordId, targetName, permissionName: permission, requestedValue: valueSelect.value === "true" }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    msg.innerHTML = `<span style="color:var(--green);">✓ Demande envoyée, en attente de validation par un CD.</span>`;
+    renderPermissionRequestsCard();
+  }catch(err){
+    msg.innerHTML = `<span style="color:var(--red);">✕ ${esc(err.message)}</span>`;
+  }
+});
 
 
 // ── Retrait par code ──
@@ -2778,8 +2999,8 @@ function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
   document.getElementById("discordAuthStatus").innerHTML = `${session.level==="OWNER"?"👑":"✅"} <b>${esc(session.name)}</b> — ${esc(session.levelLabel)}`;
-  document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","OWNER"].includes(currentUserLevel) ? "" : "none";
-  document.getElementById("tabPermissionsBtn").style.display = ["D","OWNER"].includes(currentUserLevel) ? "" : "none";
+  document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   renderGradeLabelsEditor();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
 }
