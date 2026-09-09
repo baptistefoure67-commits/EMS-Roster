@@ -96,10 +96,16 @@ exports.handler = async function (event) {
       if (activiteStreak && activiteStreak[key] !== undefined) mergedStreak[key] = activiteStreak[key];
     });
 
-    console.log("DEBUG activite-actions — scope:", scope, "level:", session.level, "relevantKeys:", [...relevantKeys], "mergedData vide ?", Object.keys(mergedData).length === 0);
+    console.log("DEBUG activite-actions — scope:", scope, "level:", session.level, "relevantKeys:", [...relevantKeys], "mergedData vide ?", Object.keys(mergedData).length === 0, "mergedStreak vide ?", Object.keys(mergedStreak).length === 0);
+    // "streak" peut légitimement finir vide (personne n'a encore de
+    // série enregistrée) — dans ce cas, envoyer null plutôt qu'un objet
+    // vide {}, car la règle Firebase exige l'un OU l'autre (jamais un
+    // objet sans aucune clé). "data" reste toujours tel quel : la règle
+    // du dessus exige qu'il existe, jamais null (09/09).
+    const streakToSend = Object.keys(mergedStreak).length ? mergedStreak : null;
     const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: mergedData, streak: mergedStreak, savedAt: Date.now() }),
+      body: JSON.stringify({ data: mergedData, streak: streakToSend, savedAt: Date.now() }),
     });
     if (!saveRes.ok) {
       const t = await saveRes.text().catch(()=>"");
