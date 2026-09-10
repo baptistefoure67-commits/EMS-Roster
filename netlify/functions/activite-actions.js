@@ -57,7 +57,7 @@ exports.handler = async function (event) {
 
   let body;
   try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }); }
-  const { token, scope, activiteData, activiteStreak } = body;
+  const { token, scope, activiteData, activiteStreak, closeWeek } = body;
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
@@ -91,6 +91,17 @@ exports.handler = async function (event) {
     const cur = curRes.ok ? await curRes.json().catch(()=>null) : null;
     const mergedData = { ...((cur && cur.data) || {}) };
     const mergedStreak = { ...((cur && cur.streak) || {}) };
+
+    // Instantané AVANT écrasement (09/09) — sert uniquement si
+    // closeWeek est demandé, pour garder une vraie trace consultable
+    // et réouvrable plus tard (voir roster-week-history.js).
+    const beforeSnapshot = {};
+    if (closeWeek) {
+      relevantKeys.forEach(key => {
+        beforeSnapshot[key] = { data: mergedData[key] || null, streak: mergedStreak[key] || null };
+      });
+    }
+
     relevantKeys.forEach(key => {
       if (activiteData[key] !== undefined) mergedData[key] = activiteData[key];
       if (activiteStreak && activiteStreak[key] !== undefined) mergedStreak[key] = activiteStreak[key];
@@ -108,14 +119,44 @@ exports.handler = async function (event) {
     });
     if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
 
+    let weekKey = null;
+    if (closeWeek) {
+      // Clé de semaine = date du jour de la clôture (aucune notion de
+      // "début de semaine" n'existait avant côté Roster pour
+      // Formateur/Psychologue — on prend simplement la date réelle de
+      // clôture, ce qui reste un identifiant stable et unique par jour).
+      const d = new Date();
+      weekKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      const historyEntry = {
+        type: scope, closedAt: Date.now(),
+        closedByDiscordId: session.discordId, closedByName: session.name, closedByLevel: session.level,
+        before: beforeSnapshot,
+        after: Object.fromEntries([...relevantKeys].map(k => [k, { data: mergedData[k]||null, streak: mergedStreak[k]||null }])),
+        reopened: false,
+      };
+      const histUrl = `https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterActiviteWeekHistory/${weekKey}/${scope}.json?auth=${idToken}`;
+      // Archive l'ancienne entrée du jour avant d'écraser (au cas où
+      // la même journée serait re-clôturée plusieurs fois) — jamais de
+      // perte, même dans ce cas rare.
+      try{
+        const existingRes = await fetch(histUrl);
+        const existing = existingRes.ok ? await existingRes.json() : null;
+        if(existing){
+          const archiveUrl = `https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterActiviteWeekHistoryArchive/${weekKey}-${scope}/${Date.now()}.json?auth=${idToken}`;
+          await fetch(archiveUrl, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(existing) });
+        }
+      }catch(e){ /* non bloquant */ }
+      await fetch(histUrl, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(historyEntry) }).catch(()=>{});
+    }
+
     await logAction({
-      action: "envoi_pillbox",
+      action: closeWeek ? "cloture_semaine_activite" : "envoi_pillbox",
       authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-      details: `Portée : ${scope} (${relevantKeys.size} personne(s))`,
+      details: `Portée : ${scope} (${relevantKeys.size} personne(s))${weekKey ? ` — semaine ${weekKey}` : ""}`,
       idToken,
     }).catch(()=>{});
 
-    return json(200, { ok: true, data: mergedData, streak: mergedStreak });
+    return json(200, { ok: true, data: mergedData, streak: mergedStreak, weekKey });
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
   }
