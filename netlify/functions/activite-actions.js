@@ -57,10 +57,46 @@ exports.handler = async function (event) {
 
   let body;
   try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }); }
-  const { token, scope, activiteData, activiteStreak, closeWeek } = body;
+  const { token, scope, activiteData, activiteStreak, closeWeek, action, targetKey } = body;
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
+
+  // Réinitialisation manuelle d'un suivi d'inactivité (10/09) — action
+  // distincte du reste (pas un envoi de données, juste une remise à
+  // zéro ciblée) — vérifiée avec sa propre permission, jamais juste un
+  // bouton caché côté interface.
+  if (action === "resetStreak") {
+    if (!can(session.level, "reset_activite_streak")) {
+      return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
+    }
+    if (!targetKey || !["formateur", "psychologue"].includes(scope)) {
+      return json(400, { error: "Paramètres manquants ou invalides." });
+    }
+    try {
+      const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
+      const curRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`);
+      const cur = curRes.ok ? await curRes.json().catch(()=>null) : null;
+      const mergedStreak = { ...((cur && cur.streak) || {}) };
+      mergedStreak[targetKey] = { streak: 0, lastSignaledThreshold: 0 };
+      const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: (cur && cur.data) || {}, streak: mergedStreak, savedAt: Date.now() }),
+      });
+      if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de la réinitialisation (${saveRes.status}) : ${t.slice(0,200)}` }); }
+
+      await logAction({
+        action: "reinitialisation_manuelle_suivi",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        details: `Suivi ${scope} réinitialisé pour ${targetKey}`,
+        idToken,
+      }).catch(()=>{});
+
+      return json(200, { ok: true });
+    } catch (err) {
+      return json(500, { error: `Erreur inattendue : ${err.message}` });
+    }
+  }
 
   const permissionNeeded = SCOPE_PERMISSION[scope];
   if (!permissionNeeded) return json(400, { error: `Portée invalide : "${scope}".` });
