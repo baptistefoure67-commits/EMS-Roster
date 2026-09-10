@@ -15,11 +15,12 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can, LEVELS, OWNER_DISCORD_ID, INDIVIDUAL_DECISION_AUTHORITY_ORDER } = require("./permissions");
+const { can, LEVELS, OWNER_DISCORD_ID, INDIVIDUAL_DECISION_AUTHORITY_ORDER, buildEffectivePermissions } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
 const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
+const GRADE_OVERRIDE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPermissionsOverride.json";
 // "D" n'est volontairement PAS dans cette liste d'auteurs de décision
 // individuelle : le cahier des charges (section 6) ne prévoit que
 // DG/D/CD comme COUCHES de décision, mais D et DG partagent en
@@ -59,7 +60,14 @@ exports.handler = async function (event) {
       const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
       const res = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
       const all = res.ok ? (await res.json()) : {};
-      return json(200, { individualPermissions: all || {} }, corsHeaders);
+      // La table par grade aussi (09/09) — pour que "Hériter" affiche
+      // clairement ce que ça donne réellement pour le grade de la
+      // personne, même pour un CD qui n'a pas accès à la page complète
+      // de gestion des permissions par grade (réservée D+/OWNER).
+      const gradeRes = await fetch(`${GRADE_OVERRIDE_URL}?auth=${idToken}`);
+      const gradeOverrides = gradeRes.ok ? (await gradeRes.json()) : {};
+      const effectiveByGrade = buildEffectivePermissions(gradeOverrides || {});
+      return json(200, { individualPermissions: all || {}, effectiveByGrade }, corsHeaders);
     } catch (err) {
       return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
     }
