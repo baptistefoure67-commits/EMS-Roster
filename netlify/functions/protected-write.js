@@ -97,17 +97,18 @@ exports.handler = async function (event) {
       return json(400, { error: `Action inconnue : "${action}".` });
     }
 
+    const savedAt = Date.now();
     const saveRes = await fetch(authedRosterUrl, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employees, savedAt: Date.now() }),
+      body: JSON.stringify({ employees, savedAt }),
     });
     if (!saveRes.ok) {
       const t = await saveRes.text().catch(() => "");
       return json(502, { error: `Échec de l'écriture sur Firebase (${saveRes.status}) : ${t.slice(0, 200)}` });
     }
 
-    return json(200, { ok: true, employees });
+    return json(200, { ok: true, employees, savedAt });
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
   }
