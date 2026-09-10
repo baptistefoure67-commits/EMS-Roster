@@ -2160,13 +2160,17 @@ function renderActiviteTab(type){
   // le compteur augmente encore ensuite, l'alerte réapparaît (nouvelle
   // valeur, jamais vue), mais reste masquée tant qu'il ne bouge pas.
   const dismissedAlerts = getDismissedActiviteAlerts();
+  const canReset = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   const alerts = concerned
     .map(e=>({ e, streak: activiteStreak[activiteKeyFor(e)]?.streak||0, key: activiteKeyFor(e) }))
     .filter(x=>x.streak >= ACTIVITE_STREAK_THRESHOLD && dismissedAlerts[x.key] !== x.streak);
   alertsBox.innerHTML = alerts.length ? `<div class="hint" style="border-color:var(--amber);display:flex;flex-direction:column;gap:4px;">
     ${alerts.map(x=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span>⚠ <b>${esc(x.e.name)}</b> : ${x.streak} semaines de suite sans ${esc(activityLabel)}</span>
-      <button type="button" class="btn-ghost btn-small" data-dismiss-alert="${esc(x.key)}" data-dismiss-streak="${x.streak}" style="padding:1px 8px;font-size:0.72rem;" title="Fermer cette alerte">✕</button>
+      <span style="display:flex;gap:6px;">
+        ${canReset ? `<button type="button" class="btn-ghost btn-small" data-reset-streak="${esc(x.key)}" style="padding:1px 8px;font-size:0.72rem;" title="Réinitialiser ce suivi à 0">🔄 Réinitialiser</button>` : ""}
+        <button type="button" class="btn-ghost btn-small" data-dismiss-alert="${esc(x.key)}" data-dismiss-streak="${x.streak}" style="padding:1px 8px;font-size:0.72rem;" title="Fermer cette alerte">✕</button>
+      </span>
     </div>`).join("")}
   </div>` : "";
   alertsBox.querySelectorAll("[data-dismiss-alert]").forEach(btn=>{
@@ -2177,6 +2181,30 @@ function renderActiviteTab(type){
       d[key] = streak;
       saveDismissedActiviteAlerts(d);
       renderActiviteTab(type);
+    });
+  });
+  alertsBox.querySelectorAll("[data-reset-streak]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const key = btn.dataset.resetStreak;
+      const person = concerned.find(e=>activiteKeyFor(e)===key);
+      const name = person ? person.name : key;
+      if(!confirm(`Voulez-vous remettre le suivi d'activité de ${name} à 0 ?`)) return;
+      btn.disabled = true;
+      try{
+        const res = await fetch("/.netlify/functions/activite-actions", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ token: currentSessionToken, action:"resetStreak", scope: type, targetKey: key }),
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || `${res.status}`);
+        activiteStreak[key] = { streak: 0, lastSignaledThreshold: 0 };
+        saveActiviteStreak();
+        toast(`✓ Suivi de ${name} réinitialisé`);
+        renderActiviteTab(type);
+      }catch(err){
+        toast(`✕ Refusé : ${err.message}`);
+        btn.disabled = false;
+      }
     });
   });
 
@@ -2208,14 +2236,12 @@ document.addEventListener("input", (e)=>{
 //  - absent(e) cette semaine → série inchangée (pause, ni +1 ni remise à 0)
 //  - 0 activité (les deux champs à 0) et pas absent(e) → +1 semaine de suite
 //  - au moins une activité → série remise à 0 (repart de zéro)
-const AUTO_SIGNALEMENT_STREAK_THRESHOLD = 2; // même seuil que l'alerte visuelle
+const AUTO_SIGNALEMENT_STREAK_THRESHOLD = 2; // même seuil que l'alerte visuelle, et premier palier des signalements répétés
 
-// Crée automatiquement un signalement quand la série de quelqu'un ATTEINT
-// le seuil (jamais à chaque semaine suivante tant que ça continue — juste
-// au moment où ça franchit le seuil, pour ne pas spammer). Utilise le
-// même chemin (signalements/signalements_test) que les signalements
-// manuels, donc visible au même endroit dans Pillbox — juste marqué
-// "auto:true" pour qu'on sache d'où ça vient.
+// Crée automatiquement un signalement à un palier donné (2, 4, 6...).
+// Utilise le même chemin (signalements/signalements_test) que les
+// signalements manuels, donc visible au même endroit dans Pillbox —
+// juste marqué "auto:true" pour qu'on sache d'où ça vient.
 async function createAutoSignalement(e, streak, categoryLabel){
   const entry = {
     personName: e.name,
@@ -2237,9 +2263,12 @@ async function createAutoSignalement(e, streak, categoryLabel){
 // Met à jour la série AVANT de remettre les compteurs à 0 :
 //  - absent(e) cette semaine → série inchangée (pause, ni +1 ni remise à 0)
 //  - 0 activité (les deux champs à 0) et pas absent(e) → +1 semaine de suite
-//  - au moins une activité → série remise à 0 (repart de zéro)
-// Envoie aussi automatiquement un signalement dès que la série franchit
-// le seuil pour la première fois (demandé le 08/09).
+//  - au moins une activité → série ET palier signalé remis à 0 (nouveau
+//    cycle complet, demandé le 10/09)
+// Envoie un signalement automatique à CHAQUE palier pair (2, 4, 6, 8...)
+// jamais deux fois pour le même palier du même cycle — lastSignaledThreshold
+// retient jusqu'où on est déjà allé pour CE cycle précis (10/09, avant : un
+// seul signalement possible par cycle entier, jamais renouvelé).
 async function closeActiviteWeek(type){
   const isFormateur = type==="formateur";
   const grades = isFormateur ? ["MF","RF"] : ["MP","RP"];
@@ -2250,22 +2279,24 @@ async function closeActiviteWeek(type){
     const key = activiteKeyFor(e);
     const rec = activiteData[key] || {};
     const before = activiteStreak[key]?.streak || 0;
+    const lastSignaled = activiteStreak[key]?.lastSignaledThreshold || 0;
     let after = before;
+    let newLastSignaled = lastSignaled;
     if(isAbsentThisWeek(e)){
-      // pause : on ne touche pas à la série, on ne fait que garder les
-      // compteurs à 0 comme si de rien n'était (une semaine d'absence
-      // n'est ni comptée ni décomptée).
+      // pause : on ne touche à rien (ni la série, ni le palier signalé).
     } else if((rec[f1]||0)===0 && (rec[f2]||0)===0){
       after = before + 1;
-      activiteStreak[key] = { streak: after };
+      // Palier atteint (pair, >= seuil) ET jamais encore signalé pour ce
+      // cycle précis → nouveau signalement, jamais de doublon.
+      if(after % AUTO_SIGNALEMENT_STREAK_THRESHOLD === 0 && after > lastSignaled){
+        await createAutoSignalement(e, after, categoryLabel);
+        newLastSignaled = after;
+      }
+      activiteStreak[key] = { streak: after, lastSignaledThreshold: newLastSignaled };
     } else {
       after = 0;
-      activiteStreak[key] = { streak: 0 };
-    }
-    // Signalement auto UNIQUEMENT au moment où on franchit le seuil
-    // (avant < seuil, après >= seuil) — jamais si on était déjà au-dessus.
-    if(before < AUTO_SIGNALEMENT_STREAK_THRESHOLD && after >= AUTO_SIGNALEMENT_STREAK_THRESHOLD){
-      await createAutoSignalement(e, after, categoryLabel);
+      newLastSignaled = 0; // nouveau cycle complet — les prochains paliers pourront être resignalés
+      activiteStreak[key] = { streak: 0, lastSignaledThreshold: 0 };
     }
     activiteData[key] = {...rec, [f1]:0, [f2]:0};
   }
