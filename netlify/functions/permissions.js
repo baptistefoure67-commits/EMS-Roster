@@ -96,7 +96,8 @@ const DEFAULT_PERMISSIONS = {
     manage_individual_permissions: true, // peut modifier directement (09/09)
     review_permission_requests: true,    // peut valider une demande d'ADD
     cancel_lower_decisions: false,       // rien en dessous de CD à annuler
-    reopen_week: true, // peut réouvrir une semaine de paie clôturée (09/09)
+    reopen_week: true, // peut réouvrir une semaine de paie clôturée (Pillbox, 09/09)
+    reopen_roster_week: true, // peut réouvrir une semaine Formation/Psychologue clôturée côté Roster (09/09)
   },
   D: {
     // hérite de tout CD, plus la gestion des permissions elle-même
