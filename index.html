@@ -255,12 +255,17 @@
 
   <div id="appContent" style="display:none;">
 
-  <div id="discordAuthBar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;">
+  <div id="discordAuthBar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:4px;flex-wrap:wrap;">
     <div id="discordAuthStatus" style="font-size:0.85rem;"></div>
-    <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
-      Se déconnecter
-    </button>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
+      <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
+        Se déconnecter
+      </button>
+    </div>
   </div>
+  <div id="syncPillboxStatus" style="font-size:0.78rem;margin:0 0 4px;"></div>
+  <div id="rosterLastUpdated" style="font-size:0.74rem;color:var(--text-faint);margin:0 0 16px;"></div>
 
   <div class="tabbar">
     <button type="button" class="tab-btn active" id="tabRosterBtn">📋 Roster</button>
@@ -280,7 +285,7 @@
       </div>
       <select id="filterGrade"><option value="">Tous les grades</option></select>
       <button class="btn-ghost" id="btnCopyList">📋 Copier la liste</button>
-      <button class="btn-ghost" id="btnCloudSend">☁️ Envoyer vers Pillbox (cloud)</button>
+      <!-- btnCloudSend retiré le 09/09 — voir le bouton unique "🔄 Synchroniser avec Pillbox" en haut de page -->
       <details class="cloud-group">
         <summary class="btn-ghost">☁️ Roster (cloud)</summary>
         <div class="cloud-group-menu">
@@ -458,7 +463,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
           <summary class="btn-ghost btn-small">☁️ Formation Opération (cloud, vers Pillbox)</summary>
           <div class="cloud-group-menu">
             <button class="btn-ghost btn-small" id="btnSpecialFormationCloudLoad">📥 Charger la liste (cloud)</button>
-            <button class="btn-ghost btn-small" id="btnSpecialFormationCloudSend">📤 Envoyer vers Pillbox</button>
+            <!-- btnSpecialFormationCloudSend retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
           </div>
         </details>
         <span class="special-sub" id="specialImportStatus"></span>
@@ -477,12 +482,18 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <details class="cloud-group">
           <summary class="btn-ghost btn-small">☁️ Cloud (vers Pillbox)</summary>
           <div class="cloud-group-menu">
-            <button class="btn-ghost btn-small" id="btnActiviteCloudSave">💾 Sauvegarder</button>
+            <!-- btnActiviteCloudSave retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
             <button class="btn-ghost btn-small" id="btnActiviteCloudLoad">📥 Charger</button>
           </div>
         </details>
       </div>
       <div id="formateurList"></div>
+    </div>
+    <div class="card">
+      <details>
+        <summary class="btn-ghost btn-small">📅 Historique des semaines (Formateur)</summary>
+        <div id="formateurWeekHistory" style="margin-top:10px;" class="sub">Chargement…</div>
+      </details>
     </div>
   </div>
 
@@ -496,12 +507,18 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <details class="cloud-group">
           <summary class="btn-ghost btn-small">☁️ Cloud (vers Pillbox)</summary>
           <div class="cloud-group-menu">
-            <button class="btn-ghost btn-small" id="btnActivitePsyCloudSave">💾 Sauvegarder</button>
+            <!-- btnActivitePsyCloudSave retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
             <button class="btn-ghost btn-small" id="btnActivitePsyCloudLoad">📥 Charger</button>
           </div>
         </details>
       </div>
       <div id="psychologueList"></div>
+    </div>
+    <div class="card">
+      <details>
+        <summary class="btn-ghost btn-small">📅 Historique des semaines (Psychologue)</summary>
+        <div id="psychologueWeekHistory" style="margin-top:10px;" class="sub">Chargement…</div>
+      </details>
     </div>
   </div>
 
@@ -703,6 +720,19 @@ const SEED_EMPLOYEES = [
 
 const STORAGE_KEY = "emsRosterV1";
 let employees = [];
+// Vraie date de dernière modification du Roster (09/09) — vient
+// TOUJOURS de Firebase (data.savedAt), jamais de new Date() au
+// chargement de la page. Mise à jour à chaque lecture cloud ET à
+// chaque écriture réussie (voir protectedAction, btnRosterCloudSave).
+let rosterLastUpdatedAt = null;
+function renderLastUpdated(){
+  const el = document.getElementById("rosterLastUpdated");
+  if(!el) return;
+  if(!rosterLastUpdatedAt){ el.textContent = ""; return; }
+  const d = new Date(rosterLastUpdatedAt);
+  const pad = n => String(n).padStart(2,"0");
+  el.textContent = `🕐 Dernière mise à jour : ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} à ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 async function loadState(){
   // Le cloud n'est interrogé QUE si un jeton Firebase authentifié est
@@ -718,6 +748,8 @@ async function loadState(){
         const data = await res.json();
         if(data && Array.isArray(data.employees) && data.employees.length){
           employees = data.employees;
+          rosterLastUpdatedAt = data.savedAt || null;
+          renderLastUpdated();
           saveState();
           return;
         }
@@ -942,18 +974,18 @@ function matchEmployeeForFormationCloud(entry){
   }
   return null;
 }
-async function loadFormationFromCloudIntoSelection(){
+async function loadFormationFromCloudIntoSelection(silent){
   const statusEl = document.getElementById("specialImportStatus");
   const btn = document.getElementById("btnSpecialFormationCloudLoad");
   if(btn){ btn.disabled = true; }
-  if(statusEl){ statusEl.textContent = "Chargement depuis le cloud…"; statusEl.style.color = "var(--text-dim)"; }
+  if(statusEl && !silent){ statusEl.textContent = "Chargement depuis le cloud…"; statusEl.style.color = "var(--text-dim)"; }
   try{
     const res = await fetch(FORMATION_CLOUD_URL);
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data || !data.text){
-      if(statusEl){ statusEl.textContent = "Aucune liste Formation Opération trouvée dans le cloud."; statusEl.style.color = "var(--amber)"; }
-      toast("Aucune liste cloud trouvée");
+      if(statusEl && !silent){ statusEl.textContent = "Aucune liste Formation Opération trouvée dans le cloud."; statusEl.style.color = "var(--amber)"; }
+      if(!silent) toast("Aucune liste cloud trouvée");
       return;
     }
     const entries = data.text.split(/\r?\n/).map(parseFormationCloudLine).filter(Boolean);
@@ -967,12 +999,12 @@ async function loadFormationFromCloudIntoSelection(){
     const when = data.savedAt ? new Date(data.savedAt).toLocaleString('fr-FR') : "";
     let msg = `✓ ${matched}/${entries.length} cochée(s) depuis le cloud${when?` (sauvegardée le ${when})`:""}.`;
     if(notFound.length) msg += ` Introuvable(s) : ${notFound.slice(0,5).join(", ")}${notFound.length>5?"…":""}`;
-    if(statusEl){ statusEl.textContent = msg; statusEl.style.color = notFound.length ? "var(--amber)" : "var(--text-dim)"; }
-    toast(`${matched}/${entries.length} cochée(s) (cloud)`);
+    if(statusEl && !silent){ statusEl.textContent = msg; statusEl.style.color = notFound.length ? "var(--amber)" : "var(--text-dim)"; }
+    if(!silent) toast(`${matched}/${entries.length} cochée(s) (cloud)`);
   }catch(err){
     console.error(err);
-    if(statusEl){ statusEl.textContent = `✕ Échec du chargement cloud : ${err.message}`; statusEl.style.color = "var(--red)"; }
-    toast(`✕ Échec cloud : ${err.message}`);
+    if(statusEl && !silent){ statusEl.textContent = `✕ Échec du chargement cloud : ${err.message}`; statusEl.style.color = "var(--red)"; }
+    if(!silent) toast(`✕ Échec cloud : ${err.message}`);
   }finally{
     if(btn){ btn.disabled = false; }
   }
@@ -991,51 +1023,8 @@ function buildFormationSendList(){
   return {text: lines.join("\n"), count: lines.length};
 }
 
-document.getElementById("btnSpecialFormationCloudSend").addEventListener("click", async ()=>{
-  const statusEl = document.getElementById("specialImportStatus");
-  const btn = document.getElementById("btnSpecialFormationCloudSend");
-  const {text, count} = buildFormationSendList();
-  if(!count){
-    if(statusEl){ statusEl.textContent = "Aucun employé coché — rien à envoyer."; statusEl.style.color = "var(--amber)"; }
-    return;
-  }
-  btn.disabled = true;
-  const original = btn.textContent;
-  try{
-    btn.textContent = "☁️ Vérification en cours…";
-    const currentRes = await fetch(FORMATION_CLOUD_URL);
-    let currentText = "";
-    if(currentRes.ok){
-      const data = await currentRes.json().catch(()=>null);
-      currentText = data && data.text ? data.text : "";
-    }
-    if(currentText.trim() && currentText.trim() !== text.trim()){
-      if(!confirm(`Une liste Formation Opération existe déjà côté Pillbox (${currentText.split(/\r?\n/).filter(Boolean).length} entrée(s)). L'envoi la remplacera entièrement par ta sélection actuelle (${count} entrée(s)). Continuer ?`)){
-        btn.disabled = false; btn.textContent = original; return;
-      }
-    }
-    btn.textContent = "☁️ Envoi en cours…";
-    const savedAt = Date.now();
-    const res = await fetch(FORMATION_CLOUD_URL, {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({text, savedAt}),
-    });
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    if(statusEl){ statusEl.textContent = `✓ ${count} employé(s) envoyé(s) vers Pillbox (Formation Opération).`; statusEl.style.color = "var(--green)"; }
-    toast(`✓ Envoyé vers Pillbox — clique "Charger depuis le cloud" côté Pillbox pour le récupérer`);
-  }catch(err){
-    console.error("Erreur envoi cloud Formation Opération:", err);
-    if(statusEl){ statusEl.textContent = `✕ Échec de l'envoi : ${err.message}`; statusEl.style.color = "var(--red)"; }
-    toast(`✕ Échec de l'envoi : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-});
+// (btnSpecialFormationCloudSend retiré le 09/09 — remplacé par le
+// bouton unique "🔄 Synchroniser avec Pillbox".)
 
 function applySpecialListAction(check){
   const textarea = document.getElementById("specialImportText");
@@ -1720,66 +1709,90 @@ function parseDiscordIdsText(text){
   return map;
 }
 
-document.getElementById("btnCloudSend").addEventListener("click", async ()=>{
-  const btn = document.getElementById("btnCloudSend");
-  const text = buildPlainList();
+// ═══════════════════════════════════════════════════════════════════
+// SYNCHRONISATION GLOBALE PILLBOX (09/09) — remplace les boutons
+// séparés (Roster, Formation Opération, Formateur, Psychologue) par
+// une seule action. Réutilise EXACTEMENT les mêmes fonctions/chemins
+// déjà existants (buildPlainList, buildFormationSendList,
+// saveActiviteToCloud, withFirebaseAuth) — aucun nouveau système,
+// juste un point d'entrée unique qui les enchaîne.
+//
+// Respecte le même partage de permissions qu'avant : MC peut
+// synchroniser Formateur+Psychologue (send_pillbox_formation/
+// psychologie), ADD+ synchronise TOUT en plus (send_pillbox_all) —
+// jamais élargi côté client, la vraie vérification reste dans
+// activite-actions.js pour Formateur/Psychologue (déjà en place).
+// Roster et Formation Opération restent sans vérification serveur
+// dédiée (comme avant ce soir), simplement visibles seulement pour
+// ADD+ ici.
+// ═══════════════════════════════════════════════════════════════════
+async function syncWithPillbox(){
+  const btn = document.getElementById("btnSyncPillbox");
+  const statusEl = document.getElementById("syncPillboxStatus");
+  const canAll = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   btn.disabled = true;
-  const original = btn.textContent;
+  const original = btn.innerHTML;
+  btn.innerHTML = "🔄 Synchronisation en cours…";
+  if(statusEl) statusEl.textContent = "";
 
-  try{
-    // ── Étape 1 : vérifier ce qu'il y a déjà côté Pillbox avant d'envoyer ──
-    btn.textContent = "☁️ Vérification en cours…";
-    const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
-    let currentText = "";
-    if(currentRes.ok){
-      const data = await currentRes.json().catch(()=>null);
-      currentText = data && data.text ? data.text : "";
-    }
+  const done = [];
+  const failed = [];
 
-    const roleNames = new Set(ROLES_REF.map(r=>r.name.toLowerCase()));
-    const before = parseDiscordIdsText(currentText);
-    const after = parseDiscordIdsText(text);
+  // 1) Roster + Formation Opération — réservé ADD+ (comme send_pillbox_all)
+  if(canAll){
+    try{
+      const text = buildPlainList();
+      const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
+      const currentText = currentRes.ok ? ((await currentRes.json().catch(()=>null))?.text || "") : "";
+      const roleNames = new Set(ROLES_REF.map(r=>r.name.toLowerCase()));
+      const before = parseDiscordIdsText(currentText);
+      const after = parseDiscordIdsText(text);
+      let diffCount = 0;
+      Object.keys(after).forEach(n=>{ if(!roleNames.has(n) && (before[n]!==after[n])) diffCount++; });
+      Object.keys(before).forEach(n=>{ if(!roleNames.has(n) && !(n in after)) diffCount++; });
+      const res = await fetch(withFirebaseAuth(CLOUD_DB_URL), {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
+      });
+      if(!res.ok) throw new Error(`${res.status}`);
+      done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
+    }catch(err){ failed.push(`Roster (${err.message})`); }
 
-    const added = [], changed = [], removed = [];
-    Object.keys(after).forEach(name=>{
-      if(roleNames.has(name)) return; // rôles Discord, pas des employés — jamais des écarts pertinents
-      if(!(name in before)) added.push(name);
-      else if(before[name] !== after[name]) changed.push(name);
-    });
-    Object.keys(before).forEach(name=>{
-      if(roleNames.has(name)) return;
-      if(!(name in after)) removed.push(name);
-    });
-
-    if(added.length || changed.length || removed.length){
-      let msg = "Écarts détectés avec ce qu'il y a actuellement côté Pillbox :\n\n";
-      if(added.length) msg += `+ ${added.length} nouveau(x) : ${added.slice(0,10).join(", ")}${added.length>10?"…":""}\n`;
-      if(changed.length) msg += `~ ${changed.length} ID changé(s) : ${changed.slice(0,10).join(", ")}${changed.length>10?"…":""}\n`;
-      if(removed.length) msg += `- ${removed.length} présent(s) côté Pillbox mais absent(s) du Roster : ${removed.slice(0,10).join(", ")}${removed.length>10?"…":""}\n`;
-      msg += "\nEnvoyer quand même et remplacer par la liste du Roster ?";
-      if(!confirm(msg)){ btn.disabled = false; btn.textContent = original; return; }
-    }
-
-    // ── Étape 2 : envoi effectif ──
-    btn.textContent = "☁️ Envoi en cours…";
-    const res = await fetch(CLOUD_DB_URL, {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({text, savedAt: Date.now()}),
-    });
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    toast("✓ Envoyé — clique \"Charger depuis le cloud\" dans Pillbox pour le récupérer");
-  }catch(err){
-    console.error("Erreur envoi cloud roster:", err);
-    toast(`✕ Échec de l'envoi : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
+    try{
+      const {text, count} = buildFormationSendList();
+      if(count){
+        const res = await fetch(FORMATION_CLOUD_URL, {
+          method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
+        });
+        if(!res.ok) throw new Error(`${res.status}`);
+        done.push(`Formation Opération (${count})`);
+      }
+    }catch(err){ failed.push(`Formation Opération (${err.message})`); }
   }
-});
+
+  // 2) Formateur + Psychologue — MC et au-dessus, via le circuit déjà
+  // protégé côté serveur (activite-actions.js, inchangé).
+  try{ await saveActiviteToCloud("formateur"); done.push("Formation"); }
+  catch(err){ failed.push(`Formation (${err.message})`); }
+  try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); }
+  catch(err){ failed.push(`Psychologie (${err.message})`); }
+
+  btn.disabled = false;
+  btn.innerHTML = original;
+  if(statusEl){
+    if(!failed.length){
+      statusEl.innerHTML = `<span style="color:var(--green);">✅ Synchronisation Pillbox terminée — ${esc(done.join(", "))}.</span>`;
+    } else if(done.length){
+      statusEl.innerHTML = `<span style="color:var(--amber);">⚠️ Partiellement synchronisé — ✓ ${esc(done.join(", "))} | ✕ ${esc(failed.join(", "))}.</span>`;
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">❌ La synchronisation a rencontré une erreur : ${esc(failed.join(", "))}.</span>`;
+    }
+  }
+}
+
+document.getElementById("btnSyncPillbox").addEventListener("click", syncWithPillbox);
+// (btnCloudSend retiré le 09/09 — remplacé par le bouton unique
+// "🔄 Synchroniser avec Pillbox", voir syncWithPillbox() plus haut,
+// qui fait exactement la même chose : lecture, comparaison, envoi.)
 
 // ═══════════════════════════ ROSTER SUR TOUS LES PC (CLOUD) ═══════════════════════════
 // Chemin Firebase DIFFÉRENT de celui utilisé pour Pillbox (discordIdsList) :
@@ -1796,15 +1809,17 @@ document.getElementById("btnRosterCloudSave").addEventListener("click", async ()
   const original = btn.textContent;
   btn.textContent = "☁️ Sauvegarde en cours…";
   try{
+    const savedAt = Date.now();
     const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({employees, savedAt: Date.now()}),
+      body: JSON.stringify({employees, savedAt}),
     });
     if(!res.ok){
       const body = await res.text().catch(()=>"");
       throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
     }
+    rosterLastUpdatedAt = savedAt; renderLastUpdated();
     toast(`✓ Roster sauvegardé dans le cloud (${employees.length} employé(s))`);
   }catch(err){
     console.error("Erreur sauvegarde cloud roster:", err);
@@ -1959,6 +1974,23 @@ function saveWeekAbsences(){
 }
 
 function activiteKeyFor(e){ return e.idUnique ? `id:${e.idUnique}` : `name:${e.name.trim().toLowerCase()}`; }
+// Résolution inverse (09/09) — pour l'historique des semaines, qui ne
+// stocke que la clé technique, jamais un nom en clair à part. Retombe
+// sur la clé elle-même (lisiblement) si la personne n'est plus dans le
+// Roster actuel (licenciée depuis, ou renommée) — jamais une erreur.
+function resolveActiviteKeyToName(key){
+  if(key.startsWith("id:")){
+    const id = key.slice(3);
+    const emp = employees.find(e=>e.idUnique===id);
+    return emp ? emp.name : `(ID unique ${id}, introuvable dans le Roster actuel)`;
+  }
+  if(key.startsWith("name:")){
+    const nameLower = key.slice(5);
+    const emp = employees.find(e=>e.name.trim().toLowerCase()===nameLower);
+    return emp ? emp.name : `(${nameLower}, introuvable dans le Roster actuel)`;
+  }
+  return key;
+}
 
 function loadActiviteData(){
   try{
@@ -2204,7 +2236,95 @@ async function closeActiviteWeek(type){
   // 08/09). Précise le type pour ne fusionner que la bonne catégorie
   // (bug corrigé le 09/09 — appelait sans portée, ce qui envoyait
   // toujours les deux catégories mélangées).
-  await saveActiviteToCloud(type);
+  await saveActiviteToCloud(type, true);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HISTORIQUE DES SEMAINES FORMATEUR/PSYCHOLOGUE (09/09) — consultation
+// + réouverture (CD+, vérifiée côté serveur dans roster-week-reopen.js,
+// jamais juste un bouton caché ici).
+// ═══════════════════════════════════════════════════════════════════
+async function renderActiviteWeekHistory(scope){
+  const box = document.getElementById(scope==="formateur" ? "formateurWeekHistory" : "psychologueWeekHistory");
+  if(!box) return;
+  if(!currentFirebaseIdToken){ box.textContent = "Session pas encore prête, réessaie dans un instant."; return; }
+  box.textContent = "Chargement…";
+  try{
+    const res = await fetch(withFirebaseAuth(`https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterActiviteWeekHistory.json`));
+    const all = res.ok ? (await res.json()) : {};
+    const weeks = Object.entries(all || {})
+      .filter(([,byScope]) => byScope && byScope[scope])
+      .map(([weekKey, byScope]) => ({ weekKey, entry: byScope[scope] }))
+      .sort((a,b) => b.weekKey.localeCompare(a.weekKey));
+    if(!weeks.length){ box.textContent = "Aucune semaine clôturée pour l'instant."; return; }
+    const canReopen = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+    // "before" = les vrais chiffres accumulés PENDANT la semaine (avant
+    // la remise à zéro) — c'est ÇA qui répond à "qu'est-ce qui s'est
+    // passé cette semaine", pas "after" (qui n'est que l'état remis à
+    // zéro, donc jamais informatif en soi).
+    box.innerHTML = weeks.map(({weekKey, entry})=>{
+      const nbPersonnes = Object.keys(entry.before||{}).length;
+      return `<div style="font-size:0.82rem;padding:8px 0;border-bottom:1px solid var(--border-soft);">
+        <div><b>Semaine du ${esc(weekKey)}</b> ${entry.reopened ? `<span style="font-size:0.7rem;color:var(--amber);">(réouverte)</span>` : `<span style="font-size:0.7rem;color:var(--text-faint);">🔒 clôturée</span>`}</div>
+        <div style="color:var(--text-faint);margin-top:2px;">Clôturée par ${esc(entry.closedByName||"?")} (${esc(entry.closedByLevel||"?")}) — ${nbPersonnes} personne(s) concernée(s)</div>
+        ${entry.reopened ? `<div style="color:var(--amber);opacity:.85;margin-top:2px;">Réouverte par ${esc(entry.reopenedByName||"?")} (${esc(entry.reopenedByLevel||"?")})</div>` : ""}
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-ghost btn-small" data-view-week="${esc(weekKey)}" data-view-scope="${scope}">👁️ Consulter</button>
+          ${canReopen ? `<button type="button" class="btn-ghost btn-small" data-reopen-roster-week="${esc(weekKey)}" data-reopen-scope="${scope}">🔓 Réouvrir cette semaine</button>` : ""}
+        </div>
+        <div id="weekDetail-${scope}-${esc(weekKey)}" style="display:none;margin-top:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:6px;"></div>
+      </div>`;
+    }).join("");
+
+    box.querySelectorAll("[data-view-week]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const weekKey = btn.dataset.viewWeek;
+        const sc = btn.dataset.viewScope;
+        const detailBox = document.getElementById(`weekDetail-${sc}-${weekKey}`);
+        if(!detailBox) return;
+        if(detailBox.style.display !== "none"){ detailBox.style.display = "none"; return; }
+        const entry = weeks.find(w=>w.weekKey===weekKey)?.entry;
+        if(!entry){ detailBox.textContent = "Introuvable."; detailBox.style.display = ""; return; }
+        const [f1,f2] = sc==="formateur" ? ["recrutements","formations"] : ["testsPsy","ppa"];
+        const [l1,l2] = sc==="formateur" ? ["Recrutements","Formations"] : ["Tests psy","PPA"];
+        const rows = Object.entries(entry.before||{}).map(([key, snap])=>{
+          const name = resolveActiviteKeyToName(key);
+          const d = snap.data || {};
+          return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-soft);">
+            <span>${esc(name)}</span><span>${l1} : ${d[f1]||0} · ${l2} : ${d[f2]||0}</span>
+          </div>`;
+        }).join("");
+        detailBox.innerHTML = rows || `<span style="color:var(--text-faint);">Aucune personne concernée cette semaine.</span>`;
+        detailBox.style.display = "";
+      });
+    });
+
+    box.querySelectorAll("[data-reopen-roster-week]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const weekKey = btn.dataset.reopenRosterWeek;
+        const sc = btn.dataset.reopenScope;
+        if(!confirm(`Réouvrir la semaine du ${weekKey} (${sc}) ? Les données d'avant clôture seront restaurées dans l'onglet ${sc==="formateur"?"Formateur":"Psychologue"} pour correction. Rien n'est perdu — tu pourras reclôturer ensuite normalement.`)) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch("/.netlify/functions/roster-week-reopen", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, weekKey, scope: sc }),
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || `${res.status}`);
+          toast("✓ Semaine réouverte — les données sont restaurées, corrige puis reclôture normalement.");
+          await loadActiviteFromCloud(); // recharge l'état frais depuis le serveur (pas le cache local)
+          renderActiviteWeekHistory(sc);
+        }catch(err){
+          toast(`✕ Refusé : ${err.message}`);
+        }finally{
+          btn.disabled = false;
+        }
+      });
+    });
+  }catch(err){
+    box.textContent = `Impossible de charger l'historique (${err.message}).`;
+  }
 }
 
 document.getElementById("btnActiviteFormateurReset").addEventListener("click", async ()=>{
@@ -2229,7 +2349,7 @@ document.getElementById("btnActivitePsyReset").addEventListener("click", async (
 // si la permission manque, pas juste caché côté interface). scope:
 // "formateur" | "psychologue" | "all" (réservé ADD+, utilisé par la
 // clôture automatique qui vient de traiter les deux à la fois).
-async function saveActiviteToCloud(scope){
+async function saveActiviteToCloud(scope, closeWeek){
   if(!currentSessionToken){
     toast("Session expirée — reconnecte-toi avec Discord.");
     showGate("Ta session a expiré, reconnecte-toi.");
@@ -2238,11 +2358,12 @@ async function saveActiviteToCloud(scope){
   try{
     const res = await fetch("/.netlify/functions/activite-actions", {
       method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ token: currentSessionToken, scope: scope || "all", activiteData, activiteStreak }),
+      body: JSON.stringify({ token: currentSessionToken, scope: scope || "all", activiteData, activiteStreak, closeWeek: !!closeWeek }),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
     toast("✓ Suivi d'activité envoyé vers Pillbox");
+    return data;
   }catch(err){
     toast(`✕ Échec de l'envoi : ${err.message}`);
   }
@@ -2293,9 +2414,10 @@ async function loadActiviteFromCloud(){
     toast(`✕ Échec du chargement : ${err.message}`);
   }
 }
-document.getElementById("btnActiviteCloudSave").addEventListener("click", ()=>saveActiviteToCloud("formateur"));
+// (btnActiviteCloudSave / btnActivitePsyCloudSave retirés le 09/09 —
+// remplacés par le bouton unique "🔄 Synchroniser avec Pillbox", qui
+// appelle exactement la même fonction saveActiviteToCloud().)
 document.getElementById("btnActiviteCloudLoad").addEventListener("click", loadActiviteFromCloud);
-document.getElementById("btnActivitePsyCloudSave").addEventListener("click", ()=>saveActiviteToCloud("psychologue"));
 document.getElementById("btnActivitePsyCloudLoad").addEventListener("click", loadActiviteFromCloud);
 
 
@@ -2312,8 +2434,8 @@ function switchTab(active){
     const submitBtn = document.getElementById("signalementSubmitBtn");
     if(submitBtn) submitBtn.textContent = currentUserLevel==="MC" ? "Proposer un signalement" : "Envoyer anonymement";
   }
-  if(active==="Formateur"){ renderActiviteTab("formateur"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("formateur")); }
-  if(active==="Psychologue"){ renderActiviteTab("psychologue"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("psychologue")); }
+  if(active==="Formateur"){ renderActiviteTab("formateur"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
+  if(active==="Psychologue"){ renderActiviteTab("psychologue"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
 }
@@ -2721,6 +2843,7 @@ async function loadPermissionsTable(){
 // ═══════════════════════════════════════════════════════════════════
 const INDIVIDUAL_PERM_KEYS = Object.keys(PERMISSION_LABEL).filter(k => k !== "manage_permissions"); // manage_permissions reste géré par grade uniquement, trop sensible pour une exception
 let individualPermsCache = null;
+let effectiveByGradeCache = null;
 
 async function renderIndividualPermissionsCard(){
   const card = document.getElementById("individualPermissionsCard");
@@ -2737,7 +2860,7 @@ async function renderIndividualPermissionsCard(){
   try{
     const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
     const data = await res.json().catch(()=>({}));
-    if(res.ok) individualPermsCache = data.individualPermissions || {};
+    if(res.ok){ individualPermsCache = data.individualPermissions || {}; effectiveByGradeCache = data.effectiveByGrade || null; }
   }catch(err){ /* le tableau se rechargera au prochain changement de sélection */ }
 
   renderIndividualPermTableForSelected();
@@ -2763,9 +2886,13 @@ function renderIndividualPermTableForSelected(){
     for(const l of ["DG","D","CD"]){
       if(layers[l] === true || layers[l] === false){ activeLayer = l; activeValue = layers[l]; break; }
     }
+    // Ce que "Hériter" donne VRAIMENT pour le grade de cette personne
+    // (demandé le 09/09) — pour ne pas laisser deviner.
+    const gradeValue = (effectiveByGradeCache && emp) ? !!(effectiveByGradeCache[emp.grade] && effectiveByGradeCache[emp.grade][perm]) : null;
+    const heritLabel = gradeValue===null ? "Hériter" : `Hériter (${gradeValue ? "Autorisé" : "Refusé"})`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
       <span style="flex:1;">${esc(PERMISSION_LABEL[perm]||perm)}</span>
-      <button type="button" class="btn-small ${activeValue===null?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="cancel">Hériter</button>
+      <button type="button" class="btn-small ${activeValue===null?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="cancel">${esc(heritLabel)}</button>
       <button type="button" class="btn-small ${activeValue===true?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="true">Autorisé</button>
       <button type="button" class="btn-small ${activeValue===false?'btn-danger':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="false">Refusé</button>
       ${activeLayer ? `<span style="font-size:0.7rem;color:var(--text-faint);">(${activeLayer})</span>` : ""}
@@ -3002,6 +3129,7 @@ function showApp(session){
   document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   renderGradeLabelsEditor();
+  renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
 }
 
@@ -3022,6 +3150,7 @@ async function protectedAction(action, payload){
   });
   const data = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  if(data.savedAt){ rosterLastUpdatedAt = data.savedAt; renderLastUpdated(); }
   return data;
 }
 
@@ -3107,6 +3236,7 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
   refreshSignalementPersonList();
   checkPillboxWeekFinishedSignal();
   fetchGradeLabelsSilent();
+  loadFormationFromCloudIntoSelection(true); // chargement automatique et silencieux (demandé le 09/09)
 })();
 </script>
 </body>
