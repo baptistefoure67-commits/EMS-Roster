@@ -65,14 +65,12 @@ exports.handler = async function (event) {
       const idx = employees.findIndex((e) => e.id === id);
       if (idx === -1) return json(404, { error: "Employé introuvable." });
       const before = { ...employees[idx] };
-      const newGrade = grade || employees[idx].grade;
       employees[idx] = {
         ...employees[idx],
         name: name || employees[idx].name,
         discordId: discordId || employees[idx].discordId,
-        grade: newGrade,
+        grade: grade || employees[idx].grade,
         role: role !== undefined ? role : employees[idx].role,
-        gradeSince: (newGrade !== before.grade) ? Date.now() : employees[idx].gradeSince,
       };
       await logAction({
         action: "modification_employe",
