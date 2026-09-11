@@ -1008,7 +1008,7 @@ async function loadFormationFromCloudIntoSelection(silent){
   if(btn){ btn.disabled = true; }
   if(statusEl && !silent){ statusEl.textContent = "Chargement depuis le cloud…"; statusEl.style.color = "var(--text-dim)"; }
   try{
-    const res = await fetch(FORMATION_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(FORMATION_CLOUD_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data || !data.text){
@@ -1691,7 +1691,7 @@ document.getElementById("btnSpecialCloudSave").addEventListener("click", async (
   }));
   btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Sauvegarde…";
   try{
-    const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()})});
+    const res = await fetch(withFirebaseAuth(SPECIAL_SELECTION_CLOUD_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()})});
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     toast(`✓ Sélection cloud sauvegardée (${selectedEmployees.length})`);
   }catch(err){ console.error(err); toast(`✕ Échec cloud : ${err.message}`); }
@@ -1701,7 +1701,7 @@ document.getElementById("btnSpecialCloudLoad").addEventListener("click", async (
   const btn = document.getElementById("btnSpecialCloudLoad");
   btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Chargement…";
   try{
-    const res = await fetch(SPECIAL_SELECTION_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(SPECIAL_SELECTION_CLOUD_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data || !Array.isArray(data.selectedEmployees)){ toast("Aucune sélection cloud trouvée"); return; }
@@ -1789,7 +1789,7 @@ async function syncWithPillbox(){
     try{
       const {text, count} = buildFormationSendList();
       if(count){
-        const res = await fetch(FORMATION_CLOUD_URL, {
+        const res = await fetch(withFirebaseAuth(FORMATION_CLOUD_URL), {
           method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
         });
         if(!res.ok) throw new Error(`${res.status}`);
@@ -1866,7 +1866,7 @@ document.getElementById("btnRosterCloudLoad").addEventListener("click", async ()
   const original = btn.textContent;
   btn.textContent = "☁️ Chargement en cours…";
   try{
-    const res = await fetch(ROSTER_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
     if(!res.ok){
       const body = await res.text().catch(()=>"");
       throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
@@ -2274,7 +2274,7 @@ async function createAutoSignalement(e, streak, categoryLabel){
   };
   const key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   try{
-    await fetch(signalementsUrl().replace(".json", `/${key}.json`), {
+    await fetch(withFirebaseAuth(signalementsUrl().replace(".json", `/${key}.json`)), {
       method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(entry),
     });
   }catch(err){ console.error("Échec du signalement automatique:", err); }
@@ -2645,11 +2645,13 @@ function renderSoundSettingsUI(){
         <span style="font-size:0.78rem;color:var(--text-dim);">✅ Oui</span>
         <button type="button" class="btn-ghost btn-small" data-sound-play="${key}" data-sound-outcome="oui" ${bucket.oui?"":"disabled"}>▶</button>
         <label class="btn-ghost btn-small" style="cursor:pointer;">📁<input type="file" accept="audio/*" style="display:none;" data-sound-upload="${key}" data-sound-outcome="oui"></label>
+        <button type="button" class="btn-ghost btn-small" data-sound-delete="${key}" data-sound-outcome="oui" ${bucket.oui?"":"disabled"} title="Retirer ce son personnalisé">🗑</button>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:0.78rem;color:var(--text-dim);">❌ Non</span>
         <button type="button" class="btn-ghost btn-small" data-sound-play="${key}" data-sound-outcome="non" ${bucket.non?"":"disabled"}>▶</button>
         <label class="btn-ghost btn-small" style="cursor:pointer;">📁<input type="file" accept="audio/*" style="display:none;" data-sound-upload="${key}" data-sound-outcome="non"></label>
+        <button type="button" class="btn-ghost btn-small" data-sound-delete="${key}" data-sound-outcome="non" ${bucket.non?"":"disabled"} title="Retirer ce son personnalisé">🗑</button>
       </div>
     </div>`;
   }).join("");
@@ -2657,6 +2659,15 @@ function renderSoundSettingsUI(){
 
 document.getElementById("soundCategoryRows").addEventListener("click", (e)=>{
   const playBtn = e.target.closest("[data-sound-play]");
+  const delBtn = e.target.closest("[data-sound-delete]");
+  if(delBtn){
+    const key = delBtn.dataset.soundDelete, outcome = delBtn.dataset.soundOutcome;
+    if(!confirm("Retirer ce son personnalisé et revenir au son par défaut ?")) return;
+    const bucket = key==="__default__" ? soundSettingsCache.default : soundSettingsCache.categories?.[key];
+    if(bucket) delete bucket[outcome];
+    saveSoundSettings().then(renderSoundSettingsUI);
+    return;
+  }
   if(!playBtn) return;
   const key = playBtn.dataset.soundPlay, outcome = playBtn.dataset.soundOutcome;
   const bucket = key==="__default__" ? soundSettingsCache.default : soundSettingsCache.categories?.[key];
@@ -2823,7 +2834,7 @@ async function loadSignalementPending(){
   const isAdmin = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   list.textContent = "Chargement…";
   try{
-    const res = await fetch(signalementsUrl());
+    const res = await fetch(withFirebaseAuth(signalementsUrl()));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data){ list.textContent = "Aucun signalement en attente."; return; }
@@ -2847,7 +2858,7 @@ document.getElementById("signalementPendingList").addEventListener("click", (e)=
   const btn = e.target.closest(".admin-del-btn");
   if(!btn) return;
   if(!confirm("Supprimer définitivement ce signalement ?")) return;
-  fetch(signalementsUrl().replace(".json", `/${btn.dataset.key}.json`), {method:"DELETE"})
+  fetch(withFirebaseAuth(signalementsUrl().replace(".json", `/${btn.dataset.key}.json`)), {method:"DELETE"})
     .then(()=>loadSignalementPending())
     .catch(err=>alert(`Échec de la suppression (${err.message}).`));
 });
@@ -2875,7 +2886,7 @@ async function loadPropositionsPending(){
   if(!canValidateSignalement()) return;
   list.textContent = "Chargement…";
   try{
-    const res = await fetch(PROPOSITIONS_URL);
+    const res = await fetch(withFirebaseAuth(PROPOSITIONS_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data){ list.textContent = "Aucune proposition en attente."; return; }
