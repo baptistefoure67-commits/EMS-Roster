@@ -286,6 +286,7 @@
       </div>
       <select id="filterGrade"><option value="">Tous les grades</option></select>
       <button class="btn-ghost" id="btnCopyList">📋 Copier la liste</button>
+      <button class="btn-ghost" id="btnProposePromotion" style="display:none;">📈 Proposer une promotion</button>
       <!-- btnCloudSend retiré le 09/09 — voir le bouton unique "🔄 Synchroniser avec Pillbox" en haut de page -->
       <details class="cloud-group">
         <summary class="btn-ghost">☁️ Roster (cloud)</summary>
@@ -622,6 +623,26 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 
 </div>
 
+
+<div id="promotionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:460px;width:92%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-weight:700;font-size:0.95rem;">📈 Proposer une promotion</div>
+      <button class="btn-ghost btn-small" id="btnClosePromotion">Fermer ✕</button>
+    </div>
+    <div class="special-sub" style="margin-bottom:10px;">Choisis précisément la personne et le grade proposé. Ceci ne change rien au Roster — ça ne fait que jouer un son de confirmation.</div>
+    <select id="promotionPersonSelect" style="width:100%;margin-bottom:10px;">
+      <option value="">— Choisir une personne —</option>
+    </select>
+    <select id="promotionTargetGradeSelect" style="width:100%;margin-bottom:10px;display:none;">
+    </select>
+    <div id="promotionQuestionText" style="font-size:0.88rem;font-weight:600;margin:10px 0;display:none;"></div>
+    <div id="promotionAnswerButtons" style="display:none;gap:10px;">
+      <button type="button" class="btn-primary btn-small" id="promotionOuiBtn">✅ Oui</button>
+      <button type="button" class="btn-danger btn-small" id="promotionNonBtn">❌ Non</button>
+    </div>
+  </div>
+</div>
 
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;align-items:center;justify-content:center;">
   <div class="card" style="max-width:640px;width:92%;max-height:80vh;overflow-y:auto;">
@@ -1436,7 +1457,7 @@ function renderImportResults(result){
     if(!p) return;
     const e = employees.find(x=>x.id===p.id);
     if(!e) return;
-    e.grade = p.newGrade;
+    e.grade = p.newGrade; e.gradeSince = Date.now();
     saveState(); renderAll();
     if(row) row.remove();
     logHistory("Promotion", e.name, `${p.oldGrade} → ${p.newGrade}`);
@@ -1453,7 +1474,7 @@ function renderImportResults(result){
     const count = window._pendingPromote.length;
     window._pendingPromote.forEach(p=>{
       const e = employees.find(x=>x.id===p.id);
-      if(e){ logHistory("Promotion", e.name, `${p.oldGrade} → ${p.newGrade} (groupé)`); e.grade = p.newGrade; }
+      if(e){ logHistory("Promotion", e.name, `${p.oldGrade} → ${p.newGrade} (groupé)`); e.grade = p.newGrade; e.gradeSince = Date.now(); }
     });
     if(count){ saveState(); renderAll(); toast(`${count} grade(s) mis à jour`); }
   });
@@ -1573,6 +1594,7 @@ function attachRowHandlers(){
           // pas juste un blocage visuel).
           await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole });
           e.name = newName; e.discordId = newDiscordId; e.grade = newGrade; e.role = newRole;
+          if(before.grade !== e.grade) e.gradeSince = Date.now();
           const changes = [];
           if(before.name!==e.name) changes.push(`nom "${before.name}" → "${e.name}"`);
           if(before.discordId!==e.discordId) changes.push(`ID Discord "${before.discordId}" → "${e.discordId}"`);
@@ -2636,7 +2658,7 @@ function renderSoundSettingsUI(){
   toggle.onchange = ()=>{ soundSettingsCache.enabled = toggle.checked; saveSoundSettings(); };
 
   const rows = document.getElementById("soundCategoryRows");
-  const cats = [["__default__","— Son par défaut (toutes catégories sans réglage propre) —"], ...Object.entries(SIGNALEMENT_CATEGORY_LABEL)];
+  const cats = [["__default__","— Son par défaut (toutes catégories sans réglage propre) —"], ["promotion","📈 Proposition de promotion"], ...Object.entries(SIGNALEMENT_CATEGORY_LABEL)];
   rows.innerHTML = cats.map(([key,label])=>{
     const bucket = key==="__default__" ? (soundSettingsCache.default||{}) : (soundSettingsCache.categories?.[key]||{});
     return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--border-soft);">
@@ -2699,6 +2721,76 @@ document.getElementById("soundCategoryRows").addEventListener("change", async (e
 });
 
 let signalementState = { people: [] };
+
+// ═══════════════════════════════════════════════════════════════════
+// PROPOSITION DE PROMOTION (réservé à CD/D/DG/OWNER) — 11/09
+// Choix précis et manuel de la personne + du grade proposé. Ne modifie
+// jamais le Roster — joue uniquement un son de confirmation (comme
+// demandé). Utilise gradeSince (posé automatiquement à chaque
+// changement de grade réel) pour afficher l'ancienneté dans le grade
+// actuel quand elle est connue.
+function formatTenure(sinceTs){
+  if(!sinceTs) return null;
+  const d = new Date(sinceTs);
+  const dateStr = d.toLocaleDateString("fr-FR");
+  const diffMs = Date.now() - sinceTs;
+  const totalDays = Math.floor(diffMs / 86400000);
+  const months = Math.floor(totalDays / 30);
+  const days = totalDays % 30;
+  const parts = [];
+  if(months > 0) parts.push(`${months} mois`);
+  parts.push(`${days} jour${days>1?"s":""}`);
+  return `depuis le ${dateStr} — ${parts.join(" et ")}`;
+}
+
+function playPromotionSound(outcome){
+  if(!soundSettingsCache || soundSettingsCache.enabled===false) return;
+  const bucket = soundSettingsCache.categories?.promotion?.[outcome];
+  const src = bucket || soundSettingsCache.default?.[outcome] || (outcome==="oui" ? DEFAULT_SOUND_OUI : DEFAULT_SOUND_NON);
+  try{ new Audio(src).play().catch(()=>{}); }catch(err){}
+}
+
+function openPromotionModal(){
+  const modal = document.getElementById("promotionModal");
+  const personSelect = document.getElementById("promotionPersonSelect");
+  personSelect.innerHTML = `<option value="">— Choisir une personne —</option>` +
+    employees.filter(e=>!e.licencie).sort((a,b)=>a.name.localeCompare(b.name))
+      .map(e=>`<option value="${esc(e.id)}">${esc(e.name)} (${esc(GRADE_LABEL[e.grade]||e.grade)})</option>`).join("");
+  document.getElementById("promotionTargetGradeSelect").style.display = "none";
+  document.getElementById("promotionQuestionText").style.display = "none";
+  document.getElementById("promotionAnswerButtons").style.display = "none";
+  modal.style.display = "flex";
+}
+function closePromotionModal(){ document.getElementById("promotionModal").style.display = "none"; }
+document.getElementById("btnProposePromotion")?.addEventListener("click", openPromotionModal);
+document.getElementById("btnClosePromotion").addEventListener("click", closePromotionModal);
+
+function updatePromotionQuestion(){
+  const empId = document.getElementById("promotionPersonSelect").value;
+  const targetSelect = document.getElementById("promotionTargetGradeSelect");
+  const questionEl = document.getElementById("promotionQuestionText");
+  const answersEl = document.getElementById("promotionAnswerButtons");
+  const emp = employees.find(e=>e.id===empId);
+  if(!emp){ targetSelect.style.display="none"; questionEl.style.display="none"; answersEl.style.display="none"; return; }
+  targetSelect.innerHTML = GRADE_ORDER.filter(g=>g!==emp.grade && g!=="WDV")
+    .map(g=>`<option value="${g}">${esc(GRADE_LABEL[g]||g)}</option>`).join("");
+  targetSelect.style.display = "";
+  const buildQuestion = ()=>{
+    const targetGrade = targetSelect.value;
+    const tenure = formatTenure(emp.gradeSince);
+    const currentLabel = GRADE_LABEL[emp.grade]||emp.grade;
+    const targetLabel = GRADE_LABEL[targetGrade]||targetGrade;
+    questionEl.textContent = `Proposer à ${emp.name} (${currentLabel}${tenure?` ${tenure}`:""}) de passer ${targetLabel} ?`;
+    questionEl.style.display = "";
+    answersEl.style.display = "flex";
+  };
+  buildQuestion();
+  targetSelect.onchange = buildQuestion;
+}
+document.getElementById("promotionPersonSelect").addEventListener("change", updatePromotionQuestion);
+document.getElementById("promotionOuiBtn").addEventListener("click", ()=>{ playPromotionSound("oui"); closePromotionModal(); });
+document.getElementById("promotionNonBtn").addEventListener("click", ()=>{ playPromotionSound("non"); closePromotionModal(); });
+
 
 // Ne collecte plus un tableau EMS séparé — la liste des employés est déjà
 // chargée et tenue à jour par le Roster (variable globale `employees`,
@@ -3372,6 +3464,8 @@ function showApp(session){
   document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabSonsBtn").style.display = currentUserLevel==="OWNER" ? "" : "none";
+  const promoBtn = document.getElementById("btnProposePromotion");
+  if(promoBtn) promoBtn.style.display = ["CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   renderGradeLabelsEditor();
   renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
