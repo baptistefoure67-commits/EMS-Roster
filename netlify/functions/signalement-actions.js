@@ -118,6 +118,14 @@ exports.handler = async function (event) {
       if (!prop) return json(404, { error: "Proposition introuvable." });
       if (prop.status !== "pending") return json(409, { error: `Cette proposition a déjà été traitée (statut actuel : ${prop.status}).` });
 
+      // Si la personne concernée est elle-même ADD, un ADD ne peut pas
+      // traiter le signalement (jamais juger son propre cas) — il faut
+      // CD ou au-dessus (10/09, demandé après ajout d'ADD à la liste
+      // des grades concernés par les signalements).
+      if ((prop.personGrade || "").toUpperCase() === "ADD" && !["CD","D","DG","OWNER"].includes(session.level)) {
+        return json(403, { error: `Permission refusée — un signalement concernant un ADD doit être traité par CD ou au-dessus (jamais par un ADD lui-même).` });
+      }
+
       if (action === "validateProposition") {
         const officialEntry = {
           personName: prop.personName, personId: prop.personId, personGrade: prop.personGrade,
