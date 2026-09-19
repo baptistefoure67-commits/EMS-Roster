@@ -2525,7 +2525,7 @@ const SIGNALEMENT_CONCERNED_GRADES = ["MF","MP","MLP","RF","RP","RL","MC","ADD"]
 const SIGNALEMENT_GRADE_LABEL = {
   MF:"Médecin Formateur", MP:"Médecin Psychologue", MLP:"Médecin Légiste Pompier",
   RF:"Responsable Formateur", RP:"Responsable Psychologue", RL:"Responsable Légiste",
-  MC:"Médecin Chef",
+  MC:"Médecin Chef", ADD:"Assistant de Direction",
 };
 const SIGNALEMENT_CATEGORY_LABEL = {
   inactivite:"Inactivité", quantite_travail:"Quantité de travail", qualite_travail:"Qualité du travail",
@@ -2611,7 +2611,7 @@ document.getElementById("signalementSubmitBtn").addEventListener("click", async 
 
   const payload = {
     personName: person.name,
-    personId: person.id || null,
+    personId: person.id ? String(person.id) : null, // toujours forcé en texte (10/09) — sinon un identifiant stocké comme nombre côté Roster casse la validation Firebase, qui exige explicitement du texte
     personGrade: person.grade,
     category: cats.join(","),
     reason: reason,
@@ -2777,7 +2777,9 @@ document.getElementById("propositionsList").addEventListener("click", async (e)=
 // LOGS (ADD et au-dessus) — 08/09
 // ═══════════════════════════════════════════════════════════════════
 const LOG_ACTION_LABEL = {
-  connexion: "Connexion",
+  connexion: "Connexion (Roster)",
+  connexion_pillbox: "Connexion (Pillbox)",
+  semaine_terminee_pillbox: "Semaine de paie terminée (Pillbox)",
   modification_employe: "Modification employé",
   licenciement: "Licenciement",
   signalement_officiel: "Signalement officiel",
