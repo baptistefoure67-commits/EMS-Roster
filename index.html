@@ -2468,20 +2468,25 @@ async function checkPillboxWeekFinishedSignal(){
   }catch(err){ console.error("Vérification du signal de fin de semaine impossible:", err); }
 }
 
-async function loadActiviteFromCloud(){
+async function loadActiviteFromCloud(silent){
   try{
     const res = await fetch(ACTIVITE_CLOUD_URL);
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
-    if(!data || !data.data){ toast("Aucune donnée cloud trouvée."); return; }
+    if(!data || !data.data){ if(!silent) toast("Aucune donnée cloud trouvée."); return; }
     activiteData = data.data;
     activiteStreak = data.streak || {};
     saveActiviteData(); saveActiviteStreak();
     renderActiviteTab("formateur"); renderActiviteTab("psychologue");
     const when = data.savedAt ? new Date(data.savedAt).toLocaleString("fr-FR") : "";
-    toast(`✓ Suivi d'activité chargé${when?` (sauvegardé le ${when})`:""}`);
+    if(!silent) toast(`✓ Suivi d'activité chargé${when?` (sauvegardé le ${when})`:""}`);
   }catch(err){
-    toast(`✕ Échec du chargement : ${err.message}`);
+    // En mode silencieux (ouverture automatique de l'onglet, 19/09,
+    // trouvé lors de l'audit) : jamais bloquant si le réseau est
+    // indisponible — on retombe sur le cache local déjà affiché plutôt
+    // que d'interrompre la personne avec une erreur à chaque clic d'onglet.
+    if(!silent) toast(`✕ Échec du chargement : ${err.message}`);
+    else console.error("Synchronisation silencieuse du suivi d'activité impossible:", err.message);
   }
 }
 // (btnActiviteCloudSave / btnActivitePsyCloudSave retirés le 09/09 —
@@ -2504,8 +2509,8 @@ function switchTab(active){
     const submitBtn = document.getElementById("signalementSubmitBtn");
     if(submitBtn) submitBtn.textContent = currentUserLevel==="MC" ? "Proposer un signalement" : "Envoyer anonymement";
   }
-  if(active==="Formateur"){ renderActiviteTab("formateur"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
-  if(active==="Psychologue"){ renderActiviteTab("psychologue"); checkPillboxWeekFinishedSignal().then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
+  if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
+  if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
 }
