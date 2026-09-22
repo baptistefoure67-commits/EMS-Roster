@@ -177,7 +177,7 @@ function can(level, permissionName, customPermissions, discordId, individualOver
 // doit venir d'une lecture fraîche du Roster.
 function resolveUserLevel(discordId, rosterGrade){
   if(discordId === OWNER_DISCORD_ID) return "OWNER";
-  const g = (rosterGrade || "").toUpperCase();
+  const g = (rosterGrade || "").trim().toUpperCase();
   if(["MC","ADD","CD","D","DG"].includes(g)) return g;
   return null; // aucun niveau reconnu → aucun accès
 }
