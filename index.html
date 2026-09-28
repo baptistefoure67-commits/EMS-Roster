@@ -826,6 +826,33 @@ function esc(s){
 function norm(s){
   return String(s??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 }
+// Audit gestion des employés (29/09) ------------------------------------
+// Les règles Firebase refusent tout le roster si UN seul nom contient < ou >
+// ou dépasse 100 caractères, ou si un ID Discord dépasse 30 caractères. Sans
+// contrôle ici, l'erreur n'apparaissait qu'au moment de sauvegarder dans le
+// cloud, avec un message cryptique, et bloquait tout le monde. On vérifie
+// donc AVANT d'ajouter/modifier.
+function validateEmployeeFields(name, discordId){
+  if(!name) return "Le nom est obligatoire.";
+  if(/[<>]/.test(name)) return "Le nom ne peut pas contenir les caractères < ou >.";
+  if(name.length >= 100) return "Le nom est trop long (100 caractères maximum).";
+  if(!discordId) return "L'ID Discord est obligatoire.";
+  if(discordId.length >= 30) return "L'ID Discord est trop long (30 caractères maximum).";
+  return null;
+}
+// Cherche un employé (non licencié) déjà présent avec le même nom (sans
+// accents ni majuscules) ou le même ID Discord. exceptId = la personne
+// qu'on est en train de modifier (elle ne compte pas comme doublon d'elle-même).
+function findDuplicateEmployee(name, discordId, exceptId){
+  const n = norm(name).trim();
+  for(const e of employees){
+    if(e.licencie || e.id===exceptId) continue;
+    if(norm(e.name).trim()===n) return { employee:e, why:"le même nom" };
+    if(discordId && String(e.discordId).trim()===String(discordId).trim()) return { employee:e, why:"le même ID Discord" };
+  }
+  return null;
+}
+
 function toast(msg){
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -1094,7 +1121,7 @@ function matchesFilter(e, query, gradeFilter){
   if(gradeFilter && e.grade !== gradeFilter) return false;
   if(!query) return true;
   const q = norm(query);
-  return norm(e.name).includes(q) || e.discordId.includes(query.trim()) || norm(e.grade).includes(q);
+  return norm(e.name).includes(q) || String(e.discordId||"").includes(query.trim()) || norm(e.grade).includes(q);
 }
 
 // Repère les ID Discord utilisés par plusieurs employés actifs à la fois
@@ -1254,7 +1281,7 @@ function splitEmsLine(line){
 // grade WDV sur quelqu'un d'actif (= licenciement à appliquer).
 function parseEmsTableForImport(text){
   const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [];
+  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [];
   const seenIds = new Set(); // employés retrouvés dans ce collage précis, peu importe la raison
 
   lines.forEach(line=>{
@@ -1263,16 +1290,33 @@ function parseEmsTableForImport(text){
     const employeRaw = (cols[1]||"").trim();
     const idUnique = (cols[2]||"").trim();
     const gradeRaw = (cols[3]||"").trim().toUpperCase();
+    // Date d'arrivée (29/09) : format "25/09/2026 - 14:13" (année sur 4
+    // chiffres + heure), ce qui la distingue de la colonne de date d'UP
+    // ("10/05/26"). Sert uniquement à l'avertissement de départ rapide.
+    const arrivalMatch = [...line.matchAll(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2}):(\d{2})/g)].pop();
+    const arrivalMs = arrivalMatch ? new Date(+arrivalMatch[3], +arrivalMatch[2]-1, +arrivalMatch[1], +arrivalMatch[4], +arrivalMatch[5]).getTime() : null;
     if(!employeRaw || /^employ/i.test(employeRaw) || gradeRaw === "GRADE") return; // en-tête du tableau
 
     const name = cleanEmsName(employeRaw);
     if(!name) return;
 
-    const existing = employees.find(e=>norm(e.name)===norm(name));
+    // Audit statistiques (29/09) : avant, la personne n'était retrouvée que
+    // par son nom — deux homonymes pouvaient donc être confondus (mauvaise
+    // personne licenciée ou promue). Désormais : ID unique d'abord ; sinon le
+    // nom, mais seulement s'il désigne UNE personne sans ID unique différent.
+    const byId = idUnique ? employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)) : null;
+    const nameMatches = employees.filter(e=>norm(e.name)===norm(name) && !(e.idUnique && idUnique && String(e.idUnique)!==String(idUnique)));
+    const existing = byId || (nameMatches.length===1 ? nameMatches[0] : null);
+    if(!byId && nameMatches.length>1){
+      // Homonymes impossibles à départager : on n'applique RIEN automatiquement.
+      nameMatches.forEach(e=>seenIds.add(e.id));
+      ambiguous.push(name);
+      return;
+    }
     if(existing) seenIds.add(existing.id);
 
     if(gradeRaw === "WDV"){
-      if(existing && !existing.licencie){ toLicencier.push({id:existing.id, name:existing.name}); }
+      if(existing && !existing.licencie){ toLicencier.push({id:existing.id, name:existing.name, discordId:existing.discordId, arrivalMs}); }
       else if(!existing){ skippedWdv.push(name); }
       return;
     }
@@ -1298,17 +1342,58 @@ function parseEmsTableForImport(text){
   // Garde-fou : si le collage ne contient qu'une poignée de lignes (table
   // partielle collée par erreur), on ne propose AUCUNE suppression — sinon
   // tout le roster se retrouverait proposé à la suppression à tort.
-  const totalLignesReconnues = seenIds.size + found.length + skippedWdv.length + unrecognized.length;
+  const totalLignesReconnues = seenIds.size + found.length + skippedWdv.length + unrecognized.length + ambiguous.length;
   const toRemove = totalLignesReconnues >= 15
     ? employees.filter(e => !e.licencie && !seenIds.has(e.id)).map(e => ({id:e.id, name:e.name}))
     : [];
 
-  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove};
+  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous};
 }
+
+// Départ rapide (29/09) : une personne recrutée qui repart avant une semaine
+// complète doit attendre 3 semaines avant de pouvoir revenir. Retourne null si
+// la date d'arrivée est absente/illisible/future, ou si la personne est
+// restée 7 jours ou plus — dans ces cas, aucun avertissement (comportement
+// habituel de la ligne inchangé).
+function quickDepartureInfo(p, now){
+  if(!p || !p.arrivalMs) return null;
+  const nowMs = (now||new Date()).getTime();
+  const diff = nowMs - p.arrivalMs;
+  if(diff < 0 || diff >= 7*24*3600*1000) return null;
+  const days = Math.floor(diff / (24*3600*1000));
+  const fmt = d => `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+  const departDate = new Date(nowMs);
+  const returnDate = new Date(nowMs); returnDate.setDate(returnDate.getDate()+21);
+  return {
+    days,
+    departStr: fmt(departDate),
+    returnStr: fmt(returnDate),
+    line: `${p.name} | ${p.discordId||"ID inconnu"} | Départ le ${fmt(departDate)} | Retour autorisé le ${fmt(returnDate)}`,
+  };
+}
+function quickDepartureWording(qd){
+  const when = qd.days===0 ? "aujourd'hui" : (qd.days===1 ? "il y a 1 jour" : `il y a ${qd.days} jours`);
+  return `Arrivé ${when}, déjà parti. Retour possible à partir du ${qd.returnStr}.`;
+}
+
+document.addEventListener("click", async (ev)=>{
+  const btn = ev.target.closest("[data-copy-quickdep]");
+  if(!btn) return;
+  const p = (window._pendingLicencier||[])[+btn.getAttribute("data-copy-quickdep")];
+  const qd = quickDepartureInfo(p);
+  if(!qd){ toast("Rien à copier pour cette ligne."); return; }
+  try{
+    await navigator.clipboard.writeText(qd.line);
+    toast("✓ Ligne copiée — colle-la dans le salon Discord");
+  }catch(e){
+    // Repli si le presse-papiers est refusé : sélection manuelle.
+    window.prompt("Copie cette ligne (Ctrl+C) :", qd.line);
+  }
+});
 
 function renderImportResults(result){
   const box = document.getElementById("importResults");
-  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length;
+  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length);
   if(nothing){
     box.innerHTML = `<div class="empty-msg">Rien reconnu — vérifie que le texte collé contient bien les colonnes "Employé" et "Grade" du tableau EMS.</div>`;
     return;
@@ -1340,6 +1425,7 @@ function renderImportResults(result){
         <span style="min-width:150px;font-weight:600;">${esc(p.name)}</span>
         <span class="grade-badge" style="background:var(--red);">WDV</span>
         <button class="btn-danger btn-small" data-licencier-apply="${i}">Licencier</button>
+        ${(()=>{ const qd = quickDepartureInfo(p); return qd ? `<span style="color:var(--amber);font-size:0.78rem;font-weight:600;">⚠ ${esc(quickDepartureWording(qd))}</span> <button class="btn-ghost btn-small" data-copy-quickdep="${i}">Copier pour Discord</button>` : ""; })()}
       </div>
     `).join("");
     html += `<button class="btn-danger btn-small" id="btnApplyAllLicencier" style="margin-top:8px;">Tout licencier</button>`;
@@ -1372,6 +1458,9 @@ function renderImportResults(result){
   if(result.alreadyKnown.length){
     html += `<div class="empty-msg">Déjà dans le roster, ignoré(s) (${result.alreadyKnown.length}) : ${result.alreadyKnown.map(esc).join(", ")}</div>`;
   }
+  if(result.ambiguous && result.ambiguous.length){
+    html += `<div class="empty-msg" style="color:var(--amber);">⚠ Plusieurs employés portent ce nom, impossible de savoir lequel est concerné — rien n'a été appliqué automatiquement : ${result.ambiguous.map(esc).join(", ")}. Traite-les à la main.</div>`;
+  }
   if(result.unrecognized.length){
     html += `<div class="empty-msg" style="color:var(--amber);">Grade non reconnu, ignoré(s) : ${result.unrecognized.map(u=>`${esc(u.name)} (${esc(u.grade)})`).join(", ")}</div>`;
   }
@@ -1384,6 +1473,10 @@ function renderImportResults(result){
       const discordId = idInput.value.trim();
       if(!discordId){ toast("ID Discord requis"); return; }
       const f = window._pendingImport[i];
+      const impError = validateEmployeeFields(f.name, discordId);
+      if(impError){ toast(impError); return; }
+      const impDup = findDuplicateEmployee(f.name, discordId);
+      if(impDup && !confirm(`${impDup.employee.name} (${impDup.employee.grade}) est déjà dans le roster avec ${impDup.why}. Ajouter quand même ?`)) return;
       employees.push({id:uid(), name:f.name, discordId, grade:f.grade, role:"", licencie:false, licencieDate:null, idUnique:f.idUnique||null});
       saveState(); renderAll();
       btn.closest("[data-pending-row]").remove();
@@ -1394,6 +1487,7 @@ function renderImportResults(result){
   const btnAll = document.getElementById("btnAddAllPending");
   if(btnAll) btnAll.addEventListener("click", ()=>{
     let count = 0;
+    const skippedGroup = [];
     box.querySelectorAll("[data-pending-row]").forEach(row=>{
       const i = +row.getAttribute("data-pending-row");
       const idInput = row.querySelector(`[data-pending-id="${i}"]`);
@@ -1401,13 +1495,17 @@ function renderImportResults(result){
       if(!discordId) return;
       const f = window._pendingImport[i];
       if(!f) return;
+      // Ajout groupé : jamais de doublon ni de champ invalide silencieux —
+      // ces lignes restent à l'écran, avec une raison claire.
+      const groupError = validateEmployeeFields(f.name, discordId) || (findDuplicateEmployee(f.name, discordId) ? "déjà dans le roster (même nom ou même ID Discord)" : null);
+      if(groupError){ skippedGroup.push(`${f.name} : ${groupError}`); return; }
       employees.push({id:uid(), name:f.name, discordId, grade:f.grade, role:"", licencie:false, licencieDate:null, idUnique:f.idUnique||null});
       logHistory("Ajout", f.name, `Grade ${f.grade}, ID ${discordId} (import EMS groupé)`);
       row.remove();
       count++;
     });
-    if(count){ saveState(); renderAll(); toast(`${count} employé(s) ajouté(s)`); }
-    else toast("Aucun ID Discord rempli");
+    if(count){ saveState(); renderAll(); toast(`${count} employé(s) ajouté(s)${skippedGroup.length?` — ${skippedGroup.length} ignoré(s) : ${skippedGroup.join(" ; ")}`:""}`); }
+    else toast(skippedGroup.length ? `Aucun ajout — ${skippedGroup.join(" ; ")}` : "Aucun ID Discord rempli");
   });
 
   // ── UP détectés (grade changé chez un employé déjà connu) ──
@@ -1447,7 +1545,8 @@ function renderImportResults(result){
     employees = employees.filter(x=>x.id!==p.id);
     saveState(); renderAll();
     if(row) row.remove();
-    logHistory("Licenciement (WDV)", e.name, "détecté à l'import EMS");
+    const qdSingle = quickDepartureInfo(p);
+    logHistory("Licenciement (WDV)", e.name, "détecté à l'import EMS" + (qdSingle ? ` — DÉPART RAPIDE : ${quickDepartureWording(qdSingle)}` : ""));
     toast(`${e.name} licencié (WDV) et retiré du roster`);
   };
   box.querySelectorAll("[data-licencier-apply]").forEach(btn=>{
@@ -1460,7 +1559,7 @@ function renderImportResults(result){
   if(btnAllLicencier) btnAllLicencier.addEventListener("click", ()=>{
     const count = window._pendingLicencier.length;
     const idsToLicencier = new Set(window._pendingLicencier.map(p=>p.id));
-    window._pendingLicencier.forEach(p=>logHistory("Licenciement (WDV)", p.name, "détecté à l'import EMS, groupé"));
+    window._pendingLicencier.forEach(p=>{ const qd = quickDepartureInfo(p); logHistory("Licenciement (WDV)", p.name, "détecté à l'import EMS, groupé" + (qd ? ` — DÉPART RAPIDE : ${quickDepartureWording(qd)}` : "")); });
     employees = employees.filter(x=>!idsToLicencier.has(x.id));
     if(count){ saveState(); renderAll(); toast(`${count} licenciement(s) appliqué(s), retirés du roster`); }
   });
@@ -1545,6 +1644,10 @@ function attachRowHandlers(){
         const newGrade = slot.querySelector(`[data-edit-grade="${id}"]`).value;
         const newRole = slot.querySelector(`[data-edit-role="${id}"]`).value;
         const saveBtn = slot.querySelector(`[data-save="${id}"]`);
+        const editError = validateEmployeeFields(newName, newDiscordId);
+        if(editError){ toast(editError); return; }
+        const editDup = findDuplicateEmployee(newName, newDiscordId, e.id);
+        if(editDup && (before.name!==newName || before.discordId!==newDiscordId) && !confirm(`${editDup.employee.name} (${editDup.employee.grade}) a déjà ${editDup.why}. Enregistrer quand même ?`)) return;
         saveBtn.disabled = true; const original = saveBtn.textContent; saveBtn.textContent = "Vérification…";
         try{
           // Action sensible : passe par la fonction serveur, qui
@@ -1561,7 +1664,7 @@ function attachRowHandlers(){
           if(changes.length) logHistory("Modification", e.name, changes.join(", "));
           saveState(); renderAll(); toast(`${e.name} mis à jour (vérifié serveur)`);
         }catch(err){
-          toast(`✕ Refusé : ${err.message}`);
+          toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — clique d'abord sur « Sauvegarder le roster » puis réessaie." : `✕ Refusé : ${err.message}`);
           saveBtn.disabled = false; saveBtn.textContent = original;
         }
       });
@@ -1585,7 +1688,7 @@ function attachRowHandlers(){
         logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
         toast(`${e.name} licencié et retiré du roster`);
       }catch(err){
-        toast(`✕ Refusé : ${err.message}`);
+        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — clique d'abord sur « Sauvegarder le roster » puis réessaie." : `✕ Refusé : ${err.message}`);
         btn.disabled = false; btn.textContent = original;
       }
     });
@@ -1598,7 +1701,9 @@ function attachRowHandlers(){
       if(!e) return;
       e.licencie = false;
       e.licencieDate = null;
-      saveState(); renderAll(); toast(`${e.name} réintégré`);
+      saveState(); renderAll();
+      logHistory("Réintégration", e.name, "remis actif dans le roster");
+      toast(`${e.name} réintégré`);
     });
   });
 }
@@ -1611,6 +1716,10 @@ document.getElementById("btnAdd").addEventListener("click", ()=>{
   const grade = document.getElementById("newGrade").value;
   const role = document.getElementById("newRole").value;
   if(!name || !discordId){ toast("Nom et ID Discord requis"); return; }
+  const fieldError = validateEmployeeFields(name, discordId);
+  if(fieldError){ toast(fieldError); return; }
+  const dup = findDuplicateEmployee(name, discordId);
+  if(dup && !confirm(`${dup.employee.name} (${dup.employee.grade}) est déjà dans le roster avec ${dup.why}. Ajouter quand même un deuxième dossier ?`)) return;
   if(!/^\d{5,25}$/.test(discordId)){
     if(!confirm(`"${discordId}" ne ressemble pas à un ID Discord habituel (uniquement des chiffres). Ajouter quand même ?`)) return;
   }
@@ -2125,7 +2234,17 @@ function isAbsentThisWeek(e){
   );
 }
 
-const ACTIVITE_STREAK_THRESHOLD = 2; // seuil d'alerte : X semaines de suite à 0 (hors semaines d'absence)
+// Seuil d'alerte : X semaines de suite à 0 (hors semaines d'absence).
+// Depuis le 29/09 il dépend du rôle : 2 semaines pour formateur/psy (MF, MP),
+// 3 pour les responsables (RF, RP), qui ont moins de travail direct.
+// Le signalement automatique part à chaque multiple de ce seuil.
+function streakThresholdFor(e){ return ["RF","RP"].includes(((e && e.grade)||"").toUpperCase()) ? 3 : 2; }
+// Compteurs saisis par pôle. Le pôle psy en a trois depuis le 29/09
+// (consultations ajoutées, notées dans les tickets par les psychologues).
+const ACTIVITE_FIELDS = {
+  formateur:   [["recrutements","Recrutements"],["formations","Formations"]],
+  psychologue: [["testsPsy","Tests psy"],["ppa","PPA"],["consultations","Consultations"]],
+};
 
 // Alertes de série fermées manuellement (10/09) — persisté localement,
 // par personne, avec la valeur exacte du compteur au moment de la
@@ -2142,11 +2261,11 @@ function saveDismissedActiviteAlerts(d){
 function renderActiviteTab(type){
   const isFormateur = type==="formateur";
   const grades = isFormateur ? ["MF","RF"] : ["MP","RP"];
-  const fields = isFormateur ? [["recrutements","Recrutements"],["formations","Formations"]] : [["testsPsy","Tests psy"],["ppa","PPA"]];
+  const fields = ACTIVITE_FIELDS[type];
   const list = document.getElementById(isFormateur ? "formateurList" : "psychologueList");
   const alertsBox = document.getElementById(isFormateur ? "formateurAlerts" : "psychologueAlerts");
   const label2 = isFormateur ? "PPA/tests psy" : "PPA/tests psy"; // même formulation demandée pour les deux
-  const activityLabel = isFormateur ? "recrutement/formation" : "PPA/test psy";
+  const activityLabel = isFormateur ? "recrutement/formation" : "PPA/test psy/consultation";
   const concerned = employees.filter(e=>!e.licencie && grades.includes((e.grade||"").toUpperCase()));
   if(!concerned.length){
     list.innerHTML = `<div class="special-sub">Aucun employé dans un grade concerné (${grades.join("/")}) pour l'instant.</div>`;
@@ -2163,7 +2282,7 @@ function renderActiviteTab(type){
   const canReset = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
   const alerts = concerned
     .map(e=>({ e, streak: activiteStreak[activiteKeyFor(e)]?.streak||0, key: activiteKeyFor(e) }))
-    .filter(x=>x.streak >= ACTIVITE_STREAK_THRESHOLD && dismissedAlerts[x.key] !== x.streak);
+    .filter(x=>x.streak >= streakThresholdFor(x.e) && dismissedAlerts[x.key] !== x.streak);
   alertsBox.innerHTML = alerts.length ? `<div class="hint" style="border-color:var(--amber);display:flex;flex-direction:column;gap:4px;">
     ${alerts.map(x=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span>⚠ <b>${esc(x.e.name)}</b> : ${x.streak} semaines de suite sans ${esc(activityLabel)}</span>
@@ -2216,12 +2335,54 @@ function renderActiviteTab(type){
       <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;">${esc(label)}
         <input type="number" min="0" data-activite-field="${f}" data-activite-key="${esc(key)}" value="${rec[f]||0}" style="width:64px;">
       </label>`).join("");
+    // Compteur visible AVANT l'alerte (29/09) : "1 sem. à 0 sur 2", pour que
+    // le signalement automatique ne surprenne personne.
+    const st = activiteStreak[key]?.streak || 0;
+    const thr = streakThresholdFor(e);
+    const streakBadge = st>0 ? ` <span style="font-size:0.7rem;font-weight:700;color:${st>=thr?'var(--amber)':'var(--text-dim)'};">${st} sem. à 0 sur ${thr}</span>` : "";
+    // "Actif mais n'a pas pu" (29/09) : valable pour la semaine en cours,
+    // réservé à ADD+ (vérifié aussi côté serveur), tracé dans les journaux.
+    const isExcused = rec.excused === true;
+    const excusedLabel = isFormateur ? "recrutement/formation" : "PPA/test psy/consultation";
+    const excusedCtl = canReset
+      ? `<label style="display:flex;align-items:center;gap:6px;font-size:0.74rem;color:var(--text-dim);" title="La série de cette personne repartira à 0 à la clôture au lieu de monter. Le marqueur s'efface tout seul à la clôture.">
+           <input type="checkbox" data-excused-key="${esc(key)}" data-excused-scope="${type}" ${isExcused?"checked":""}> Actif mais n'a pas pu (${excusedLabel})
+         </label>`
+      : (isExcused ? `<span style="font-size:0.72rem;color:var(--text-dim);">actif, n'a pas pu (${excusedLabel})</span>` : "");
     return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);">
-      <div><b>${esc(e.name)}</b> <span style="font-size:0.72rem;color:var(--text-dim);">(${esc(GRADE_LABEL[e.grade]||e.grade)})</span>${isAbsent?` <span style="font-size:0.7rem;color:var(--amber);font-weight:700;">absent(e) cette semaine — série mise en pause</span>`:""}</div>
+      <div>
+        <div><b>${esc(e.name)}</b> <span style="font-size:0.72rem;color:var(--text-dim);">(${esc(GRADE_LABEL[e.grade]||e.grade)})</span>${isAbsent?` <span style="font-size:0.7rem;color:var(--amber);font-weight:700;">absent(e) cette semaine — série mise en pause</span>`:""}${streakBadge}</div>
+        ${excusedCtl ? `<div style="margin-top:3px;">${excusedCtl}</div>` : ""}
+      </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;">${inputs}</div>
     </div>`;
   }).join("");
 }
+
+// Coche/décoche "Actif mais n'a pas pu" : passe par le serveur (permission
+// ADD+ revérifiée + trace dans les journaux), jamais un simple état local.
+document.addEventListener("change", async (ev)=>{
+  const cb = ev.target.closest("[data-excused-key]");
+  if(!cb) return;
+  const key = cb.dataset.excusedKey, scope = cb.dataset.excusedScope;
+  const wanted = cb.checked;
+  cb.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/activite-actions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"setExcused", scope, targetKey:key, excused: wanted }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    activiteData[key] = activiteData[key] || {};
+    if(wanted) activiteData[key].excused = true; else delete activiteData[key].excused;
+    saveActiviteData();
+    toast(wanted ? "✓ Marqué « actif mais n'a pas pu » pour cette semaine" : "✓ Marqueur retiré");
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+  }
+  renderActiviteTab(scope);
+});
 
 document.addEventListener("input", (e)=>{
   const t = e.target.closest("[data-activite-field]");
@@ -2236,7 +2397,6 @@ document.addEventListener("input", (e)=>{
 //  - absent(e) cette semaine → série inchangée (pause, ni +1 ni remise à 0)
 //  - 0 activité (les deux champs à 0) et pas absent(e) → +1 semaine de suite
 //  - au moins une activité → série remise à 0 (repart de zéro)
-const AUTO_SIGNALEMENT_STREAK_THRESHOLD = 2; // même seuil que l'alerte visuelle, et premier palier des signalements répétés
 
 // Crée automatiquement un signalement à un palier donné (2, 4, 6...).
 // Utilise le même chemin (signalements/signalements_test) que les
@@ -2272,33 +2432,42 @@ async function createAutoSignalement(e, streak, categoryLabel){
 async function closeActiviteWeek(type){
   const isFormateur = type==="formateur";
   const grades = isFormateur ? ["MF","RF"] : ["MP","RP"];
-  const [f1,f2] = isFormateur ? ["recrutements","formations"] : ["testsPsy","ppa"];
-  const categoryLabel = isFormateur ? "recrutement/formation" : "PPA/test psy";
+  const fieldNames = ACTIVITE_FIELDS[type].map(([f])=>f);
+  const categoryLabel = isFormateur ? "recrutement/formation" : "PPA/test psy/consultation";
   const concerned = employees.filter(e=>!e.licencie && grades.includes((e.grade||"").toUpperCase()));
   for(const e of concerned){
     const key = activiteKeyFor(e);
     const rec = activiteData[key] || {};
     const before = activiteStreak[key]?.streak || 0;
     const lastSignaled = activiteStreak[key]?.lastSignaledThreshold || 0;
+    const threshold = streakThresholdFor(e);
+    const hasActivity = fieldNames.some(f=>(rec[f]||0)>0);
     let after = before;
     let newLastSignaled = lastSignaled;
     if(isAbsentThisWeek(e)){
       // pause : on ne touche à rien (ni la série, ni le palier signalé).
-    } else if((rec[f1]||0)===0 && (rec[f2]||0)===0){
+    } else if(!hasActivity && rec.excused !== true){
       after = before + 1;
-      // Palier atteint (pair, >= seuil) ET jamais encore signalé pour ce
-      // cycle précis → nouveau signalement, jamais de doublon.
-      if(after % AUTO_SIGNALEMENT_STREAK_THRESHOLD === 0 && after > lastSignaled){
+      // Palier atteint (multiple du seuil de SON rôle : 2 pour MF/MP, 3 pour
+      // RF/RP) ET jamais encore signalé pour ce cycle → nouveau signalement.
+      if(after % threshold === 0 && after > lastSignaled){
         await createAutoSignalement(e, after, categoryLabel);
         newLastSignaled = after;
       }
       activiteStreak[key] = { streak: after, lastSignaledThreshold: newLastSignaled };
     } else {
+      // Au moins une activité, OU "actif mais n'a pas pu" (29/09) : la série
+      // et le palier signalé repartent à 0 (nouveau cycle complet).
       after = 0;
-      newLastSignaled = 0; // nouveau cycle complet — les prochains paliers pourront être resignalés
+      newLastSignaled = 0;
       activiteStreak[key] = { streak: 0, lastSignaledThreshold: 0 };
     }
-    activiteData[key] = {...rec, [f1]:0, [f2]:0};
+    // Remet les compteurs à 0 et efface le marqueur "n'a pas pu" (valable
+    // une semaine seulement — jamais une protection permanente).
+    const cleared = { ...rec };
+    fieldNames.forEach(f=>{ cleared[f] = 0; });
+    delete cleared.excused;
+    activiteData[key] = cleared;
   }
   saveActiviteData(); saveActiviteStreak();
   // Sauvegarde aussi dans le cloud automatiquement — plus besoin de
@@ -2355,13 +2524,12 @@ async function renderActiviteWeekHistory(scope){
         if(detailBox.style.display !== "none"){ detailBox.style.display = "none"; return; }
         const entry = weeks.find(w=>w.weekKey===weekKey)?.entry;
         if(!entry){ detailBox.textContent = "Introuvable."; detailBox.style.display = ""; return; }
-        const [f1,f2] = sc==="formateur" ? ["recrutements","formations"] : ["testsPsy","ppa"];
-        const [l1,l2] = sc==="formateur" ? ["Recrutements","Formations"] : ["Tests psy","PPA"];
+        const histFields = ACTIVITE_FIELDS[sc] || ACTIVITE_FIELDS.formateur;
         const rows = Object.entries(entry.before||{}).map(([key, snap])=>{
           const name = resolveActiviteKeyToName(key);
           const d = snap.data || {};
           return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-soft);">
-            <span>${esc(name)}</span><span>${l1} : ${d[f1]||0} · ${l2} : ${d[f2]||0}</span>
+            <span>${esc(name)}${d.excused===true?` <span style="font-size:0.7rem;color:var(--text-dim);">(actif, n'a pas pu)</span>`:""}</span><span>${histFields.map(([f,l])=>`${l} : ${d[f]||0}`).join(" · ")}</span>
           </div>`;
         }).join("");
         detailBox.innerHTML = rows || `<span style="color:var(--text-faint);">Aucune personne concernée cette semaine.</span>`;
@@ -2624,13 +2792,13 @@ document.getElementById("signalementSubmitBtn").addEventListener("click", async 
   // Rattache un instantané des chiffres d'activité AU MOMENT du
   // signalement — pour garder le contexte factuel exact même si ces
   // chiffres changent ensuite. Uniquement pour les postes suivis (MF/RF
-  // : recrutements+formations ; MP/RP : tests psy+PPA).
+  // : recrutements+formations ; MP/RP : tests psy+PPA+consultations).
   const actKey = person.id ? `id:${person.id}` : `name:${person.name.trim().toLowerCase()}`;
   const act = activiteData[actKey];
   if(act && ["MF","RF"].includes(person.grade)){
     payload.activiteSnapshot = { recrutements: act.recrutements||0, formations: act.formations||0 };
   } else if(act && ["MP","RP"].includes(person.grade)){
-    payload.activiteSnapshot = { testsPsy: act.testsPsy||0, ppa: act.ppa||0 };
+    payload.activiteSnapshot = { testsPsy: act.testsPsy||0, ppa: act.ppa||0, consultations: act.consultations||0 };
   }
 
   // MC ne peut que PROPOSER (jamais créer directement un signalement
