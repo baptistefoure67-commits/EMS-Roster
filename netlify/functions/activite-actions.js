@@ -98,6 +98,66 @@ exports.handler = async function (event) {
     }
   }
 
+  // "Actif mais n'a pas pu" (29/09) -- marqueur par personne, valable pour la
+  // semaine en cours : la personne est active mais n'a pas eu de travail a
+  // faire (tout est deja fait, ou un MC a pris la formation). A la cloture,
+  // la serie repart a 0 au lieu de monter, et le marqueur s'efface. Action
+  // distincte, verifiee cote serveur avec la meme permission que la remise a
+  // zero manuelle (ADD et au-dessus), et TOUJOURS tracee dans les journaux
+  // (qui l'a active/retire, pour qui, quand) -- jamais juste un bouton.
+  if (action === "setExcused") {
+    if (!can(session.level, "reset_activite_streak")) {
+      return json(403, { error: `Permission refusee (${session.level}) -- reserve a ADD et au-dessus.` });
+    }
+    const excused = body.excused === true;
+    if (!targetKey || !["formateur", "psychologue"].includes(scope)) {
+      return json(400, { error: "Parametres manquants ou invalides." });
+    }
+    try {
+      const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
+
+      // Verifie que la personne appartient bien au scope demande (jamais
+      // une cle envoyee par le navigateur sans controle).
+      const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+      const rosterData = rosterRes.ok ? await rosterRes.json() : null;
+      const employees = (rosterData && rosterData.employees) || [];
+      const grades = SCOPE_GRADES[scope];
+      const person = employees.find(e => !e.licencie && grades.includes((e.grade || "").toUpperCase()) && activiteKeyFor(e) === targetKey);
+      if (!person) return json(400, { error: "Personne introuvable dans ce pole." });
+
+      const curRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`);
+      const cur = curRes.ok ? await curRes.json().catch(() => null) : null;
+      const mergedData = { ...((cur && cur.data) || {}) };
+      const rec = { ...(mergedData[targetKey] || {}) };
+      const before = rec.excused === true;
+      if (excused) rec.excused = true; else delete rec.excused;
+      // Firebase refuse un objet vide : on garde au moins un compteur a 0.
+      if (!Object.keys(rec).length) rec.recrutements = 0;
+      mergedData[targetKey] = rec;
+
+      const streakToSend = (cur && cur.streak && Object.keys(cur.streak).length) ? cur.streak : null;
+      const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: mergedData, streak: streakToSend, savedAt: Date.now() }),
+      });
+      if (!saveRes.ok) { const t = await saveRes.text().catch(() => ""); return json(502, { error: `Echec de l'enregistrement (${saveRes.status}) : ${t.slice(0, 200)}` }); }
+
+      await logAction({
+        action: excused ? "activite_actif_sans_travail_active" : "activite_actif_sans_travail_retire",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        targetDiscordId: person.discordId || null, targetName: person.name,
+        oldValue: before ? "actif mais n'a pas pu" : "normal",
+        newValue: excused ? "actif mais n'a pas pu" : "normal",
+        details: `Suivi ${scope} -- ${person.name}`,
+        idToken,
+      }).catch(() => {});
+
+      return json(200, { ok: true, excused });
+    } catch (err) {
+      return json(500, { error: `Erreur inattendue : ${err.message}` });
+    }
+  }
+
   const permissionNeeded = SCOPE_PERMISSION[scope];
   if (!permissionNeeded) return json(400, { error: `Portée invalide : "${scope}".` });
   if (!can(session.level, permissionNeeded)) {
