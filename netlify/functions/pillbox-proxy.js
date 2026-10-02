@@ -65,7 +65,32 @@ exports.handler = async function (event) {
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
 
-    return json(200, { roster, discordIds }, corsHeaders);
+    // (02/10) Avant, les pings Discord de Pillbox dépendaient UNIQUEMENT de
+    // discordIdsList — une liste à part, à maintenir à la main, qui finit
+    // par être vide ou obsolète si personne n'y pense. Le Roster a pourtant
+    // déjà l'ID Discord de chaque employé actif : on le génère maintenant
+    // directement depuis là (même format "Nom: ID" que Pillbox attend déjà,
+    // aucun changement nécessaire côté Pillbox). L'ancienne liste manuelle
+    // reste lue en complément, pour quelqu'un qui n'est plus dans le
+    // Roster mais encore utile à ping (ex: ancien staff).
+    const rosterLines = [];
+    const rosterNames = new Set();
+    (roster && Array.isArray(roster.employees) ? roster.employees : []).forEach(e => {
+      if (!e || e.licencie) return;
+      const name = (e.name || "").trim();
+      const discordId = String(e.discordId || "").trim();
+      if (!name || !/^\d{5,}$/.test(discordId)) return;
+      rosterLines.push(`${name}: ${discordId}`);
+      rosterNames.add(name.toLowerCase());
+    });
+    const manualText = (discordIds && discordIds.text) ? discordIds.text : "";
+    const manualExtraLines = manualText.split("\n").filter(line => {
+      const m = line.trim().match(/^\*?\s*(.+?)\s*:\s*(\d{5,})\s*$/);
+      return m && !rosterNames.has(m[1].trim().toLowerCase());
+    });
+    const mergedText = [...rosterLines, ...manualExtraLines].join("\n");
+
+    return json(200, { roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length } }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
