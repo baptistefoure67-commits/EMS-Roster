@@ -20,17 +20,22 @@ const { createFirebaseCustomToken } = require("./firebase-token");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
+const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 
 exports.handler = async function (event) {
   // CORS : Pillbox est sur un autre domaine Netlify — sans ces en-têtes,
   // le navigateur bloquerait la réponse avant même que le code de
   // Pillbox ne la voie. Ouvert à tous les domaines volontairement (ce
-  // n'est qu'un relais de lecture protégé par secret, pas une action
-  // sensible) — le secret est la vraie protection, pas l'origine.
+  // n'est qu'un relais protégé par secret, pas une action sensible en
+  // elle-même) — le secret est la vraie protection, pas l'origine.
+  // POST ajouté le 03/10 : signaler "semaine terminée" au Roster (voir
+  // plus bas) exige d'écrire sur activiteSuivi, qui demande une
+  // authentification Firebase — Pillbox n'en a pas en direct, donc ça
+  // doit obligatoirement passer par ce relais, comme le reste.
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Secret",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   };
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
@@ -57,6 +62,31 @@ exports.handler = async function (event) {
     const exchData = await exch.json();
     if (!exch.ok) throw new Error(exchData.error?.message || `${exch.status}`);
     const idToken = exchData.idToken;
+
+    // (03/10) Signal "semaine terminée" : Pillbox appelle ce relais en
+    // POST juste après avoir validé sa semaine, pour que le Roster se
+    // clôture tout seul à sa prochaine ouverture (il écoute déjà ce
+    // champ, voir checkPillboxWeekFinishedSignal côté Roster) — sans ce
+    // passage par le relais, l'écriture directe depuis Pillbox était
+    // silencieusement refusée par les règles Firebase (authentification
+    // requise sur activiteSuivi), d'où le signal qui n'arrivait jamais.
+    if (event.httpMethod === "POST") {
+      let body = {};
+      try { body = JSON.parse(event.body || "{}"); } catch (e) {}
+      if (body.action === "weekFinished") {
+        const patchRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weekFinishedAt: Date.now() }),
+        });
+        if (!patchRes.ok) {
+          const t = await patchRes.text().catch(() => "");
+          return json(502, { error: `Échec de l'envoi du signal (${patchRes.status}) : ${t.slice(0, 200)}` }, corsHeaders);
+        }
+        return json(200, { ok: true }, corsHeaders);
+      }
+      return json(400, { error: "Action POST inconnue." }, corsHeaders);
+    }
 
     const [rosterRes, discordIdsRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
