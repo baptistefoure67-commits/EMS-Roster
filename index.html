@@ -1171,7 +1171,12 @@ function renderAll(){
   const container = document.getElementById("gradeSections");
   container.innerHTML = "";
   GRADE_ORDER.forEach(grade=>{
-    const list = actifs.filter(e=>e.grade===grade && matchesFilter(e, query, gradeFilter));
+    // (03/10) Tri alphabétique par prénom au sein de chaque grade (les noms
+    // sont stockés "Prénom Nom", donc trier la chaîne entière trie bien par
+    // prénom d'abord) — avant, la liste gardait l'ordre du tableau EMS collé,
+    // ce qui donnait un classement qui semblait aléatoire.
+    const list = actifs.filter(e=>e.grade===grade && matchesFilter(e, query, gradeFilter))
+      .sort((a,b)=> a.name.localeCompare(b.name, "fr"));
     const totalInGrade = actifs.filter(e=>e.grade===grade).length;
     if(totalInGrade===0) return; // pas de section pour un grade totalement vide
     if(gradeFilter && gradeFilter!==grade) return;
