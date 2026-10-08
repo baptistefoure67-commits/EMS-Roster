@@ -1835,6 +1835,180 @@ document.getElementById("btnSpecialCloudLoad").addEventListener("click", async (
   finally{ btn.disabled=false; btn.textContent=original; }
 });
 
+// ═══════════════════════════ ENVOI VERS PILLBOX (CLOUD) ═══════════════════════════
+// Utilise EXACTEMENT le même point d'accès Firebase que le bouton "Charger
+// depuis le cloud" déjà présent dans Pillbox Terminal Paye (section ID
+// Discord) — même base, même chemin. Le format produit par buildPlainList()
+// ("Nom : ID" par ligne + rôles à la suite) correspond déjà tel quel à ce
+// que Pillbox attend dans son champ ID Discord, donc aucune conversion
+// n'est nécessaire ici : on envoie le texte brut directement.
+const CLOUD_DB_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
+
+// Parseur identique à celui utilisé côté Pillbox (parseDiscordIds), pour
+// comparer les deux côtés avec exactement la même logique de lecture.
+function parseDiscordIdsText(text){
+  const map = {};
+  if(!text) return map;
+  text.split("\n").forEach(line=>{
+    const m = line.trim().match(/^\*?\s*(.+?)\s*:\s*(\d{5,})\s*$/);
+    if(!m) return;
+    map[m[1].trim().toLowerCase()] = m[2].trim();
+  });
+  return map;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SYNCHRONISATION GLOBALE PILLBOX (09/09) — remplace les boutons
+// séparés (Roster, Formation Opération, Formateur, Psychologue) par
+// une seule action. Réutilise EXACTEMENT les mêmes fonctions/chemins
+// déjà existants (buildPlainList, buildFormationSendList,
+// saveActiviteToCloud, withFirebaseAuth) — aucun nouveau système,
+// juste un point d'entrée unique qui les enchaîne.
+//
+// Respecte le même partage de permissions qu'avant : MC peut
+// synchroniser Formateur+Psychologue (send_pillbox_formation/
+// psychologie), ADD+ synchronise TOUT en plus (send_pillbox_all) —
+// jamais élargi côté client, la vraie vérification reste dans
+// activite-actions.js pour Formateur/Psychologue (déjà en place).
+// Roster et Formation Opération restent sans vérification serveur
+// dédiée (comme avant ce soir), simplement visibles seulement pour
+// ADD+ ici.
+// ═══════════════════════════════════════════════════════════════════
+async function syncWithPillbox(){
+  const btn = document.getElementById("btnSyncPillbox");
+  const statusEl = document.getElementById("syncPillboxStatus");
+  const canAll = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = "🔄 Synchronisation en cours…";
+  if(statusEl) statusEl.textContent = "";
+
+  const done = [];
+  const failed = [];
+
+  // 1) Roster + Formation Opération — réservé ADD+ (comme send_pillbox_all)
+  if(canAll){
+    try{
+      const text = buildPlainList();
+      const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
+      const currentText = currentRes.ok ? ((await currentRes.json().catch(()=>null))?.text || "") : "";
+      const roleNames = new Set(ROLES_REF.map(r=>r.name.toLowerCase()));
+      const before = parseDiscordIdsText(currentText);
+      const after = parseDiscordIdsText(text);
+      let diffCount = 0;
+      Object.keys(after).forEach(n=>{ if(!roleNames.has(n) && (before[n]!==after[n])) diffCount++; });
+      Object.keys(before).forEach(n=>{ if(!roleNames.has(n) && !(n in after)) diffCount++; });
+      const res = await fetch(withFirebaseAuth(CLOUD_DB_URL), {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
+      });
+      if(!res.ok) throw new Error(`${res.status}`);
+      done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
+    }catch(err){ failed.push(`Roster (${err.message})`); }
+
+    try{
+      const {text, count} = buildFormationSendList();
+      if(count){
+        const res = await fetch(FORMATION_CLOUD_URL, {
+          method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
+        });
+        if(!res.ok) throw new Error(`${res.status}`);
+        done.push(`Formation Opération (${count})`);
+      }
+    }catch(err){ failed.push(`Formation Opération (${err.message})`); }
+  }
+
+  // 2) Formateur + Psychologue — MC et au-dessus, via le circuit déjà
+  // protégé côté serveur (activite-actions.js, inchangé).
+  try{ await saveActiviteToCloud("formateur"); done.push("Formation"); }
+  catch(err){ failed.push(`Formation (${err.message})`); }
+  try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); }
+  catch(err){ failed.push(`Psychologie (${err.message})`); }
+
+  btn.disabled = false;
+  btn.innerHTML = original;
+  if(statusEl){
+    if(!failed.length){
+      statusEl.innerHTML = `<span style="color:var(--green);">✅ Synchronisation Pillbox terminée — ${esc(done.join(", "))}.</span>`;
+    } else if(done.length){
+      statusEl.innerHTML = `<span style="color:var(--amber);">⚠️ Partiellement synchronisé — ✓ ${esc(done.join(", "))} | ✕ ${esc(failed.join(", "))}.</span>`;
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">❌ La synchronisation a rencontré une erreur : ${esc(failed.join(", "))}.</span>`;
+    }
+  }
+}
+
+document.getElementById("btnSyncPillbox").addEventListener("click", syncWithPillbox);
+// (btnCloudSend retiré le 09/09 — remplacé par le bouton unique
+// "🔄 Synchroniser avec Pillbox", voir syncWithPillbox() plus haut,
+// qui fait exactement la même chose : lecture, comparaison, envoi.)
+
+// ═══════════════════════════ ROSTER SUR TOUS LES PC (CLOUD) ═══════════════════════════
+// Chemin Firebase DIFFÉRENT de celui utilisé pour Pillbox (discordIdsList) :
+// ici on sauvegarde la liste COMPLÈTE (grades, rôles, licenciés...), pas
+// juste "Nom : ID". Explicitement Sauvegarder/Charger (pas de synchronisation
+// automatique en continu) — plus sûr : si deux personnes modifient le
+// roster en même temps sur deux PC différents, personne n'écrase le
+// travail de l'autre sans s'en rendre compte.
+const ROSTER_CLOUD_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
+
+document.getElementById("btnRosterCloudSave").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnRosterCloudSave");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "☁️ Sauvegarde en cours…";
+  try{
+    const savedAt = Date.now();
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({employees, savedAt}),
+    });
+    if(!res.ok){
+      const body = await res.text().catch(()=>"");
+      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
+    }
+    rosterLastUpdatedAt = savedAt; renderLastUpdated();
+    toast(`✓ Roster sauvegardé dans le cloud (${employees.length} employé(s))`);
+  }catch(err){
+    console.error("Erreur sauvegarde cloud roster:", err);
+    toast(`✕ Échec de la sauvegarde : ${err.message}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
+document.getElementById("btnRosterCloudLoad").addEventListener("click", async ()=>{
+  if(!confirm("Charger le roster depuis le cloud remplacera la liste actuelle sur ce PC. Continuer ?")) return;
+  const btn = document.getElementById("btnRosterCloudLoad");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "☁️ Chargement en cours…";
+  try{
+    const res = await fetch(ROSTER_CLOUD_URL);
+    if(!res.ok){
+      const body = await res.text().catch(()=>"");
+      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
+    }
+    const data = await res.json();
+    if(!data || !Array.isArray(data.employees)){
+      toast("Aucune sauvegarde trouvée dans le cloud pour l'instant.");
+      return;
+    }
+    employees = data.employees;
+    saveState(); renderAll(); populateGradeSelects(); renderRoles();
+    refreshSignalementPersonList();
+    const when = data.savedAt ? new Date(data.savedAt).toLocaleString("fr-FR") : "";
+    toast(`✓ Roster chargé (${employees.length} employé(s))${when ? " — sauvegardé le " + when : ""}`);
+  }catch(err){
+    console.error("Erreur chargement cloud roster:", err);
+    toast(`✕ Échec du chargement : ${err.message}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 // Ferme automatiquement un menu "☁️ ... (cloud)" une fois qu'on a cliqué
 // un bouton dedans, ou si on clique ailleurs sur la page — sinon il
 // resterait ouvert après l'action, ce qui serait gênant.
