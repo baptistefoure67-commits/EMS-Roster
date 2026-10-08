@@ -17,10 +17,12 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { createFirebaseCustomToken } = require("./firebase-token");
+const { computeAbsenceSignalements } = require("./absences-actions");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
+const ABSENCES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsences.json";
 
 exports.handler = async function (event) {
   // CORS : Pillbox est sur un autre domaine Netlify — sans ces en-têtes,
@@ -88,12 +90,14 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, absencesRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
+      fetch(`${ABSENCES_URL}?auth=${idToken}`),
     ]);
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
+    const absences = absencesRes.ok ? await absencesRes.json() : null;
 
     // (02/10) Avant, les pings Discord de Pillbox dépendaient UNIQUEMENT de
     // discordIdsList — une liste à part, à maintenir à la main, qui finit
@@ -120,7 +124,17 @@ exports.handler = async function (event) {
     });
     const mergedText = [...rosterLines, ...manualExtraLines].join("\n");
 
-    return json(200, { roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length } }, corsHeaders);
+    // (03/10) Signalements d'absences répétées (section 15 du cahier des
+    // charges) : calculés ici avec la même règle exacte que le Roster
+    // (fonction partagée computeAbsenceSignalements, voir
+    // absences-actions.js) — jamais recalculée en double avec une
+    // logique qui pourrait dériver de l'originale.
+    const absenceSignalements = computeAbsenceSignalements(absences || {});
+
+    return json(200, {
+      roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
+      absenceSignalements,
+    }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
