@@ -88,6 +88,7 @@ const DEFAULT_PERMISSIONS = {
     cancel_lower_decisions: false,
     delete_week: true, // peut supprimer une semaine de l'historique (09/09)
     reset_activite_streak: true, // peut réinitialiser manuellement un suivi d'inactivité (10/09)
+    manage_absences: true, // peut synchroniser les absences détectées et basculer Prise en compte OUI/NON (03/10)
   },
   CD: {
     // hérite de tout ADD, plus les droits de gestion avancée
