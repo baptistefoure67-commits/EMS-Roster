@@ -273,6 +273,7 @@
     <button type="button" class="tab-btn" id="tabOperationBtn">🎓 Opération</button>
     <button type="button" class="tab-btn" id="tabFormateurBtn">📚 Formateur</button>
     <button type="button" class="tab-btn" id="tabPsychologueBtn">🧠 Psychologue</button>
+    <button type="button" class="tab-btn" id="tabAbsencesBtn">📅 Absences</button>
     <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
   </div>
@@ -522,6 +523,24 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     </div>
   </div>
 
+  <div id="absencesView" style="display:none;">
+    <div class="card">
+      <div class="special-title">📅 Absences (plus de 3 jours)</div>
+      <div class="special-sub" style="margin-bottom:10px;">Détectées automatiquement à partir du collage du tableau EMS (étape "Importer depuis le tableau EMS"). Une absence de 3 jours ou moins n'est jamais comptabilisée ici. 3 absences "Prise en compte : OUI" sur une fenêtre glissante de 30 jours déclenchent un signalement transmis à Pillbox, pour décision humaine au moment des paies — ce suivi ne licencie ni ne rétrograde jamais tout seul.</div>
+      <div id="absencesAlerts" style="margin-bottom:10px;"></div>
+      <div class="special-controls" style="margin-top:0;">
+        <input type="text" id="absencesSearch" placeholder="Rechercher un employé..." style="flex:1;min-width:220px;">
+        <select id="absencesFilterPriseEnCompte">
+          <option value="">Toutes</option>
+          <option value="oui">Prise en compte : OUI</option>
+          <option value="non">Prise en compte : NON</option>
+        </select>
+        <button class="btn-ghost btn-small" id="btnAbsencesRefresh">↻ Actualiser</button>
+      </div>
+      <div class="special-list" id="absencesList" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
   <!-- Réservé à ADD et au-dessus (can view_logs) — masqué par défaut,
        affiché en JS selon le niveau réel. -->
   <div id="logsView" style="display:none;">
@@ -544,6 +563,8 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
           <option value="modification_permission">Modification de permission</option>
           <option value="modification_libelle_grade">Modification de libellé</option>
           <option value="envoi_pillbox">Envoi vers Pillbox</option>
+          <option value="absences_synchronisees">Absences synchronisées</option>
+          <option value="absence_prise_en_compte_modifiee">Absence : Prise en compte modifiée</option>
         </select>
         <button type="button" class="btn-primary btn-small" id="logsFilterBtn">Filtrer</button>
         <button type="button" class="btn-ghost btn-small" id="logsRefreshBtn">↻ Actualiser</button>
@@ -1750,6 +1771,10 @@ document.getElementById("btnAnalyzeEms").addEventListener("click", ()=>{
   weekAbsences = parseWeekAbsences(text);
   saveWeekAbsences();
   renderActiviteTab("formateur"); renderActiviteTab("psychologue");
+  // (03/10) Le même collage sert aussi à détecter les absences de plus
+  // de 3 jours pour le nouvel onglet Absences — synchronise directement
+  // vers le cloud (ajoute seulement les nouvelles, jamais de doublon).
+  syncQualifyingAbsences(text);
 });
 
 document.getElementById("btnCopyList").addEventListener("click", ()=>{
@@ -1808,180 +1833,6 @@ document.getElementById("btnSpecialCloudLoad").addEventListener("click", async (
     toast(`✓ Sélection cloud chargée (${ids.size})`);
   }catch(err){ console.error(err); toast(`✕ Échec cloud : ${err.message}`); }
   finally{ btn.disabled=false; btn.textContent=original; }
-});
-
-// ═══════════════════════════ ENVOI VERS PILLBOX (CLOUD) ═══════════════════════════
-// Utilise EXACTEMENT le même point d'accès Firebase que le bouton "Charger
-// depuis le cloud" déjà présent dans Pillbox Terminal Paye (section ID
-// Discord) — même base, même chemin. Le format produit par buildPlainList()
-// ("Nom : ID" par ligne + rôles à la suite) correspond déjà tel quel à ce
-// que Pillbox attend dans son champ ID Discord, donc aucune conversion
-// n'est nécessaire ici : on envoie le texte brut directement.
-const CLOUD_DB_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
-
-// Parseur identique à celui utilisé côté Pillbox (parseDiscordIds), pour
-// comparer les deux côtés avec exactement la même logique de lecture.
-function parseDiscordIdsText(text){
-  const map = {};
-  if(!text) return map;
-  text.split("\n").forEach(line=>{
-    const m = line.trim().match(/^\*?\s*(.+?)\s*:\s*(\d{5,})\s*$/);
-    if(!m) return;
-    map[m[1].trim().toLowerCase()] = m[2].trim();
-  });
-  return map;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// SYNCHRONISATION GLOBALE PILLBOX (09/09) — remplace les boutons
-// séparés (Roster, Formation Opération, Formateur, Psychologue) par
-// une seule action. Réutilise EXACTEMENT les mêmes fonctions/chemins
-// déjà existants (buildPlainList, buildFormationSendList,
-// saveActiviteToCloud, withFirebaseAuth) — aucun nouveau système,
-// juste un point d'entrée unique qui les enchaîne.
-//
-// Respecte le même partage de permissions qu'avant : MC peut
-// synchroniser Formateur+Psychologue (send_pillbox_formation/
-// psychologie), ADD+ synchronise TOUT en plus (send_pillbox_all) —
-// jamais élargi côté client, la vraie vérification reste dans
-// activite-actions.js pour Formateur/Psychologue (déjà en place).
-// Roster et Formation Opération restent sans vérification serveur
-// dédiée (comme avant ce soir), simplement visibles seulement pour
-// ADD+ ici.
-// ═══════════════════════════════════════════════════════════════════
-async function syncWithPillbox(){
-  const btn = document.getElementById("btnSyncPillbox");
-  const statusEl = document.getElementById("syncPillboxStatus");
-  const canAll = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
-  btn.disabled = true;
-  const original = btn.innerHTML;
-  btn.innerHTML = "🔄 Synchronisation en cours…";
-  if(statusEl) statusEl.textContent = "";
-
-  const done = [];
-  const failed = [];
-
-  // 1) Roster + Formation Opération — réservé ADD+ (comme send_pillbox_all)
-  if(canAll){
-    try{
-      const text = buildPlainList();
-      const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
-      const currentText = currentRes.ok ? ((await currentRes.json().catch(()=>null))?.text || "") : "";
-      const roleNames = new Set(ROLES_REF.map(r=>r.name.toLowerCase()));
-      const before = parseDiscordIdsText(currentText);
-      const after = parseDiscordIdsText(text);
-      let diffCount = 0;
-      Object.keys(after).forEach(n=>{ if(!roleNames.has(n) && (before[n]!==after[n])) diffCount++; });
-      Object.keys(before).forEach(n=>{ if(!roleNames.has(n) && !(n in after)) diffCount++; });
-      const res = await fetch(withFirebaseAuth(CLOUD_DB_URL), {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
-      });
-      if(!res.ok) throw new Error(`${res.status}`);
-      done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
-    }catch(err){ failed.push(`Roster (${err.message})`); }
-
-    try{
-      const {text, count} = buildFormationSendList();
-      if(count){
-        const res = await fetch(FORMATION_CLOUD_URL, {
-          method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
-        });
-        if(!res.ok) throw new Error(`${res.status}`);
-        done.push(`Formation Opération (${count})`);
-      }
-    }catch(err){ failed.push(`Formation Opération (${err.message})`); }
-  }
-
-  // 2) Formateur + Psychologue — MC et au-dessus, via le circuit déjà
-  // protégé côté serveur (activite-actions.js, inchangé).
-  try{ await saveActiviteToCloud("formateur"); done.push("Formation"); }
-  catch(err){ failed.push(`Formation (${err.message})`); }
-  try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); }
-  catch(err){ failed.push(`Psychologie (${err.message})`); }
-
-  btn.disabled = false;
-  btn.innerHTML = original;
-  if(statusEl){
-    if(!failed.length){
-      statusEl.innerHTML = `<span style="color:var(--green);">✅ Synchronisation Pillbox terminée — ${esc(done.join(", "))}.</span>`;
-    } else if(done.length){
-      statusEl.innerHTML = `<span style="color:var(--amber);">⚠️ Partiellement synchronisé — ✓ ${esc(done.join(", "))} | ✕ ${esc(failed.join(", "))}.</span>`;
-    } else {
-      statusEl.innerHTML = `<span style="color:var(--red);">❌ La synchronisation a rencontré une erreur : ${esc(failed.join(", "))}.</span>`;
-    }
-  }
-}
-
-document.getElementById("btnSyncPillbox").addEventListener("click", syncWithPillbox);
-// (btnCloudSend retiré le 09/09 — remplacé par le bouton unique
-// "🔄 Synchroniser avec Pillbox", voir syncWithPillbox() plus haut,
-// qui fait exactement la même chose : lecture, comparaison, envoi.)
-
-// ═══════════════════════════ ROSTER SUR TOUS LES PC (CLOUD) ═══════════════════════════
-// Chemin Firebase DIFFÉRENT de celui utilisé pour Pillbox (discordIdsList) :
-// ici on sauvegarde la liste COMPLÈTE (grades, rôles, licenciés...), pas
-// juste "Nom : ID". Explicitement Sauvegarder/Charger (pas de synchronisation
-// automatique en continu) — plus sûr : si deux personnes modifient le
-// roster en même temps sur deux PC différents, personne n'écrase le
-// travail de l'autre sans s'en rendre compte.
-const ROSTER_CLOUD_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
-
-document.getElementById("btnRosterCloudSave").addEventListener("click", async ()=>{
-  const btn = document.getElementById("btnRosterCloudSave");
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "☁️ Sauvegarde en cours…";
-  try{
-    const savedAt = Date.now();
-    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({employees, savedAt}),
-    });
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    rosterLastUpdatedAt = savedAt; renderLastUpdated();
-    toast(`✓ Roster sauvegardé dans le cloud (${employees.length} employé(s))`);
-  }catch(err){
-    console.error("Erreur sauvegarde cloud roster:", err);
-    toast(`✕ Échec de la sauvegarde : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-});
-
-document.getElementById("btnRosterCloudLoad").addEventListener("click", async ()=>{
-  if(!confirm("Charger le roster depuis le cloud remplacera la liste actuelle sur ce PC. Continuer ?")) return;
-  const btn = document.getElementById("btnRosterCloudLoad");
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "☁️ Chargement en cours…";
-  try{
-    const res = await fetch(ROSTER_CLOUD_URL);
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    const data = await res.json();
-    if(!data || !Array.isArray(data.employees)){
-      toast("Aucune sauvegarde trouvée dans le cloud pour l'instant.");
-      return;
-    }
-    employees = data.employees;
-    saveState(); renderAll(); populateGradeSelects(); renderRoles();
-    refreshSignalementPersonList();
-    const when = data.savedAt ? new Date(data.savedAt).toLocaleString("fr-FR") : "";
-    toast(`✓ Roster chargé (${employees.length} employé(s))${when ? " — sauvegardé le " + when : ""}`);
-  }catch(err){
-    console.error("Erreur chargement cloud roster:", err);
-    toast(`✕ Échec du chargement : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
-  }
 });
 
 // Ferme automatiquement un menu "☁️ ... (cloud)" une fois qu'on a cliqué
@@ -2238,6 +2089,174 @@ function isAbsentThisWeek(e){
     (a.name && e.name && a.name.trim().toLowerCase()===e.name.trim().toLowerCase())
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ABSENCES DE PLUS DE 3 JOURS (03/10) — catégorie séparée, suivi des
+// récurrences sur une fenêtre glissante de 30 jours, signalement
+// transmis à Pillbox pour décision humaine (jamais automatique).
+// ═══════════════════════════════════════════════════════════════════
+const ABSENCES_CLOUD_URL_BASE = "/.netlify/functions/absences-actions";
+let absencesCache = {}; // { [id]: {employeeKey, name, grade, startIso, endIso, durationDays, priseEnCompte, createdAt} }
+
+// Extrait, depuis le MÊME collage EMS que celui utilisé pour tout le
+// reste (étape "Importer depuis le tableau EMS"), uniquement les
+// absences qualifiantes : durée RÉELLE strictement supérieure à 3
+// jours (section 2 du cahier des charges — 3 jours ou moins, jamais
+// comptabilisée). Contrairement à parseWeekAbsences ci-dessus (qui ne
+// garde que les absences ENCORE actives aujourd'hui, pour mettre en
+// pause le suivi d'activité), ici on garde TOUTE absence qualifiante,
+// même déjà terminée — c'est tout l'intérêt : la conserver avant
+// qu'elle ne disparaisse du tableau les semaines suivantes.
+function extractQualifyingAbsences(text){
+  const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const result = [];
+  lines.forEach(line=>{
+    if(/^Dossier\b/i.test(line)) return;
+    const cols = splitEmsLine(line);
+    if(cols.length < 6) return;
+    const employeRaw = (cols[1]||"").trim();
+    const idUnique = (cols[2]||"").trim();
+    const gradeRaw = (cols[3]||"").trim().toUpperCase();
+    const absencesRaw = (cols[5]||"").trim();
+    if(!employeRaw || !absencesRaw) return;
+    const name = cleanEmsName(employeRaw);
+    if(!name) return;
+    const parsed = parseAbsenceRange(absencesRaw, today);
+    if(parsed.unclear || !parsed.start || !parsed.end) return;
+    // Durée réelle inclusive (ex: 04/10 -> 07/10 = 4 jours : 04,05,06,07).
+    const durationDays = Math.round((parsed.end - parsed.start) / 86400000) + 1;
+    if(durationDays <= 3) return; // section 2 : ignorée, jamais stockée
+    const emp = (idUnique && employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)))
+      || employees.find(e=>norm(e.name)===norm(name));
+    const employeeKey = emp ? activiteKeyFor(emp) : (idUnique ? `id:${idUnique}` : `name:${norm(name)}`);
+    result.push({
+      employeeKey, name: emp ? emp.name : name, grade: emp ? emp.grade : (gradeRaw||null),
+      startIso: parsed.start.toISOString().slice(0,10), endIso: parsed.end.toISOString().slice(0,10),
+      durationDays,
+    });
+  });
+  return result;
+}
+
+// Synchronise vers le cloud (fonction serveur dédiée — jamais d'écriture
+// directe sur Firebase ici, section 24/Firebase du cahier des charges).
+// N'ajoute QUE les nouvelles absences détectées — le serveur ignore déjà
+// tout doublon (même clé), mais on ne renvoie de toute façon que les
+// absences qualifiantes trouvées dans CE collage précis.
+async function syncQualifyingAbsences(text){
+  if(!currentSessionToken) return; // pas connecté : rien à synchroniser silencieusement
+  const qualifyingAbsences = extractQualifyingAbsences(text);
+  if(!qualifyingAbsences.length) return;
+  try{
+    const res = await fetch(ABSENCES_CLOUD_URL_BASE, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"sync", qualifyingAbsences }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    if(data.absences) absencesCache = data.absences;
+    if(data.added > 0) toast(`📅 ${data.added} nouvelle(s) absence(s) qualifiante(s) enregistrée(s)`);
+    renderAbsencesTab();
+  }catch(err){
+    console.error("Synchronisation des absences impossible:", err.message);
+  }
+}
+
+async function loadAbsencesFromCloud(){
+  if(!currentSessionToken) return;
+  try{
+    const res = await fetch(`${ABSENCES_CLOUD_URL_BASE}?token=${encodeURIComponent(currentSessionToken)}`);
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    absencesCache = data.absences || {};
+    renderAbsencesTab();
+  }catch(err){
+    const box = document.getElementById("absencesList");
+    if(box) box.innerHTML = `<div class="empty-msg">Impossible de charger les absences (${esc(err.message)}).</div>`;
+  }
+}
+
+function renderAbsencesTab(){
+  const box = document.getElementById("absencesList");
+  const alertsBox = document.getElementById("absencesAlerts");
+  if(!box) return;
+  const canManage = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const q = norm(document.getElementById("absencesSearch")?.value || "");
+  const filterPEC = document.getElementById("absencesFilterPriseEnCompte")?.value || "";
+
+  const entries = Object.entries(absencesCache)
+    .filter(([,a])=> !q || norm(a.name).includes(q))
+    .filter(([,a])=> !filterPEC || (filterPEC==="oui" ? a.priseEnCompte===true : a.priseEnCompte!==true))
+    .sort((a,b)=> (b[1].endIso||"").localeCompare(a[1].endIso||""));
+
+  // Signalements (section 16/17) : affichés comme simple information ici
+  // aussi — pas de décision prise dans le Roster lui-même, uniquement
+  // dans Pillbox au moment des paies (section 17 : décision humaine,
+  // jamais automatique).
+  const signalements = computeSignalementsLocal(absencesCache);
+  alertsBox.innerHTML = signalements.length ? `<div class="hint" style="border-color:var(--amber);display:flex;flex-direction:column;gap:4px;">
+    ${signalements.map(s=>`<div>⚠ <b>${esc(s.name)}</b> : ${s.absences.length} absences prises en compte sur les 30 derniers jours — transmis à Pillbox pour décision au moment des paies.</div>`).join("")}
+  </div>` : "";
+
+  box.innerHTML = entries.length ? entries.map(([id,a])=>`
+    <div class="special-row" style="grid-template-columns:minmax(150px,1.3fr) minmax(90px,.6fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.5fr) auto;">
+      <span><b>${esc(a.name)}</b></span>
+      <span style="color:var(--text-dim);">${esc(a.grade||"—")}</span>
+      <span class="special-id">${esc(a.startIso)}</span>
+      <span class="special-id">→ ${esc(a.endIso)}</span>
+      <span style="color:var(--text-dim);">${a.durationDays||"?"} j</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="font-weight:700;color:${a.priseEnCompte?'var(--green)':'var(--text-faint)'};">${a.priseEnCompte?'OUI':'NON'}</span>
+        ${canManage ? `<button class="btn-ghost btn-small" data-toggle-pec="${esc(id)}" data-current="${a.priseEnCompte?'1':'0'}">${a.priseEnCompte?'Passer à NON':'Passer à OUI'}</button>` : ""}
+      </span>
+    </div>
+  `).join("") : `<div class="empty-msg">Aucune absence de plus de 3 jours enregistrée pour ce filtre.</div>`;
+
+  box.querySelectorAll("[data-toggle-pec]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const id = btn.dataset.togglePec;
+      const newValue = btn.dataset.current !== "1";
+      btn.disabled = true;
+      try{
+        const res = await fetch(ABSENCES_CLOUD_URL_BASE, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ token: currentSessionToken, action:"setPriseEnCompte", absenceId:id, priseEnCompte:newValue }),
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || `${res.status}`);
+        absencesCache[id] = { ...absencesCache[id], priseEnCompte:newValue };
+        toast(`✓ Prise en compte : ${newValue?"OUI":"NON"}`);
+        renderAbsencesTab();
+      }catch(err){
+        toast(`✕ Refusé : ${err.message}`);
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// Même règle que absences-actions.js côté serveur (computeAbsenceSignalements)
+// — dupliquée ici volontairement en miroir pour un affichage immédiat côté
+// Roster sans aller-retour serveur supplémentaire ; le serveur reste la
+// source de vérité pour ce que Pillbox reçoit réellement.
+function computeSignalementsLocal(absencesObj){
+  const ref = new Date();
+  const windowStart = new Date(ref.getTime() - 30*24*60*60*1000);
+  const byEmployee = {};
+  Object.entries(absencesObj||{}).forEach(([id,a])=>{
+    if(!a || a.priseEnCompte !== true) return;
+    const end = new Date(a.endIso);
+    if(isNaN(end.getTime()) || end < windowStart || end > ref) return;
+    const key = a.employeeKey;
+    (byEmployee[key] = byEmployee[key] || {employeeKey:key, name:a.name, absences:[]}).absences.push({id});
+  });
+  return Object.values(byEmployee).filter(e=>e.absences.length>=3);
+}
+
+document.getElementById("absencesSearch").addEventListener("input", renderAbsencesTab);
+document.getElementById("absencesFilterPriseEnCompte").addEventListener("change", renderAbsencesTab);
+document.getElementById("btnAbsencesRefresh").addEventListener("click", loadAbsencesFromCloud);
 
 // Seuil d'alerte : X semaines de suite à 0 (hors semaines d'absence).
 // Depuis le 29/09 il dépend du rôle : 2 semaines pour formateur/psy (MF, MP),
@@ -2669,7 +2688,7 @@ document.getElementById("btnActiviteCloudLoad").addEventListener("click", loadAc
 document.getElementById("btnActivitePsyCloudLoad").addEventListener("click", loadActiviteFromCloud);
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Logs","Permissions"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
@@ -2684,6 +2703,7 @@ function switchTab(active){
   }
   if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
+  if(active==="Absences"){ loadAbsencesFromCloud(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
 }
@@ -2966,6 +2986,8 @@ const LOG_ACTION_LABEL = {
   refus_proposition: "Refus de proposition",
   demande_infos_proposition: "Demande d'infos (proposition)",
   modification_permission: "Modification de permission",
+  absences_synchronisees: "Absences synchronisées",
+  absence_prise_en_compte_modifiee: "Absence : Prise en compte modifiée",
 };
 
 async function loadLogs(){
@@ -3037,6 +3059,7 @@ const PERMISSION_LABEL = {
   cancel_lower_decisions: "Annuler une décision d'un niveau inférieur",
   reopen_week: "Réouvrir une semaine de paie",
   delete_week: "Supprimer une semaine de paie",
+  manage_absences: "Gérer les absences (synchroniser, Prise en compte)",
 };
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
