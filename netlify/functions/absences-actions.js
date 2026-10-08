@@ -170,7 +170,7 @@ exports.handler = async function (event) {
       if (!entry) return json(404, { error: "Absence introuvable." });
       const before = entry.priseEnCompte;
       entry.priseEnCompte = priseEnCompte;
-      const saveRes = await fetch(`${ABSENCES_URL}/${absenceId}.json?auth=${idToken}`, {
+      const saveRes = await fetch(`${ABSENCES_URL.replace(".json", `/${absenceId}.json`)}?auth=${idToken}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ priseEnCompte }),
       });
       if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
