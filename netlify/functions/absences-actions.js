@@ -185,6 +185,31 @@ exports.handler = async function (event) {
       return json(200, { ok: true, entry });
     }
 
+    if (action === "delete") {
+      // (correctif) Suppression réelle, réservée aux cas de bug (mauvaise
+      // date, mauvaise personne, doublon de synchronisation) — différent
+      // de "Prise en compte : NON", qui sert lui à exempter une VRAIE
+      // absence sans effacer l'historique (section 7 du cahier des
+      // charges, inchangée). Ici, l'entrée elle-même est fausse/erronée,
+      // donc sa suppression est légitime et définitive.
+      const { absenceId } = body;
+      if (!absenceId) return json(400, { error: "Identifiant de l'absence manquant." });
+      const curRes = await fetch(`${ABSENCES_URL}?auth=${idToken}`);
+      const current = curRes.ok ? (await curRes.json()) || {} : {};
+      const entry = current[absenceId];
+      if (!entry) return json(404, { error: "Absence introuvable." });
+      const delRes = await fetch(`${ABSENCES_URL.replace(".json", `/${absenceId}.json`)}?auth=${idToken}`, { method: "DELETE" });
+      if (!delRes.ok) { const t = await delRes.text().catch(()=>""); return json(502, { error: `Échec de la suppression (${delRes.status}) : ${t.slice(0,200)}` }); }
+      await logAction({
+        action: "absence_supprimee",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        targetName: entry.name,
+        details: `Absence du ${entry.startIso} au ${entry.endIso} (${entry.durationDays || "?"} j) — supprimée définitivement, probable erreur de donnée`,
+        idToken,
+      }).catch(()=>{});
+      return json(200, { ok: true });
+    }
+
     return json(400, { error: `Action inconnue : "${action}".` });
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
