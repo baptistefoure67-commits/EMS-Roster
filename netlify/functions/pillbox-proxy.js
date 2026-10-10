@@ -23,6 +23,35 @@ const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fire
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 const ABSENCES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsences.json";
+const PAY_RULES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfig.json";
+
+// Valeurs par défaut — copie EXACTE de celles de pay-rules-actions.js
+// (jamais réimportées directement, ce fichier et celui-là sont deux
+// fonctions Netlify séparées qui ne partagent pas leur code). Si jamais
+// l'une des deux copies est modifiée, l'autre doit l'être aussi — à
+// vérifier en premier si Pillbox calcule un jour différemment du
+// panneau de réglages affiché dans le Roster.
+const DEFAULT_PAY_RULES = {
+  reaRate: 14000,
+  fixedSalaryByGrade: {
+    STG: 5000000, A: 6000000, INF: 7000000, M: 8000000,
+    MF: 9000000, MP: 9000000, MLP: 9000000,
+    RF: 10000000, RP: 10000000, RL: 10000000,
+    MC: 11500000, ADD: 11500000, CD: 13500000, D: 15000000, DG: 15000000,
+  },
+  bonusByRank: { "1": 3000000, "2": 2000000, "3": 1000000 },
+  ppaEligibleGrades: ["MP","MLP","RP","RF","RL","MC","ADD","CD","D","DG"],
+  ppaWeeklyCap: 10000000,
+  quotaStandard: 70,
+  quotaStaff: 30,
+  exemptGrades: ["MC","ADD","CD","D","DG"],
+  nearMissGrades: ["STG","A","INF","M"],
+  nearMissThreshold: 65,
+  stgProposalThreshold: 2,
+  stgAutoThreshold: 3,
+  aProposalThreshold: 3,
+  qaCumulThreshold: 3,
+};
 
 exports.handler = async function (event) {
   // CORS : Pillbox est sur un autre domaine Netlify — sans ces en-têtes,
@@ -90,14 +119,22 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, absencesRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, absencesRes, payRulesRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
+      fetch(PAY_RULES_URL), // lecture publique, comme rosterGradeLabels — pas besoin du jeton
     ]);
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
     const absences = absencesRes.ok ? await absencesRes.json() : null;
+    const storedPayRules = payRulesRes.ok ? await payRulesRes.json() : null;
+    // Fusionne sur les valeurs par défaut — si rien n'a encore été
+    // configuré (payRulesConfig vide ou absente), Pillbox reçoit les
+    // valeurs par défaut, identiques à ses anciennes constantes codées
+    // en dur. Une config partielle (un seul champ modifié un jour)
+    // garde aussi tous les autres champs à leur valeur par défaut.
+    const payRules = storedPayRules ? { ...DEFAULT_PAY_RULES, ...storedPayRules } : DEFAULT_PAY_RULES;
 
     // (02/10) Avant, les pings Discord de Pillbox dépendaient UNIQUEMENT de
     // discordIdsList — une liste à part, à maintenir à la main, qui finit
@@ -133,7 +170,7 @@ exports.handler = async function (event) {
 
     return json(200, {
       roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
-      absenceSignalements,
+      absenceSignalements, payRules,
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
