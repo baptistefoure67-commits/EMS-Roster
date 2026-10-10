@@ -1,21 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════
-// pillbox-presence.js — sait qui est actuellement sur Pillbox, à partir
-// d'une seule personne déjà (demandé le 19/09). Chaque personne connectée
-// envoie un petit signal ("heartbeat") toutes les ~25 secondes tant que
-// Pillbox reste ouvert ; ce signal expire tout seul après ~90 secondes
-// sans nouveau signal (onglet fermé, PC éteint...), sans action manuelle
-// nécessaire pour "se déconnecter" de la présence.
+// pillbox-presence.js — sait qui est actuellement sur Pillbox.
+// Chaque personne connectée envoie un "heartbeat" toutes les ~25 s ;
+// il expire après ~90 s sans nouveau signal.
 //
-// action "heartbeat" : enregistre/rafraîchit la présence de la personne
-// (identité VÉRIFIÉE via le jeton de session, jamais texte libre).
-// action "list" : renvoie qui est actuellement actif (signal de moins
-// de 90 secondes), en excluant les entrées trop vieilles.
+// action "heartbeat" : enregistre/rafraîchit la présence (identité VÉRIFIÉE
+//   via le jeton de session).
+// action "list" : renvoie qui est actif (signal de moins de 90 s).
+//   MODIF : renvoie maintenant aussi discordId (clé Firebase), pour que le
+//   Roster associe la personne en ligne de façon fiable (le nom de session
+//   ne correspond pas forcément au nom dans le Roster).
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
-const ACTIVE_WINDOW_MS = 90 * 1000; // au-delà, on considère la personne partie
+const ACTIVE_WINDOW_MS = 90 * 1000;
 
 exports.handler = async function (event) {
   const corsHeaders = {
@@ -69,10 +68,10 @@ exports.handler = async function (event) {
     if (!res.ok) return json(502, { error: "Échec de la lecture de présence." }, corsHeaders);
     const data = (await res.json()) || {};
     const now = Date.now();
-    const active = Object.values(data)
-      .filter(v => v && typeof v.lastSeen === "number" && now - v.lastSeen < ACTIVE_WINDOW_MS)
-      .map(v => ({ name: v.name, level: v.level }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const active = Object.entries(data)
+      .filter(([, v]) => v && typeof v.lastSeen === "number" && now - v.lastSeen < ACTIVE_WINDOW_MS)
+      .map(([discordId, v]) => ({ discordId, name: v.name, level: v.level }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return json(200, { active }, corsHeaders);
   }
 
