@@ -1211,6 +1211,7 @@ function renderDuplicatesWarning(){
 }
 
 function renderAll(){
+  populateForceLogoutSelect();
   const query = document.getElementById("searchInput").value;
   const gradeFilter = document.getElementById("filterGrade").value;
 
@@ -3901,6 +3902,43 @@ function showGate(errorMsg){
   currentFirebaseIdToken = null;
   currentUserLevel = null;
 }
+// Liste de déconnexion forcée — séparée en deux parties : "En ligne"
+// (présence Pillbox/Roster) puis "Tous les autres". Rappelée à chaque
+// renderAll() : avant, elle n'était remplie qu'une fois dans showApp, AVANT
+// que le Roster soit chargé depuis Firebase (employees encore vide) →
+// la liste restait vide ("personne n'est proposé").
+let forceLogoutPresence = [];
+async function refreshForceLogoutPresence(){
+  if(!currentSessionToken) return;
+  try{
+    const res = await fetch("/.netlify/functions/pillbox-presence", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"list" }),
+    });
+    if(!res.ok) return;
+    const data = await res.json().catch(()=>({}));
+    forceLogoutPresence = Array.isArray(data.active) ? data.active : [];
+    populateForceLogoutSelect();
+  }catch(e){}
+}
+function populateForceLogoutSelect(){
+  const sel = document.getElementById("forceLogoutPersonSelect");
+  if(!sel || !["D","DG","OWNER"].includes(currentUserLevel)) return;
+  const previous = sel.value;
+  const norm = x => String(x||"").trim().toLowerCase();
+  const onlineIds = new Set(forceLogoutPresence.map(p=>String(p.discordId||p.id||"")).filter(Boolean));
+  const onlineNames = new Set(forceLogoutPresence.map(p=>norm(p.name)));
+  const isOnline = e => onlineIds.has(String(e.discordId)) || onlineNames.has(norm(e.name));
+  const list = employees.filter(e=>!e.licencie && e.discordId)
+    .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name));
+  const opt = e => `<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`;
+  const online = list.filter(isOnline), others = list.filter(e=>!isOnline(e));
+  sel.innerHTML = `<option value="">— Choisir une personne —</option>` +
+    (online.length ? `<optgroup label="🟢 En ligne (${online.length})">${online.map(opt).join("")}</optgroup>` : "") +
+    `<optgroup label="Tous les autres (${others.length})">${others.map(opt).join("")}</optgroup>`;
+  if(previous) sel.value = previous;
+}
+
 function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
@@ -3909,13 +3947,8 @@ function showApp(session){
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabReglagesPaieBtn").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("forceLogoutCard").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
-  if(["D","DG","OWNER"].includes(currentUserLevel)){
-    const sel = document.getElementById("forceLogoutPersonSelect");
-    sel.innerHTML = `<option value="">— Choisir une personne —</option>` +
-      employees.filter(e=>!e.licencie)
-        .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name))
-        .map(e=>`<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
-  }
+  populateForceLogoutSelect();
+  refreshForceLogoutPresence();
   renderGradeLabelsEditor();
   renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
@@ -4027,6 +4060,7 @@ function startRosterLiveUpdates(){
     if(!currentSessionToken) return;
     const kicked = await rosterCheckKicked();
     if(kicked) return;
+    refreshForceLogoutPresence();
     try{
       const permView = document.getElementById("permissionsView");
       if(permView && permView.style.display !== "none"){
