@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, loadPermissionContext } = require("./permissions");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { logAction } = require("./logs");
 
@@ -70,12 +70,24 @@ exports.handler = async function (event) {
       return json(200, { kickedAt: kickedAt || null }, corsHeaders);
     }
 
+    if (action === "caps") {
+      // Ce que CETTE session a le droit de faire (grade + matrice + exceptions
+      // individuelles) — sert au Roster pour afficher ou non les boutons.
+      const ctx = await loadPermissionContext(idToken);
+      return json(200, {
+        force_logout: can(session.level, "force_logout", ctx.custom, session.discordId, ctx.individual),
+        manage_pay_rules: can(session.level, "manage_pay_rules", ctx.custom, session.discordId, ctx.individual),
+      }, corsHeaders);
+    }
+
     if (action === "kick") {
-      if (!can(session.level, "force_logout")) {
-        return json(403, { error: `Permission refusée (${session.level}) — réservé D, DG, Concepteur.` }, corsHeaders);
+      const ctx = await loadPermissionContext(idToken);
+      if (!can(session.level, "force_logout", ctx.custom, session.discordId, ctx.individual)) {
+        return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Déconnexion forcée" (grade ou exception individuelle).` }, corsHeaders);
       }
       if (!targetDiscordId) return json(400, { error: "Cible manquante." }, corsHeaders);
-      const res = await fetch(`${KICKS_URL.replace(".json", `/${targetDiscordId}.json`)}?auth=${idToken}`, {
+      const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY); // permission déjà vérifiée ci-dessus ; la règle Firebase exige un niveau D+ pour écrire
+      const res = await fetch(`${KICKS_URL.replace(".json", `/${targetDiscordId}.json`)}?auth=${writeToken}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Date.now()),
       });
       if (!res.ok) { const t = await res.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${res.status}) : ${t.slice(0,200)}` }, corsHeaders); }
