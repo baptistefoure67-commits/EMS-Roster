@@ -4153,6 +4153,7 @@ async function restoreSessionFromStorage(){
     } else {
       await loadState();
       populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+      populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
     }
     return true;
   }catch(err){
@@ -4185,6 +4186,7 @@ async function restoreSessionFromStorage(){
       } else {
         await loadState();
         populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+        populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
       }
     }
     return;
@@ -4211,6 +4213,7 @@ async function restoreSessionFromStorage(){
   renderRoles();
   renderAll();
   refreshSignalementPersonList();
+  populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
   checkPillboxWeekFinishedSignal();
   fetchGradeLabelsSilent();
   loadFormationFromCloudIntoSelection(true); // chargement automatique et silencieux (demandé le 09/09)
