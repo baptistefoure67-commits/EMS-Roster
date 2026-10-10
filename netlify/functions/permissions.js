@@ -193,6 +193,35 @@ function resolveUserLevel(discordId, rosterGrade){
   return null; // aucun niveau reconnu → aucun accès
 }
 
+
+// ─── (nouveau) Contexte de permissions lu depuis Firebase ────────────────
+// Renvoie { custom, individual } pour can(). custom = permissions modifiées
+// PAR GRADE depuis la page "Gestion des permissions" (rosterPermissionsOverride),
+// fusionnées au-dessus des défauts pour qu'une clé absente d'une ancienne
+// sauvegarde (ex: force_logout, manage_pay_rules) retombe sur sa valeur par
+// défaut au lieu d'être perdue. individual = exceptions par personne.
+const PERM_FIREBASE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
+async function loadPermissionContext(idToken){
+  let custom = null, individual = null;
+  try{
+    const r = await fetch(`${PERM_FIREBASE_BASE}/rosterPermissionsOverride.json?auth=${idToken}`);
+    if(r.ok){
+      const d = await r.json();
+      if(d && typeof d === "object"){
+        custom = {};
+        for(const lv of LEVELS){
+          if(d[lv] && typeof d[lv] === "object") custom[lv] = { ...(DEFAULT_PERMISSIONS[lv] || {}), ...d[lv] };
+        }
+      }
+    }
+  }catch(e){ /* injoignable : on retombe sur les défauts */ }
+  try{
+    const r = await fetch(`${PERM_FIREBASE_BASE}/rosterIndividualPermissions.json?auth=${idToken}`);
+    individual = r.ok ? await r.json() : null;
+  }catch(e){}
+  return { custom, individual };
+}
+
 // Libellé humain affiché à l'utilisateur pour son propre niveau.
 const LEVEL_LABEL = {
   MC: "MC — Accès limité",
@@ -205,5 +234,5 @@ const LEVEL_LABEL = {
 
 module.exports = {
   OWNER_DISCORD_ID, LEVELS, DEFAULT_PERMISSIONS, INDIVIDUAL_DECISION_AUTHORITY_ORDER,
-  buildEffectivePermissions, resolveIndividualDecision, can, resolveUserLevel, LEVEL_LABEL,
+  buildEffectivePermissions, resolveIndividualDecision, can, resolveUserLevel, LEVEL_LABEL, loadPermissionContext,
 };
