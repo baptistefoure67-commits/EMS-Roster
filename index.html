@@ -618,6 +618,18 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       </div>
       <div id="permissionRequestsList" class="sub">Chargement…</div>
     </div>
+
+    <!-- (10/10, demandé) Déconnexion forcée — réservé D/DG/OWNER côté
+         Roster (can force_logout). Masqué par défaut, affiché par
+         showApp selon currentUserLevel. -->
+    <div class="card" id="forceLogoutCard" style="display:none;">
+      <div class="special-title">🔌 Déconnexion forcée</div>
+      <div class="special-sub" style="margin-bottom:10px;">Déconnecte immédiatement quelqu'un du Roster et de Pillbox — rien ne l'empêche de se reconnecter juste après, ce n'est pas un bannissement.</div>
+      <select id="forceLogoutPersonSelect" style="width:100%;margin-bottom:8px;">
+        <option value="">— Choisir une personne —</option>
+      </select>
+      <button type="button" class="btn-primary btn-small" id="btnForceLogout">🔌 Déconnecter</button>
+    </div>
   </div>
 
   <!-- Réservé à D/DG/OWNER (can manage_pay_rules) — masqué par défaut.
@@ -3527,6 +3539,29 @@ document.getElementById("permReqCreateBtn").addEventListener("click", async ()=>
 });
 
 
+document.getElementById("btnForceLogout").addEventListener("click", async (e)=>{
+  const sel = document.getElementById("forceLogoutPersonSelect");
+  const targetDiscordId = sel.value;
+  if(!targetDiscordId){ toast("Choisis d'abord une personne"); return; }
+  const label = sel.options[sel.selectedIndex].textContent;
+  if(!confirm(`Déconnecter ${label} immédiatement ? Rien ne l'empêche de se reconnecter juste après.`)) return;
+  e.target.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/force-logout", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"kick", targetDiscordId }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    toast(`✓ ${label} déconnecté(e)`);
+    sel.value = "";
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+  }finally{
+    e.target.disabled = false;
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // RÉGLAGES DES PAIES (03/10) — réservé D/DG/OWNER (can manage_pay_rules).
 // Première tranche de l'audit des règles : rémunération uniquement.
@@ -3873,6 +3908,14 @@ function showApp(session){
   document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabReglagesPaieBtn").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  document.getElementById("forceLogoutCard").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  if(["D","DG","OWNER"].includes(currentUserLevel)){
+    const sel = document.getElementById("forceLogoutPersonSelect");
+    sel.innerHTML = `<option value="">— Choisir une personne —</option>` +
+      employees.filter(e=>!e.licencie)
+        .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name))
+        .map(e=>`<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
+  }
   renderGradeLabelsEditor();
   renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
@@ -3928,15 +3971,135 @@ function withFirebaseAuth(url){
 }
 
 // Déconnexion manuelle (bouton) — repasse derrière l'écran de blocage
-// immédiatement, sans avoir à recharger la page.
+// immédiatement, sans avoir à recharger la page, et efface la session
+// sauvegardée pour que le prochain chargement redemande bien Discord.
 document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
+  stopRosterLiveUpdates();
+  clearSessionFromStorage();
+  currentSessionToken = null; currentFirebaseIdToken = null;
   showGate();
 });
 
-// Aucune mémorisation de la connexion (demandé le 07/09) — recharger la
-// page, la fermer, ou revenir plus tard oblige à repasser par Discord à
-// chaque fois. Seul le retour DIRECT de Discord (juste après avoir
-// autorisé) donne accès, jamais un ancien état mémorisé.
+// (10/10, demandé — remplace la règle du 07/09 "aucune mémorisation",
+// devenue trop contraignante : forcer Discord à chaque F5, alors que la
+// session reste valide 2h côté serveur, posait un vrai problème d'usage
+// signalé explicitement.) Clé localStorage pour garder la session active d'un
+// F5 à l'autre — avant, currentSessionToken n'était gardé qu'en mémoire,
+// donc tout rechargement de page le perdait et forçait une reconnexion
+// Discord complète (dance OAuth entière), même si la session (valide 2h
+// côté serveur, voir session-token.js) n'avait pas du tout expiré.
+const ROSTER_SESSION_STORAGE_KEY = "rosterDiscordSession_v1";
+// Horodatage d'établissement de LA session actuelle (pas celui du
+// jeton) — sert uniquement à ignorer un kick plus ancien que cette
+// connexion précise, pour qu'une personne reconnectée après avoir été
+// déconnectée de force ne se refasse pas kicker en boucle par le même
+// ancien signalement.
+let rosterSessionEstablishedAt = 0;
+let rosterLiveUpdateInterval = null;
+
+async function rosterCheckKicked(){
+  if(!currentSessionToken) return false;
+  try{
+    const res = await fetch("/.netlify/functions/force-logout", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"check" }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(res.ok && data.kickedAt && data.kickedAt > rosterSessionEstablishedAt){
+      if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
+      clearSessionFromStorage();
+      currentSessionToken = null; currentFirebaseIdToken = null;
+      showGate("Tu as été déconnecté(e) par un responsable.");
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+
+// (10/10, demandé) Mise à jour automatique, sans F5 — rafraîchit en
+// tâche de fond les demandes de permission (pour que l'auteur d'une
+// demande voie sa validation sans recharger) et vérifie une éventuelle
+// déconnexion forcée. Démarré une fois la session active (voir
+// showApp), arrêté à la déconnexion.
+function startRosterLiveUpdates(){
+  if(rosterLiveUpdateInterval) clearInterval(rosterLiveUpdateInterval);
+  rosterLiveUpdateInterval = setInterval(async ()=>{
+    if(!currentSessionToken) return;
+    const kicked = await rosterCheckKicked();
+    if(kicked) return;
+    try{
+      const permView = document.getElementById("permissionsView");
+      if(permView && permView.style.display !== "none"){
+        renderPermissionRequestsCard();
+      }
+    }catch(e){}
+  }, 25000);
+}
+function stopRosterLiveUpdates(){
+  if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
+}
+
+function saveSessionToStorage(token, session){
+  try{ localStorage.setItem(ROSTER_SESSION_STORAGE_KEY, JSON.stringify({ token, session })); }catch(e){}
+}
+function clearSessionFromStorage(){
+  try{ localStorage.removeItem(ROSTER_SESSION_STORAGE_KEY); }catch(e){}
+}
+// Décodage simple (pas de vérification de signature ici, ce n'est pas
+// le rôle du client) — juste pour lire exp/level/name avant d'afficher
+// l'app de façon optimiste. La vraie vérification a lieu côté serveur à
+// chaque appel (refresh-firebase-token.js, ou toute action protégée) ;
+// si le jeton est en réalité invalide ou expiré, ces appels échoueront
+// normalement et on retombe sur l'écran de connexion.
+function decodeSessionTokenPayload(token){
+  try{
+    const [payload] = token.split(".");
+    let b64 = payload.replace(/-/g,"+").replace(/_/g,"/");
+    while(b64.length % 4) b64 += "=";
+    return JSON.parse(atob(b64));
+  }catch(e){ return null; }
+}
+
+async function restoreSessionFromStorage(){
+  let stored;
+  try{ stored = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null"); }catch(e){ stored = null; }
+  if(!stored || !stored.token) return false;
+  const payload = decodeSessionTokenPayload(stored.token);
+  if(!payload || !payload.exp || Date.now() > payload.exp){
+    clearSessionFromStorage();
+    return false;
+  }
+  currentUserLevel = payload.level;
+  currentSessionToken = stored.token;
+  rosterSessionEstablishedAt = Date.now();
+  startRosterLiveUpdates();
+  showApp(stored.session);
+  try{
+    const res = await fetch("/.netlify/functions/refresh-firebase-token", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ token: stored.token }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.firebaseCustomToken){
+      // Session en réalité invalide côté serveur (ex: secret changé) —
+      // on efface et on retombe proprement sur la connexion Discord.
+      clearSessionFromStorage();
+      showGate("Ta session a expiré, reconnecte-toi avec Discord.");
+      return false;
+    }
+    currentFirebaseIdToken = await exchangeFirebaseCustomToken(data.firebaseCustomToken);
+    if(!currentFirebaseIdToken){
+      toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
+    } else {
+      await loadState();
+      populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+    }
+    return true;
+  }catch(err){
+    toast(`⚠ Impossible de restaurer la session : ${err.message}`);
+    return true; // la session elle-même reste valide, juste le rafraîchissement Firebase a échoué cette fois
+  }
+}
+
 (async function checkDiscordAuthReturn(){
   const params = new URLSearchParams(window.location.search);
   if(params.get("discord_ok")==="1"){
@@ -3945,6 +4108,9 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
     currentSessionToken = params.get("discord_token") || null;
     const firebaseCustomToken = params.get("firebase_token") || null;
     window.history.replaceState(null, "", window.location.pathname);
+    if(currentSessionToken) saveSessionToStorage(currentSessionToken, session);
+    rosterSessionEstablishedAt = Date.now();
+    startRosterLiveUpdates();
     showApp(session);
     // Échange le jeton Firebase — indispensable maintenant pour LIRE le
     // Roster (rosterEmsData.read exige une vraie connexion depuis le
@@ -3966,6 +4132,11 @@ document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
     showGate(params.get("discord_error")||"Connexion refusée.");
     return;
   }
+  // (10/10) Plus d'écran de connexion imposé à chaque F5 : si une
+  // session valide est encore en localStorage (moins de 2h), on la
+  // restaure directement, sans repasser par Discord.
+  const restored = await restoreSessionFromStorage();
+  if(restored) return;
   showGate();
 })();
 
