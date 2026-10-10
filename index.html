@@ -2006,7 +2006,12 @@ document.getElementById("btnRosterCloudLoad").addEventListener("click", async ()
   const original = btn.textContent;
   btn.textContent = "☁️ Chargement en cours…";
   try{
-    const res = await fetch(ROSTER_CLOUD_URL);
+    // (03/10 — correctif) rosterEmsData exige d'être connecté pour lire
+    // (".read": "auth != null" dans les règles Firebase) — cette requête
+    // partait SANS jeton, donc échouait en permission refusée pour
+    // absolument tout le monde, pas seulement "certains PC". C'était le
+    // vrai bug derrière "certains PC n'ont pas le cloud".
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
     if(!res.ok){
       const body = await res.text().catch(()=>"");
       throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
