@@ -20,7 +20,7 @@
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { can } = require("./permissions");
+const { can, loadPermissionContext } = require("./permissions");
 const { logAction } = require("./logs");
 
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
@@ -118,15 +118,13 @@ exports.handler = async function (event) {
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
-    let individualOverrides = null;
-    try {
-      const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
-      individualOverrides = indivRes.ok ? await indivRes.json() : null;
-    } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
-
-    if (!can(session.level, "manage_pay_rules", null, session.discordId, individualOverrides)) {
-      return json(403, { error: `Permission refusée (${session.level}) — réservé à D, DG et Concepteur.` });
+    const ctx = await loadPermissionContext(idToken);
+    if (!can(session.level, "manage_pay_rules", ctx.custom, session.discordId, ctx.individual)) {
+      return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Réglages des paies" (grade ou exception individuelle).` });
     }
+    // Les règles Firebase exigent un niveau D+ pour écrire payRulesConfig : la
+    // permission étant vérifiée ci-dessus, on écrit avec un jeton de niveau D.
+    const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
     // Validation par champ — jamais un objet libre accepté tel quel,
     // chaque champ a sa propre règle de forme, pour ne jamais pouvoir
@@ -178,7 +176,7 @@ exports.handler = async function (event) {
     current.updatedAt = Date.now();
     current.updatedBy = session.name;
 
-    const saveRes = await fetch(`${CONFIG_URL}?auth=${idToken}`, {
+    const saveRes = await fetch(`${CONFIG_URL}?auth=${writeToken}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current),
     });
     if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
@@ -186,7 +184,7 @@ exports.handler = async function (event) {
     // Historique complet — jamais un simple écrasement, chaque
     // modification garde une trace consultable (point 17.4 de l'audit).
     const histKey = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-    await fetch(`${HISTORY_URL.replace(".json", `/${histKey}.json`)}?auth=${idToken}`, {
+    await fetch(`${HISTORY_URL.replace(".json", `/${histKey}.json`)}?auth=${writeToken}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         field, oldValue: before === undefined ? null : before, newValue: current[field],
