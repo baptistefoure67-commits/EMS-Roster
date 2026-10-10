@@ -288,13 +288,11 @@
       <select id="filterGrade"><option value="">Tous les grades</option></select>
       <button class="btn-ghost" id="btnCopyList">📋 Copier la liste</button>
       <!-- btnCloudSend retiré le 09/09 — voir le bouton unique "🔄 Synchroniser avec Pillbox" en haut de page -->
-      <details class="cloud-group">
-        <summary class="btn-ghost">☁️ Roster (cloud)</summary>
-        <div class="cloud-group-menu">
-          <button class="btn-ghost btn-small" id="btnRosterCloudSave">💾 Sauvegarder (tous les PC)</button>
-          <button class="btn-ghost btn-small" id="btnRosterCloudLoad">📥 Charger (tous les PC)</button>
-        </div>
-      </details>
+      <!-- (10/10, demandé) Boutons Sauvegarder/Charger (tous les PC)
+           retirés — plus besoin, le cloud est maintenant automatique et
+           permanent (voir saveState()/loadState()/startRosterLiveUpdates
+           plus bas) : chaque modification part au cloud toute seule, et
+           chaque PC se resynchronise tout seul, sans action manuelle. -->
       <button class="btn-ghost" id="btnExport">⬇ Exporter</button>
       <label class="btn-ghost btn-small" style="display:inline-flex;align-items:center;cursor:pointer;">
         ⬆ Importer<input type="file" id="importFile" accept="application/json" style="display:none;">
@@ -779,13 +777,14 @@ const SEED_EMPLOYEES = [
 }));
 
 // ═══════════════════════════ ÉTAT + PERSISTENCE ═══════════════════════════
+// (10/10, demandé) Plus de STORAGE_KEY local pour employees — le cloud
+// est la seule source de vérité, voir loadState()/saveState() plus bas.
 
-const STORAGE_KEY = "emsRosterV1";
 let employees = [];
 // Vraie date de dernière modification du Roster (09/09) — vient
 // TOUJOURS de Firebase (data.savedAt), jamais de new Date() au
 // chargement de la page. Mise à jour à chaque lecture cloud ET à
-// chaque écriture réussie (voir protectedAction, btnRosterCloudSave).
+// chaque écriture réussie (voir pushStateToCloudNow, refreshEmployeesFromCloud).
 let rosterLastUpdatedAt = null;
 function renderLastUpdated(){
   const el = document.getElementById("rosterLastUpdated");
@@ -797,12 +796,11 @@ function renderLastUpdated(){
 }
 
 async function loadState(){
-  // Le cloud n'est interrogé QUE si un jeton Firebase authentifié est
-  // déjà disponible — depuis que rosterEmsData.read exige une vraie
-  // connexion (09/09, fermeture de la lecture publique), un appel sans
-  // jeton échouerait de toute façon. Avant la connexion, on reste sur
-  // le local (ou vide) ; la vraie donnée arrive juste après le login,
-  // quand cette fonction est rappelée (voir showApp()).
+  // (10/10, demandé) Plus aucun repli sur une copie locale — le cloud
+  // est désormais la seule source de vérité. Le cloud n'est interrogé
+  // QUE si un jeton Firebase authentifié est déjà disponible — depuis
+  // que rosterEmsData.read exige une vraie connexion (09/09), un appel
+  // sans jeton échouerait de toute façon.
   if(currentFirebaseIdToken){
     try{
       const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
@@ -812,28 +810,51 @@ async function loadState(){
           employees = data.employees;
           rosterLastUpdatedAt = data.savedAt || null;
           renderLastUpdated();
-          saveState();
           return;
         }
       }
-    }catch(e){ console.warn("Chargement cloud impossible, on regarde en local :", e); }
+    }catch(e){ console.warn("Chargement cloud impossible :", e); }
   }
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ employees = JSON.parse(raw); return; }
-  }catch(e){ console.warn("Lecture localStorage impossible :", e); }
+  // Rien dans le cloud (toute première utilisation) ou cloud injoignable
+  // à cet instant — on part de la liste de départ, jamais d'une ancienne
+  // copie locale qui pourrait avoir divergé silencieusement.
   employees = SEED_EMPLOYEES.map(e=>({...e}));
-  saveState();
+}
+
+// (10/10, demandé) Sauvegarde cloud automatique et permanente — chaque
+// appel à saveState() programme un envoi (groupé sur 1.2s, pour éviter
+// une écriture Firebase à chaque petit changement si plusieurs arrivent
+// d'affilée) ; remplace l'ancien enregistrement local, qui n'existe
+// plus pour employees. Les 18 endroits qui appelaient déjà saveState()
+// après une modification bénéficient de ce changement sans y toucher.
+let _saveStateTimer = null;
+function saveState(){
+  if(!currentFirebaseIdToken) return; // pas encore connecté — rien à pousser pour l'instant, loadState() reprendra au login
+  if(_saveStateTimer) clearTimeout(_saveStateTimer);
+  _saveStateTimer = setTimeout(pushStateToCloudNow, 1200);
+}
+async function pushStateToCloudNow(){
+  _saveStateTimer = null;
+  if(!currentFirebaseIdToken) return;
+  try{
+    const savedAt = Date.now();
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ employees, savedAt }),
+    });
+    if(res.ok){ rosterLastUpdatedAt = savedAt; renderLastUpdated(); }
+  }catch(e){ console.warn("Sauvegarde cloud impossible :", e); }
 }
 
 // Sauvegarde automatique en quittant la page (fermeture d'onglet,
-// navigation ailleurs) — demandé le 09/09. Utilise fetch avec
-// keepalive:true, conçu justement pour survivre à la fermeture de la
+// navigation ailleurs) — demandé le 09/09, conservé : le regroupement
+// sur 1.2s de saveState() pourrait sinon perdre la toute dernière
+// modification si la page se ferme avant que le délai expire. Utilise
+// fetch avec keepalive:true, conçu pour survivre à la fermeture de la
 // page (contrairement à un fetch normal, qui serait interrompu).
-// Échoue silencieusement si la permission manque (ex: MC) — exactement
-// comme un clic manuel sur "Sauvegarder" échouerait pour ce même niveau.
 function autoSaveOnLeave(){
-  if(!currentFirebaseIdToken) return; // pas connecté ou jeton pas encore prêt — rien à tenter
+  if(!currentFirebaseIdToken) return;
+  if(_saveStateTimer){ clearTimeout(_saveStateTimer); _saveStateTimer = null; }
   try{
     fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
       method: "PUT",
@@ -845,10 +866,6 @@ function autoSaveOnLeave(){
 }
 window.addEventListener("pagehide", autoSaveOnLeave);
 window.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") autoSaveOnLeave(); });
-function saveState(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(employees)); }
-  catch(e){ console.warn("Sauvegarde localStorage impossible :", e); }
-}
 function uid(){ return "emp-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); }
 
 // ═══════════════════════════ HISTORIQUE DES CHANGEMENTS ═══════════════════════════
@@ -1985,68 +2002,10 @@ document.getElementById("btnSyncPillbox").addEventListener("click", syncWithPill
 // travail de l'autre sans s'en rendre compte.
 const ROSTER_CLOUD_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 
-document.getElementById("btnRosterCloudSave").addEventListener("click", async ()=>{
-  const btn = document.getElementById("btnRosterCloudSave");
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "☁️ Sauvegarde en cours…";
-  try{
-    const savedAt = Date.now();
-    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({employees, savedAt}),
-    });
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    rosterLastUpdatedAt = savedAt; renderLastUpdated();
-    toast(`✓ Roster sauvegardé dans le cloud (${employees.length} employé(s))`);
-  }catch(err){
-    console.error("Erreur sauvegarde cloud roster:", err);
-    toast(`✕ Échec de la sauvegarde : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-});
-
-document.getElementById("btnRosterCloudLoad").addEventListener("click", async ()=>{
-  if(!confirm("Charger le roster depuis le cloud remplacera la liste actuelle sur ce PC. Continuer ?")) return;
-  const btn = document.getElementById("btnRosterCloudLoad");
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "☁️ Chargement en cours…";
-  try{
-    // (03/10 — correctif) rosterEmsData exige d'être connecté pour lire
-    // (".read": "auth != null" dans les règles Firebase) — cette requête
-    // partait SANS jeton, donc échouait en permission refusée pour
-    // absolument tout le monde, pas seulement "certains PC". C'était le
-    // vrai bug derrière "certains PC n'ont pas le cloud".
-    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
-    if(!res.ok){
-      const body = await res.text().catch(()=>"");
-      throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0,200) : ""}`);
-    }
-    const data = await res.json();
-    if(!data || !Array.isArray(data.employees)){
-      toast("Aucune sauvegarde trouvée dans le cloud pour l'instant.");
-      return;
-    }
-    employees = data.employees;
-    saveState(); renderAll(); populateGradeSelects(); renderRoles();
-    refreshSignalementPersonList();
-    const when = data.savedAt ? new Date(data.savedAt).toLocaleString("fr-FR") : "";
-    toast(`✓ Roster chargé (${employees.length} employé(s))${when ? " — sauvegardé le " + when : ""}`);
-  }catch(err){
-    console.error("Erreur chargement cloud roster:", err);
-    toast(`✕ Échec du chargement : ${err.message}`);
-  }finally{
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-});
+// (10/10, demandé) Les anciens boutons manuels "Sauvegarder"/"Charger
+// (tous les PC)" ont été retirés — voir saveState()/loadState() plus
+// bas, qui font maintenant ça automatiquement, en continu, sans action
+// de la part de qui que ce soit.
 
 // Ferme automatiquement un menu "☁️ ... (cloud)" une fois qu'on a cliqué
 // un bouton dedans, ou si on clique ailleurs sur la page — sinon il
@@ -4081,6 +4040,29 @@ async function rosterCheckKicked(){
 // demande voie sa validation sans recharger) et vérifie une éventuelle
 // déconnexion forcée. Démarré une fois la session active (voir
 // showApp), arrêté à la déconnexion.
+// (10/10, demandé) Rafraîchissement automatique du Roster lui-même —
+// chaque PC voit les changements des autres sans avoir besoin de F5 ni
+// d'un bouton "Charger". Une modification locale PAS ENCORE partie au
+// cloud (_saveStateTimer actif) n'est jamais écrasée par cette lecture,
+// et seul un contenu réellement plus récent (savedAt) déclenche un
+// rafraîchissement — pour ne pas re-rendre inutilement à chaque poll.
+async function refreshEmployeesFromCloud(){
+  if(!currentFirebaseIdToken) return;
+  if(_saveStateTimer) return; // modification locale en attente d'envoi -- ne jamais l'écraser par une lecture
+  try{
+    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
+    if(!res.ok) return;
+    const data = await res.json();
+    if(data && Array.isArray(data.employees) && data.savedAt && data.savedAt > (rosterLastUpdatedAt||0)){
+      employees = data.employees;
+      rosterLastUpdatedAt = data.savedAt;
+      renderLastUpdated();
+      populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+      populateForceLogoutSelect();
+    }
+  }catch(e){ /* échec silencieux -- retente au prochain sondage */ }
+}
+
 function startRosterLiveUpdates(){
   if(rosterLiveUpdateInterval) clearInterval(rosterLiveUpdateInterval);
   rosterLiveUpdateInterval = setInterval(async ()=>{
@@ -4088,6 +4070,7 @@ function startRosterLiveUpdates(){
     const kicked = await rosterCheckKicked();
     if(kicked) return;
     refreshForceLogoutPresence();
+    refreshEmployeesFromCloud();
     try{
       const permView = document.getElementById("permissionsView");
       if(permView && permView.style.display !== "none"){
