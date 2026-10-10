@@ -3299,6 +3299,8 @@ const PERMISSION_LABEL = {
   reopen_week: "Réouvrir une semaine de paie",
   delete_week: "Supprimer une semaine de paie",
   manage_absences: "Gérer les absences (synchroniser, Prise en compte)",
+  manage_pay_rules: "Réglages des paies (gestionnaire paie)",
+  force_logout: "Déconnexion forcée (déconnecter quelqu'un)",
 };
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
@@ -3923,7 +3925,7 @@ async function refreshForceLogoutPresence(){
 }
 function populateForceLogoutSelect(){
   const sel = document.getElementById("forceLogoutPersonSelect");
-  if(!sel || !["D","DG","OWNER"].includes(currentUserLevel)) return;
+  if(!sel || !hasCap("force_logout")) return;
   const previous = sel.value;
   const norm = x => String(x||"").trim().toLowerCase();
   const onlineIds = new Set(forceLogoutPresence.map(p=>String(p.discordId||p.id||"")).filter(Boolean));
@@ -3939,14 +3941,39 @@ function populateForceLogoutSelect(){
   if(previous) sel.value = previous;
 }
 
+// Capacités effectives de la session (grade + matrice + exceptions
+// individuelles), demandées au serveur — par défaut D/DG/OWNER en attendant.
+let userCaps = null;
+function hasCap(name){
+  if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
+  return ["D","DG","OWNER"].includes(currentUserLevel);
+}
+function applyCapsUi(){
+  document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
+  document.getElementById("forceLogoutCard").style.display = hasCap("force_logout") ? "" : "none";
+  populateForceLogoutSelect();
+}
+async function refreshUserCaps(){
+  if(!currentSessionToken) return;
+  try{
+    const res = await fetch("/.netlify/functions/force-logout", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"caps" }),
+    });
+    if(!res.ok) return;
+    userCaps = await res.json().catch(()=>null);
+    applyCapsUi();
+  }catch(e){}
+}
 function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
   document.getElementById("discordAuthStatus").innerHTML = `${session.level==="OWNER"?"👑":"✅"} <b>${esc(session.name)}</b> — ${esc(session.levelLabel)}`;
   document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
-  document.getElementById("tabReglagesPaieBtn").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
-  document.getElementById("forceLogoutCard").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  userCaps = null; // repart du grade tant que le serveur n'a pas répondu
+  applyCapsUi();
+  refreshUserCaps();
   populateForceLogoutSelect();
   refreshForceLogoutPresence();
   renderGradeLabelsEditor();
