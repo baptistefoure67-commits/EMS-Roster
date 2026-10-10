@@ -104,6 +104,11 @@ const DEFAULT_PERMISSIONS = {
   D: {
     // hérite de tout CD, plus la gestion des permissions elle-même
     manage_permissions: true,
+    // (03/10) Panneau de réglages des paies — réservé D, DG, OWNER
+    // uniquement (point 14 de l'audit des règles) : tarif réa, salaires
+    // fixes de référence, bonus de classement, règles PPA. Jamais
+    // accordé à CD par héritage, contrairement au reste de ce niveau.
+    manage_pay_rules: true,
   },
   DG: {
     // Toutes les permissions FONCTIONNELLES de OWNER (calculé plus bas,
