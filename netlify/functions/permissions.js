@@ -109,6 +109,11 @@ const DEFAULT_PERMISSIONS = {
     // fixes de référence, bonus de classement, règles PPA. Jamais
     // accordé à CD par héritage, contrairement au reste de ce niveau.
     manage_pay_rules: true,
+    // (10/10, demandé) Déconnexion forcée — D, DG, OWNER côté Roster.
+    // Pillbox restreint lui-même ce bouton au seul Concepteur (OWNER)
+    // dans son interface, voir force-logout.js ; la permission serveur
+    // reste D+ pour correspondre à ce que le Roster autorise.
+    force_logout: true,
   },
   DG: {
     // Toutes les permissions FONCTIONNELLES de OWNER (calculé plus bas,
