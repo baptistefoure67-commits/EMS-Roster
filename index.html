@@ -276,6 +276,7 @@
     <button type="button" class="tab-btn" id="tabAbsencesBtn">📅 Absences</button>
     <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
+    <button type="button" class="tab-btn" id="tabReglagesPaieBtn" style="display:none;">⚙️ Réglages des paies</button>
   </div>
 
   <div id="rosterView">
@@ -616,6 +617,26 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <div id="permReqCreateMsg" style="margin-top:8px;font-size:0.82rem;"></div>
       </div>
       <div id="permissionRequestsList" class="sub">Chargement…</div>
+    </div>
+  </div>
+
+  <!-- Réservé à D/DG/OWNER (can manage_pay_rules) — masqué par défaut.
+       Première tranche de l'audit des règles (03/10) : rémunération
+       uniquement. Les valeurs par défaut reproduisent exactement les
+       constantes codées en dur de Pillbox — rien ne change tant que
+       personne ne modifie un champ ici. -->
+  <div id="reglagesPaieView" style="display:none;">
+    <div class="card">
+      <div class="special-title">⚙️ Réglages des paies</div>
+      <div class="special-sub" style="margin-bottom:10px;">Ces valeurs sont lues par Pillbox à chaque calcul. Une modification ici s'applique au PROCHAIN calcul — jamais rétroactivement sur une semaine déjà traitée. Réservé Directeur, DG et Concepteur.</div>
+      <div id="reglagesPaieStatus" style="font-size:0.78rem;color:var(--text-dim);margin-bottom:10px;"></div>
+      <div id="reglagesPaieBody">Chargement…</div>
+    </div>
+    <div class="card">
+      <details>
+        <summary class="btn-ghost btn-small">🕘 Historique des modifications</summary>
+        <div id="reglagesPaieHistory" style="margin-top:10px;" class="sub">Chargement…</div>
+      </details>
     </div>
   </div>
 
@@ -2887,7 +2908,7 @@ document.getElementById("btnActiviteCloudLoad").addEventListener("click", loadAc
 document.getElementById("btnActivitePsyCloudLoad").addEventListener("click", loadActiviteFromCloud);
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
@@ -2905,6 +2926,7 @@ function switchTab(active){
   if(active==="Absences"){ loadAbsencesFromCloud(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
+  if(active==="ReglagesPaie"){ loadPayRulesConfig(); renderPayRulesHistory(); }
 }
 TAB_IDS.forEach(name=>{
   document.getElementById(`tab${name}Btn`).addEventListener("click", ()=>switchTab(name));
@@ -3500,6 +3522,246 @@ document.getElementById("permReqCreateBtn").addEventListener("click", async ()=>
 });
 
 
+// ═══════════════════════════════════════════════════════════════════
+// RÉGLAGES DES PAIES (03/10) — réservé D/DG/OWNER (can manage_pay_rules).
+// Première tranche de l'audit des règles : rémunération uniquement.
+// Les labels de grade utilisent GRADE_LABEL déjà existant pour rester
+// cohérents avec le reste du Roster.
+// ═══════════════════════════════════════════════════════════════════
+const PAY_RULES_GRADES = ["STG","A","INF","M","MF","MP","MLP","RF","RP","RL","MC","ADD","CD","D","DG"];
+let payRulesConfigCache = null;
+
+async function loadPayRulesConfig(){
+  const status = document.getElementById("reglagesPaieStatus");
+  const body = document.getElementById("reglagesPaieBody");
+  try{
+    const res = await fetch("/.netlify/functions/pay-rules-actions");
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    payRulesConfigCache = data.config;
+    if(status) status.textContent = data.config.updatedAt
+      ? `Dernière modification : ${new Date(data.config.updatedAt).toLocaleString("fr-FR")} par ${esc(data.config.updatedBy||"?")}`
+      : "Aucune modification pour l'instant — valeurs par défaut (identiques au comportement actuel de Pillbox).";
+    renderPayRulesForm();
+  }catch(err){
+    if(body) body.innerHTML = `<div class="empty-msg">Impossible de charger les réglages (${esc(err.message)}).</div>`;
+  }
+}
+
+async function savePayRuleField(field, value, btn){
+  if(btn) btn.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/pay-rules-actions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, field, value }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    payRulesConfigCache = data.config;
+    toast("✓ Réglage enregistré — pris en compte au prochain calcul Pillbox");
+    loadPayRulesConfig();
+    renderPayRulesHistory();
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+function renderPayRulesForm(){
+  const body = document.getElementById("reglagesPaieBody");
+  if(!body || !payRulesConfigCache) return;
+  const c = payRulesConfigCache;
+
+  const gradeRows = PAY_RULES_GRADES.map(g=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+      <span class="grade-badge" style="background:${GRADE_COLOR[g]};color:${GRADE_TEXT_COLOR[g]};min-width:48px;text-align:center;">${g}</span>
+      <span style="flex:1;color:var(--text-dim);font-size:0.82rem;">${esc(GRADE_LABEL[g])}</span>
+      <input type="number" min="0" step="1" data-salary-grade="${g}" value="${c.fixedSalaryByGrade[g]}" style="width:140px;">
+    </div>
+  `).join("");
+
+  const ppaGradesRows = PAY_RULES_GRADES.map(g=>`
+    <label style="display:inline-flex;align-items:center;gap:5px;font-size:0.8rem;margin:3px 10px 3px 0;">
+      <input type="checkbox" data-ppa-grade="${g}" ${c.ppaEligibleGrades.includes(g)?"checked":""}> ${g}
+    </label>
+  `).join("");
+
+  body.innerHTML = `
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">💰 Tarif d'une réanimation</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="number" min="0" step="100" id="payRuleReaRate" value="${c.reaRate}" style="width:160px;">
+        <span style="color:var(--text-dim);font-size:0.8rem;">$ par réanimation</span>
+        <button type="button" class="btn-primary btn-small" id="btnSaveReaRate">Enregistrer</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">🏆 Bonus du classement des réanimations</div>
+      <div class="special-sub" style="margin-bottom:8px;">En cas d'égalité, un rang peut être partagé par plusieurs personnes — comportement inchangé, seuls les montants sont réglables ici.</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">1er <input type="number" min="0" step="100" id="payRuleBonus1" value="${c.bonusByRank["1"]}" style="width:130px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">2e <input type="number" min="0" step="100" id="payRuleBonus2" value="${c.bonusByRank["2"]}" style="width:130px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">3e <input type="number" min="0" step="100" id="payRuleBonus3" value="${c.bonusByRank["3"]}" style="width:130px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveBonus">Enregistrer</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">📋 Primes PPA</div>
+      <div class="special-sub" style="margin-bottom:8px;">Plafond par personne et par semaine, et grades autorisés à recevoir une PPA. La prime personnelle (libre, sans plafond codé) n'est pas concernée par ce réglage.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <input type="number" min="0" step="100" id="payRulePpaCap" value="${c.ppaWeeklyCap}" style="width:160px;">
+        <span style="color:var(--text-dim);font-size:0.8rem;">$ plafond hebdomadaire</span>
+        <button type="button" class="btn-primary btn-small" id="btnSavePpaCap">Enregistrer</button>
+      </div>
+      <div>${ppaGradesRows}</div>
+      <button type="button" class="btn-primary btn-small" id="btnSavePpaGrades" style="margin-top:8px;">Enregistrer les grades PPA</button>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">📊 Quotas de réanimations</div>
+      <div class="special-sub" style="margin-bottom:8px;">Grades staff (tag "STAFF" dans Info) utilisent le quota staff, les autres le quota standard. Les grades exemptés ci-dessous n'ont jamais de quota obligatoire.</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Quota standard <input type="number" min="0" step="1" id="payRuleQuotaStandard" value="${c.quotaStandard}" style="width:100px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Quota staff <input type="number" min="0" step="1" id="payRuleQuotaStaff" value="${c.quotaStaff}" style="width:100px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveQuotas">Enregistrer</button>
+      </div>
+      <div style="font-size:0.8rem;margin-bottom:4px;">Grades exemptés de quota :</div>
+      <div style="margin-bottom:10px;">${PAY_RULES_GRADES.map(g=>`
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:0.8rem;margin:3px 10px 3px 0;">
+          <input type="checkbox" data-exempt-grade="${g}" ${c.exemptGrades.includes(g)?"checked":""}> ${g}
+        </label>
+      `).join("")}</div>
+      <button type="button" class="btn-primary btn-small" id="btnSaveExemptGrades" style="margin-bottom:14px;">Enregistrer les grades exemptés</button>
+
+      <div class="special-sub" style="margin-bottom:8px;">Zone "presque atteint" : propose de valider le quota malgré tout, sans l'appliquer automatiquement — jamais pour les grades staff.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Seuil bas <input type="number" min="0" step="1" id="payRuleNearMissThreshold" value="${c.nearMissThreshold}" style="width:100px;"></label>
+        <span style="color:var(--text-dim);font-size:0.8rem;">réa (jusqu'au quota standard exclu)</span>
+        <button type="button" class="btn-primary btn-small" id="btnSaveNearMissThreshold">Enregistrer</button>
+      </div>
+      <div style="font-size:0.8rem;margin-bottom:4px;">Grades concernés par cette zone :</div>
+      <div>${PAY_RULES_GRADES.map(g=>`
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:0.8rem;margin:3px 10px 3px 0;">
+          <input type="checkbox" data-nearmiss-grade="${g}" ${c.nearMissGrades.includes(g)?"checked":""}> ${g}
+        </label>
+      `).join("")}</div>
+      <button type="button" class="btn-primary btn-small" id="btnSaveNearMissGrades" style="margin-top:8px;">Enregistrer les grades concernés</button>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">⚠️ Q et licenciements</div>
+      <div class="special-sub" style="margin-bottom:8px;">Stagiaire : proposition à partir du seuil bas, licenciement automatique à partir du seuil haut (sans confirmation). Ambulancier : proposition au seuil indiqué, jamais automatique directement. Les autres grades suivent la règle de cumul Q+A.</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — proposition dès Q <input type="number" min="1" step="1" id="payRuleStgProposal" value="${c.stgProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — automatique dès Q <input type="number" min="1" step="1" id="payRuleStgAuto" value="${c.stgAutoThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Ambulancier — proposition à Q <input type="number" min="1" step="1" id="payRuleAProposal" value="${c.aProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Cumul Q+A &gt; <input type="number" min="1" step="1" id="payRuleQaCumul" value="${c.qaCumulThreshold}" style="width:80px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveQLicen">Enregistrer</button>
+      </div>
+    </div>
+
+    <details>
+      <summary class="btn-ghost btn-small">💵 Salaires fixes de référence par grade</summary>
+      <div class="special-sub" style="margin:8px 0;">Ces montants ne remplacent PAS le salaire normal du tableau EMS — ils servent uniquement de référence pour calculer la déduction en cas de quota manqué, et pour remplacer un salaire à 0 $ détecté comme probable erreur. Comportement inchangé, seuls les montants sont réglables ici.</div>
+      <div style="max-width:420px;">${gradeRows}</div>
+      <button type="button" class="btn-primary btn-small" id="btnSaveSalaries" style="margin-top:10px;">Enregistrer les salaires fixes</button>
+    </details>
+  `;
+
+  document.getElementById("btnSaveReaRate").addEventListener("click", (e)=>{
+    const v = +document.getElementById("payRuleReaRate").value;
+    if(!(v>=0)){ toast("Montant invalide"); return; }
+    savePayRuleField("reaRate", v, e.target);
+  });
+  document.getElementById("btnSaveBonus").addEventListener("click", (e)=>{
+    const value = {
+      "1": +document.getElementById("payRuleBonus1").value,
+      "2": +document.getElementById("payRuleBonus2").value,
+      "3": +document.getElementById("payRuleBonus3").value,
+    };
+    if(Object.values(value).some(v=>!(v>=0))){ toast("Montant invalide"); return; }
+    savePayRuleField("bonusByRank", value, e.target);
+  });
+  document.getElementById("btnSavePpaCap").addEventListener("click", (e)=>{
+    const v = +document.getElementById("payRulePpaCap").value;
+    if(!(v>=0)){ toast("Montant invalide"); return; }
+    savePayRuleField("ppaWeeklyCap", v, e.target);
+  });
+  document.getElementById("btnSavePpaGrades").addEventListener("click", (e)=>{
+    const grades = PAY_RULES_GRADES.filter(g=>document.querySelector(`[data-ppa-grade="${g}"]`).checked);
+    savePayRuleField("ppaEligibleGrades", grades, e.target);
+  });
+  document.getElementById("btnSaveQuotas").addEventListener("click", async (e)=>{
+    const std = +document.getElementById("payRuleQuotaStandard").value;
+    const staff = +document.getElementById("payRuleQuotaStaff").value;
+    if(!(std>=0) || !(staff>=0)){ toast("Valeur invalide"); return; }
+    e.target.disabled = true;
+    await savePayRuleField("quotaStandard", std, e.target);
+    await savePayRuleField("quotaStaff", staff, e.target);
+  });
+  document.getElementById("btnSaveExemptGrades").addEventListener("click", (e)=>{
+    const grades = PAY_RULES_GRADES.filter(g=>document.querySelector(`[data-exempt-grade="${g}"]`).checked);
+    savePayRuleField("exemptGrades", grades, e.target);
+  });
+  document.getElementById("btnSaveNearMissThreshold").addEventListener("click", (e)=>{
+    const v = +document.getElementById("payRuleNearMissThreshold").value;
+    if(!(v>=0)){ toast("Valeur invalide"); return; }
+    savePayRuleField("nearMissThreshold", v, e.target);
+  });
+  document.getElementById("btnSaveNearMissGrades").addEventListener("click", (e)=>{
+    const grades = PAY_RULES_GRADES.filter(g=>document.querySelector(`[data-nearmiss-grade="${g}"]`).checked);
+    savePayRuleField("nearMissGrades", grades, e.target);
+  });
+  document.getElementById("btnSaveQLicen").addEventListener("click", async (e)=>{
+    const stgProposal = +document.getElementById("payRuleStgProposal").value;
+    const stgAuto = +document.getElementById("payRuleStgAuto").value;
+    const aProposal = +document.getElementById("payRuleAProposal").value;
+    const qaCumul = +document.getElementById("payRuleQaCumul").value;
+    if([stgProposal,stgAuto,aProposal,qaCumul].some(v=>!(v>=1))){ toast("Seuil invalide"); return; }
+    e.target.disabled = true;
+    await savePayRuleField("stgProposalThreshold", stgProposal, e.target);
+    await savePayRuleField("stgAutoThreshold", stgAuto, e.target);
+    await savePayRuleField("aProposalThreshold", aProposal, e.target);
+    await savePayRuleField("qaCumulThreshold", qaCumul, e.target);
+  });
+  document.getElementById("btnSaveSalaries").addEventListener("click", (e)=>{
+    const value = {};
+    let invalid = false;
+    PAY_RULES_GRADES.forEach(g=>{
+      const v = +document.querySelector(`[data-salary-grade="${g}"]`).value;
+      if(!(v>=0)) invalid = true;
+      value[g] = v;
+    });
+    if(invalid){ toast("Un ou plusieurs montants invalides"); return; }
+    savePayRuleField("fixedSalaryByGrade", value, e.target);
+  });
+}
+
+async function renderPayRulesHistory(){
+  const box = document.getElementById("reglagesPaieHistory");
+  if(!box || !currentFirebaseIdToken) return;
+  box.textContent = "Chargement…";
+  try{
+    const res = await fetch(withFirebaseAuth("https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfigHistory.json"));
+    const all = res.ok ? (await res.json()) : {};
+    const entries = Object.values(all||{}).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    if(!entries.length){ box.textContent = "Aucune modification enregistrée pour l'instant."; return; }
+    const fieldLabel = { reaRate:"Tarif réa", bonusByRank:"Bonus de classement", ppaWeeklyCap:"Plafond PPA", ppaEligibleGrades:"Grades PPA", fixedSalaryByGrade:"Salaires fixes", quotaStandard:"Quota standard", quotaStaff:"Quota staff", exemptGrades:"Grades exemptés", nearMissGrades:"Grades (presque atteint)", nearMissThreshold:"Seuil presque atteint", stgProposalThreshold:"STG proposition", stgAutoThreshold:"STG automatique", aProposalThreshold:"A proposition", qaCumulThreshold:"Cumul Q+A" };
+    box.innerHTML = entries.slice(0,100).map(e=>`
+      <div style="padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
+        <div><b>${esc(fieldLabel[e.field]||e.field)}</b> — ${new Date(e.createdAt).toLocaleString("fr-FR")}</div>
+        <div style="color:var(--text-dim);font-size:0.78rem;margin-top:2px;">Par ${esc(e.authorName||"?")} (${esc(e.authorLevel||"?")})</div>
+        <div style="font-size:0.76rem;color:var(--text-faint);margin-top:2px;">Avant : ${esc(JSON.stringify(e.oldValue))} — Après : ${esc(JSON.stringify(e.newValue))}</div>
+      </div>
+    `).join("");
+  }catch(err){
+    box.textContent = `Impossible de charger l'historique (${err.message}).`;
+  }
+}
+
 // ── Retrait par code ──
 document.getElementById("signalementWithdrawBtn").addEventListener("click", async ()=>{
   const code = document.getElementById("signalementWithdrawCodeInput").value.trim();
@@ -3605,6 +3867,7 @@ function showApp(session){
   document.getElementById("discordAuthStatus").innerHTML = `${session.level==="OWNER"?"👑":"✅"} <b>${esc(session.name)}</b> — ${esc(session.levelLabel)}`;
   document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  document.getElementById("tabReglagesPaieBtn").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
   renderGradeLabelsEditor();
   renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
