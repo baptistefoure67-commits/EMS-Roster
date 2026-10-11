@@ -3719,7 +3719,7 @@ function renderPayRulesForm(){
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — proposition dès Q <input type="number" min="1" step="1" id="payRuleStgProposal" value="${c.stgProposalThreshold}" style="width:80px;"></label>
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — automatique dès Q <input type="number" min="1" step="1" id="payRuleStgAuto" value="${c.stgAutoThreshold}" style="width:80px;"></label>
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Ambulancier — proposition à Q <input type="number" min="1" step="1" id="payRuleAProposal" value="${c.aProposalThreshold}" style="width:80px;"></label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Cumul Q+A &gt; <input type="number" min="1" step="1" id="payRuleQaCumul" value="${c.qaCumulThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Cumul Q+A &gt; <input type="number" min="1" max="3" step="1" id="payRuleQaCumul" value="${c.qaCumulThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveQLicen">Enregistrer</button>
       </div>
       <!-- (11/10, demandé) Infirmiers — même principe que l'Ambulancier
@@ -3793,6 +3793,7 @@ function renderPayRulesForm(){
     const aProposal = +document.getElementById("payRuleAProposal").value;
     const qaCumul = +document.getElementById("payRuleQaCumul").value;
     if([stgProposal,stgAuto,aProposal,qaCumul].some(v=>!(v>=1))){ toast("Seuil invalide"); return; }
+    if(qaCumul>3){ toast("Le cumul Q+A ne peut pas dépasser 3"); return; }
     e.target.disabled = true;
     await savePayRuleField("stgProposalThreshold", stgProposal, e.target);
     await savePayRuleField("stgAutoThreshold", stgAuto, e.target);
