@@ -4082,7 +4082,9 @@ async function rosterCheckKicked(){
         ? "La prochaine fois, ne fais pas ça au Concepteur. 🖕"
         : data.reason === "tried_to_kick_owner"
           ? "La prochaine fois, ne fais pas ça au Concepteur."
-          : "Tu as été déconnecté(e) par un responsable.";
+          : data.reason === "owner_kicked_aaron_roster"
+            ? "Ava va te quitter, connard 🖕"
+            : "Tu as été déconnecté(e) par un responsable.";
       showGate(msg);
       return true;
     }
