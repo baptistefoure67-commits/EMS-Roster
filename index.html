@@ -4221,7 +4221,7 @@ function startRosterLiveUpdates(){
         renderPermissionRequestsCard();
       }
     }catch(e){}
-  }, 25000);
+  }, 3000); // (10/10, demandé) descendu de 25s à 3s — perçu comme instantané
 }
 function stopRosterLiveUpdates(){
   if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
