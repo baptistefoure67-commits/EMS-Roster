@@ -2301,9 +2301,14 @@ function extractQualifyingAbsences(text){
     if(durationDays <= 3) return; // section 2 : ignorée, jamais stockée
     const emp = (idUnique && employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)))
       || employees.find(e=>norm(e.name)===norm(name));
+    const resolvedGrade = emp ? emp.grade : (gradeRaw||null);
+    // (10/10, demandé) Grade WDV jamais suivi comme absence — leur
+    // absence du tableau EMS est déjà connue/attendue par ce statut,
+    // pas un cas à faire remonter dans le système de 3 absences/30j.
+    if(resolvedGrade === "WDV") return;
     const employeeKey = emp ? activiteKeyFor(emp) : (idUnique ? `id:${idUnique}` : `name:${norm(name)}`);
     result.push({
-      employeeKey, name: emp ? emp.name : name, grade: emp ? emp.grade : (gradeRaw||null),
+      employeeKey, name: emp ? emp.name : name, grade: resolvedGrade,
       startIso: parsed.start.toISOString().slice(0,10), endIso: parsed.end.toISOString().slice(0,10),
       durationDays,
     });
@@ -3901,11 +3906,19 @@ function populateForceLogoutSelect(){
 }
 
 // Capacités effectives de la session (grade + matrice + exceptions
-// individuelles), demandées au serveur — par défaut D/DG/OWNER en attendant.
+// individuelles), demandées au serveur — valeur par défaut PAR
+// CAPACITÉ en attendant la vraie réponse (10/10 — audit permissions :
+// force_logout est maintenant CD+, manage_pay_rules reste D+, un seul
+// repli générique aurait affiché le mauvais niveau par défaut pour
+// l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
+const CAP_DEFAULT_LEVELS = {
+  manage_pay_rules: ["D","DG","OWNER"],
+  force_logout: ["CD","D","DG","OWNER"],
+};
 function hasCap(name){
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
-  return ["D","DG","OWNER"].includes(currentUserLevel);
+  return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
 }
 function applyCapsUi(){
   document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
