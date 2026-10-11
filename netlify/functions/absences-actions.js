@@ -74,6 +74,42 @@ function computeAbsenceSignalements(absencesObj, refDate){
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
 
+// (10/10, demandé) Suppression automatique des absences anciennes, et
+// des WDV (statut déjà connu/attendu, jamais un cas à faire remonter).
+// Le point de départ des 3 semaines dépend de la durée : absence de 10
+// jours ou moins -> compté depuis son DÉBUT (startIso) ; plus de 10
+// jours -> compté depuis sa FIN (endIso). Appelée à chaque lecture
+// (GET), pour que le nettoyage se fasse tout seul, sans action
+// manuelle de qui que ce soit.
+const AUTO_DELETE_DAYS = 21;
+function findExpiredAbsenceIds(all){
+  const now = Date.now();
+  const expired = [];
+  for(const [id, a] of Object.entries(all || {})){
+    if(a.grade === "WDV"){ expired.push(id); continue; }
+    const refIso = (a.durationDays || 0) > 10 ? a.endIso : a.startIso;
+    if(!refIso) continue;
+    const refMs = new Date(`${refIso}T00:00:00Z`).getTime();
+    if(Number.isNaN(refMs)) continue;
+    if(now - refMs >= AUTO_DELETE_DAYS * 86400000) expired.push(id);
+  }
+  return expired;
+}
+async function pruneExpiredAbsences(all, idToken){
+  const expiredIds = findExpiredAbsenceIds(all);
+  if(!expiredIds.length) return all;
+  const patch = {};
+  expiredIds.forEach(id => { patch[id] = null; });
+  try{
+    await fetch(`${ABSENCES_URL}?auth=${idToken}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+  }catch(e){ /* échec silencieux -- retente à la prochaine lecture */ }
+  const kept = { ...all };
+  expiredIds.forEach(id => { delete kept[id]; });
+  return kept;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: corsHeaders, body: "" };
 
@@ -92,7 +128,8 @@ exports.handler = async function (event) {
     try {
       const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
       const res = await fetch(`${ABSENCES_URL}?auth=${idToken}`);
-      const all = res.ok ? (await res.json()) : {};
+      let all = res.ok ? (await res.json()) : {};
+      all = await pruneExpiredAbsences(all || {}, idToken);
       return json(200, { absences: all || {}, signalements: computeAbsenceSignalements(all) });
     } catch (err) {
       return json(500, { error: `Erreur inattendue : ${err.message}` });
@@ -222,3 +259,4 @@ function json(statusCode, obj) {
 
 module.exports.computeAbsenceSignalements = computeAbsenceSignalements;
 module.exports.absenceKey = absenceKey;
+module.exports.pruneExpiredAbsences = pruneExpiredAbsences;
