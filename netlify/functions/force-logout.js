@@ -1,27 +1,39 @@
 // ═══════════════════════════════════════════════════════════════════
-// force-logout.js (10/10, demandé) — déconnexion forcée, partagée entre
-// Pillbox et le Roster (les deux appellent cette même fonction, comme
-// pillbox-verify-session/pillbox-presence le font déjà).
+// force-logout.js — déconnexion forcée, EN DEUX PORTÉES SÉPARÉES
+// depuis le 10/10 (demandé) : "roster" et "pillbox". Déconnecter
+// quelqu'un du Roster ne le déconnecte plus automatiquement de
+// Pillbox, et inversement — deux listes, deux boutons, deux horodatages
+// distincts, mais la même fonction serveur pour les deux (comme avant).
 //
-// Deux actions :
+// scope détermine le chemin Firebase utilisé :
+//   "roster"  -> rosterForcedLogouts  (chemin historique, réutilisé)
+//   "pillbox" -> pillboxForcedLogouts (nouveau)
+// Les deux outils n'appellent QUE leur propre portée pour "check" —
+// le Roster vérifie "roster", Pillbox vérifie "pillbox" — mais le
+// bouton de déclenchement des DEUX portées vit uniquement dans le
+// Roster (demandé), Pillbox n'a plus d'interface pour ça.
+//
+// Actions :
 //   - "kick"  : enregistre un horodatage de déconnexion forcée pour une
-//               personne (rosterForcedLogouts/{discordId} = Date.now()).
-//               Réservé D, DG, OWNER (can "force_logout" — permissions.js).
-//               Pillbox restreint lui-même ce bouton au seul Concepteur
-//               (OWNER) côté interface, demandé explicitement — la
-//               permission serveur reste D+ pour rester cohérente avec
-//               ce que le Roster autorise, mais c'est bien l'écran
-//               (showApp côté Pillbox) qui n'affiche le bouton qu'à OWNER.
+//               personne, dans la portée demandée. Réservé D, DG, OWNER
+//               et maintenant CD (can "force_logout" — permissions.js).
 //   - "check" : donnée à n'importe quelle session valide (pas besoin de
 //               force_logout pour ÇA — tout le monde doit pouvoir
-//               vérifier si lui-même a été déconnecté). Renvoie
-//               kickedAt (ou null) pour le discordId de LA session
-//               appelante uniquement — jamais celle d'un tiers.
+//               vérifier si lui-même a été déconnecté), dans la portée
+//               demandée. Renvoie kickedAt (ou null) pour le discordId
+//               de LA session appelante uniquement — jamais un tiers.
+//   - "caps"  : capacités effectives de la session (inchangé).
 //
 // Jamais un vrai "bannissement" : une fois le prochain contrôle (poll)
 // détecté côté client, la page redemande une connexion Discord — rien
 // n'empêche cette personne de se reconnecter tout de suite après,
 // volontairement. C'est une déconnexion immédiate, pas un blocage.
+//
+// Blague Concepteur (10/10, demandé) : le Concepteur reste
+// sélectionnable dans les deux listes exprès, mais intouchable dans
+// les deux portées — une tentative de le déconnecter (Roster OU
+// Pillbox) se retourne contre l'auteur, dans cette même portée
+// uniquement, sans que la réponse de l'appel ne le révèle.
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
@@ -29,7 +41,14 @@ const { can, loadPermissionContext, OWNER_DISCORD_ID } = require("./permissions"
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { logAction } = require("./logs");
 
-const KICKS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterForcedLogouts.json";
+const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
+const KICKS_URL_BY_SCOPE = {
+  roster: `${BASE}/rosterForcedLogouts.json`,
+  pillbox: `${BASE}/pillboxForcedLogouts.json`,
+};
+function kicksUrlFor(scope){
+  return KICKS_URL_BY_SCOPE[scope] || KICKS_URL_BY_SCOPE.roster; // repli "roster" si absent (anciens appels)
+}
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
@@ -55,6 +74,8 @@ exports.handler = async function (event) {
   let body;
   try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }, corsHeaders); }
   const { token, action, targetDiscordId } = body;
+  const scope = body.scope === "pillbox" ? "pillbox" : "roster"; // repli "roster" par défaut
+  const KICKS_URL = kicksUrlFor(scope);
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée." }, corsHeaders);
@@ -63,10 +84,6 @@ exports.handler = async function (event) {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
     if (action === "check") {
-      // Accessible à toute session valide — chacun doit pouvoir vérifier
-      // s'IL a été déconnecté, aucune permission spéciale requise ici.
-      // Format accepté : nombre brut (anciennes entrées) ou objet
-      // {at, reason} (10/10 — blague Concepteur, voir action "kick").
       const res = await fetch(`${KICKS_URL.replace(".json", `/${session.discordId}.json`)}?auth=${idToken}`);
       const data = res.ok ? (await res.json()) : null;
       const kickedAt = typeof data === "number" ? data : (data && typeof data === "object" ? data.at : null);
@@ -75,8 +92,6 @@ exports.handler = async function (event) {
     }
 
     if (action === "caps") {
-      // Ce que CETTE session a le droit de faire (grade + matrice + exceptions
-      // individuelles) — sert au Roster pour afficher ou non les boutons.
       const ctx = await loadPermissionContext(idToken);
       return json(200, {
         force_logout: can(session.level, "force_logout", ctx.custom, session.discordId, ctx.individual),
@@ -90,15 +105,9 @@ exports.handler = async function (event) {
         return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Déconnexion forcée" (grade ou exception individuelle).` }, corsHeaders);
       }
       if (!targetDiscordId) return json(400, { error: "Cible manquante." }, corsHeaders);
-      // (10/10, demandé) Le Concepteur reste sélectionnable dans la
-      // liste exprès — mais intouchable. Quiconque tente de le
-      // déconnecter se déconnecte lui-même à la place, sans que la
-      // réponse de CET appel ne le révèle (même "✓" que d'habitude) —
-      // la surprise arrive seulement au prochain contrôle de SA PROPRE
-      // session, avec un message dédié (voir action "check" côté client).
       const isTargetingOwner = targetDiscordId === OWNER_DISCORD_ID;
       const effectiveTarget = isTargetingOwner ? session.discordId : targetDiscordId;
-      const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY); // permission déjà vérifiée ci-dessus ; la règle Firebase exige un niveau D+ pour écrire
+      const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
       const payload = isTargetingOwner ? { at: Date.now(), reason: "tried_to_kick_owner" } : { at: Date.now() };
       const res = await fetch(`${KICKS_URL.replace(".json", `/${effectiveTarget}.json`)}?auth=${writeToken}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
@@ -108,7 +117,7 @@ exports.handler = async function (event) {
         action: "deconnexion_forcee",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
         targetDiscordId: effectiveTarget,
-        details: isTargetingOwner ? "Tentative de déconnexion du Concepteur — retournée contre l'auteur (blague)" : "Déconnexion forcée déclenchée",
+        details: `[${scope === "pillbox" ? "Pillbox" : "Roster"}] ${isTargetingOwner ? "Tentative de déconnexion du Concepteur — retournée contre l'auteur (blague)" : "Déconnexion forcée déclenchée"}`,
         idToken,
       }).catch(()=>{});
       return json(200, { ok: true }, corsHeaders);
