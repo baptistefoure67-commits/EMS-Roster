@@ -4078,9 +4078,11 @@ async function rosterCheckKicked(){
       // (10/10, demandé) Retour de bâton silencieux : qui tente de
       // déconnecter le Concepteur se déconnecte lui-même, avec ce
       // message dédié au lieu du message habituel.
-      const msg = data.reason === "tried_to_kick_owner"
-        ? "La prochaine fois, ne fais pas ça au Concepteur."
-        : "Tu as été déconnecté(e) par un responsable.";
+      const msg = data.reason === "tried_to_kick_owner_aaron_roster"
+        ? "La prochaine fois, ne fais pas ça au Concepteur. 🖕"
+        : data.reason === "tried_to_kick_owner"
+          ? "La prochaine fois, ne fais pas ça au Concepteur."
+          : "Tu as été déconnecté(e) par un responsable.";
       showGate(msg);
       return true;
     }
