@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can, loadPermissionContext } = require("./permissions");
+const { can, loadPermissionContext, OWNER_DISCORD_ID } = require("./permissions");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { logAction } = require("./logs");
 
@@ -65,9 +65,13 @@ exports.handler = async function (event) {
     if (action === "check") {
       // Accessible à toute session valide — chacun doit pouvoir vérifier
       // s'IL a été déconnecté, aucune permission spéciale requise ici.
+      // Format accepté : nombre brut (anciennes entrées) ou objet
+      // {at, reason} (10/10 — blague Concepteur, voir action "kick").
       const res = await fetch(`${KICKS_URL.replace(".json", `/${session.discordId}.json`)}?auth=${idToken}`);
-      const kickedAt = res.ok ? (await res.json()) : null;
-      return json(200, { kickedAt: kickedAt || null }, corsHeaders);
+      const data = res.ok ? (await res.json()) : null;
+      const kickedAt = typeof data === "number" ? data : (data && typeof data === "object" ? data.at : null);
+      const reason = (data && typeof data === "object") ? (data.reason || null) : null;
+      return json(200, { kickedAt: kickedAt || null, reason }, corsHeaders);
     }
 
     if (action === "caps") {
@@ -86,16 +90,25 @@ exports.handler = async function (event) {
         return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Déconnexion forcée" (grade ou exception individuelle).` }, corsHeaders);
       }
       if (!targetDiscordId) return json(400, { error: "Cible manquante." }, corsHeaders);
+      // (10/10, demandé) Le Concepteur reste sélectionnable dans la
+      // liste exprès — mais intouchable. Quiconque tente de le
+      // déconnecter se déconnecte lui-même à la place, sans que la
+      // réponse de CET appel ne le révèle (même "✓" que d'habitude) —
+      // la surprise arrive seulement au prochain contrôle de SA PROPRE
+      // session, avec un message dédié (voir action "check" côté client).
+      const isTargetingOwner = targetDiscordId === OWNER_DISCORD_ID;
+      const effectiveTarget = isTargetingOwner ? session.discordId : targetDiscordId;
       const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY); // permission déjà vérifiée ci-dessus ; la règle Firebase exige un niveau D+ pour écrire
-      const res = await fetch(`${KICKS_URL.replace(".json", `/${targetDiscordId}.json`)}?auth=${writeToken}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Date.now()),
+      const payload = isTargetingOwner ? { at: Date.now(), reason: "tried_to_kick_owner" } : { at: Date.now() };
+      const res = await fetch(`${KICKS_URL.replace(".json", `/${effectiveTarget}.json`)}?auth=${writeToken}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       if (!res.ok) { const t = await res.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${res.status}) : ${t.slice(0,200)}` }, corsHeaders); }
       await logAction({
         action: "deconnexion_forcee",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-        targetDiscordId,
-        details: "Déconnexion forcée déclenchée",
+        targetDiscordId: effectiveTarget,
+        details: isTargetingOwner ? "Tentative de déconnexion du Concepteur — retournée contre l'auteur (blague)" : "Déconnexion forcée déclenchée",
         idToken,
       }).catch(()=>{});
       return json(200, { ok: true }, corsHeaders);
