@@ -62,6 +62,12 @@ const DEFAULT_CONFIG = {
   stgProposalThreshold: 2,
   stgAutoThreshold: 3,
   aProposalThreshold: 3,
+  // (11/10, demandé) Proposition Infirmiers — même principe que
+  // l'Ambulancier, mais DÉSACTIVÉE par défaut (infProposalEnabled:
+  // false) : tant que personne ne l'active explicitement, les
+  // Infirmiers restent soumis uniquement au cumul Q+A, inchangé.
+  infProposalEnabled: false,
+  infProposalThreshold: 3,
   qaCumulThreshold: 3,
   updatedAt: null,
   updatedBy: null,
@@ -160,8 +166,11 @@ exports.handler = async function (event) {
     } else if (field === "ppaEligibleGrades") {
       if (!Array.isArray(value) || !value.every(g => VALID_GRADES.includes(g))) return json(400, { error: "Liste de grades PPA invalide." });
       current.ppaEligibleGrades = [...new Set(value)];
-    } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "qaCumulThreshold") {
+    } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "qaCumulThreshold" || field === "infProposalThreshold") {
       if (typeof value !== "number" || !(value >= 1) || value > 20) return json(400, { error: "Seuil invalide." });
+      current[field] = value;
+    } else if (field === "infProposalEnabled") {
+      if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." });
       current[field] = value;
     } else if (field === "quotaStandard" || field === "quotaStaff" || field === "nearMissThreshold") {
       if (typeof value !== "number" || !(value >= 0) || value > 1000) return json(400, { error: "Valeur de quota invalide." });
