@@ -617,16 +617,29 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div id="permissionRequestsList" class="sub">Chargement…</div>
     </div>
 
-    <!-- (10/10, demandé) Déconnexion forcée — réservé D/DG/OWNER côté
-         Roster (can force_logout). Masqué par défaut, affiché par
-         showApp selon currentUserLevel. -->
+    <!-- (10/10, demandé) Déconnexion forcée — EN DEUX PORTÉES
+         séparées : Roster et Pillbox. Réservé CD/D/DG/OWNER (can
+         force_logout). Masquées par défaut, affichées par applyCapsUi
+         selon la capacité réelle. Seules les personnes ayant un grade
+         correspondant à un niveau Roster (MC/ADD/CD/D/DG) apparaissent
+         dans les deux listes — inutile de proposer de "déconnecter"
+         quelqu'un qui n'a jamais eu accès à l'un ou l'autre outil. -->
     <div class="card" id="forceLogoutCard" style="display:none;">
-      <div class="special-title">🔌 Déconnexion forcée</div>
-      <div class="special-sub" style="margin-bottom:10px;">Déconnecte immédiatement quelqu'un du Roster et de Pillbox — rien ne l'empêche de se reconnecter juste après, ce n'est pas un bannissement.</div>
+      <div class="special-title">🔌 Déconnexion Roster</div>
+      <div class="special-sub" style="margin-bottom:10px;">Déconnecte immédiatement quelqu'un du Roster uniquement (pas de Pillbox) — rien ne l'empêche de se reconnecter juste après, ce n'est pas un bannissement.</div>
       <select id="forceLogoutPersonSelect" style="width:100%;margin-bottom:8px;">
         <option value="">— Choisir une personne —</option>
       </select>
-      <button type="button" class="btn-primary btn-small" id="btnForceLogout">🔌 Déconnecter</button>
+      <button type="button" class="btn-primary btn-small" id="btnForceLogout" data-scope="roster">🔌 Déconnecter du Roster</button>
+    </div>
+
+    <div class="card" id="forceLogoutPillboxCard" style="display:none;">
+      <div class="special-title">🔌 Déconnexion Pillbox (Terminal Paie)</div>
+      <div class="special-sub" style="margin-bottom:10px;">Déconnecte immédiatement quelqu'un de Pillbox uniquement (pas du Roster) — rien ne l'empêche de se reconnecter juste après, ce n'est pas un bannissement.</div>
+      <select id="forceLogoutPillboxPersonSelect" style="width:100%;margin-bottom:8px;">
+        <option value="">— Choisir une personne —</option>
+      </select>
+      <button type="button" class="btn-primary btn-small" id="btnForceLogoutPillbox" data-scope="pillbox">🔌 Déconnecter de Pillbox</button>
     </div>
   </div>
 
@@ -3506,27 +3519,35 @@ document.getElementById("permReqCreateBtn").addEventListener("click", async ()=>
 });
 
 
-document.getElementById("btnForceLogout").addEventListener("click", async (e)=>{
-  const sel = document.getElementById("forceLogoutPersonSelect");
+// (10/10, demandé) Fonction partagée par les deux boutons — Roster et
+// Pillbox fonctionnent exactement pareil, seule la portée change.
+async function handleForceLogoutClick(selectId, scope, scopeLabel, btn){
+  const sel = document.getElementById(selectId);
   const targetDiscordId = sel.value;
   if(!targetDiscordId){ toast("Choisis d'abord une personne"); return; }
   const label = sel.options[sel.selectedIndex].textContent;
-  if(!confirm(`Déconnecter ${label} immédiatement ? Rien ne l'empêche de se reconnecter juste après.`)) return;
-  e.target.disabled = true;
+  if(!confirm(`Déconnecter ${label} de ${scopeLabel} immédiatement ? Rien ne l'empêche de se reconnecter juste après.`)) return;
+  btn.disabled = true;
   try{
     const res = await fetch("/.netlify/functions/force-logout", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ token: currentSessionToken, action:"kick", targetDiscordId }),
+      body: JSON.stringify({ token: currentSessionToken, action:"kick", targetDiscordId, scope }),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || `${res.status}`);
-    toast(`✓ ${label} déconnecté(e)`);
+    toast(`✓ ${label} déconnecté(e) de ${scopeLabel}`);
     sel.value = "";
   }catch(err){
     toast(`✕ Refusé : ${err.message}`);
   }finally{
-    e.target.disabled = false;
+    btn.disabled = false;
   }
+}
+document.getElementById("btnForceLogout").addEventListener("click", (e)=>{
+  handleForceLogoutClick("forceLogoutPersonSelect", "roster", "le Roster", e.target);
+});
+document.getElementById("btnForceLogoutPillbox").addEventListener("click", (e)=>{
+  handleForceLogoutClick("forceLogoutPillboxPersonSelect", "pillbox", "Pillbox", e.target);
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3887,15 +3908,23 @@ async function refreshForceLogoutPresence(){
     populateForceLogoutSelect();
   }catch(e){}
 }
-function populateForceLogoutSelect(){
-  const sel = document.getElementById("forceLogoutPersonSelect");
+// (10/10, demandé) Remplit UNE liste de déconnexion (Roster ou
+// Pillbox), filtrée aux seules personnes ayant un grade donnant accès
+// au Roster (MC/ADD/CD/D/DG — jamais STG/A/INF/M/..., qui n'ont de
+// toute façon jamais pu se connecter à l'un ou l'autre outil), avec
+// son propre regroupement "En ligne" selon SA propre source de
+// présence (roster-presence.js pour la liste Roster, pillbox-presence.js
+// — déjà existant — pour la liste Pillbox : les deux présences sont
+// réellement indépendantes).
+function populateOneForceLogoutSelect(selectId, presenceList){
+  const sel = document.getElementById(selectId);
   if(!sel || !hasCap("force_logout")) return;
   const previous = sel.value;
   const norm = x => String(x||"").trim().toLowerCase();
-  const onlineIds = new Set(forceLogoutPresence.map(p=>String(p.discordId||p.id||"")).filter(Boolean));
-  const onlineNames = new Set(forceLogoutPresence.map(p=>norm(p.name)));
+  const onlineIds = new Set(presenceList.map(p=>String(p.discordId||p.id||"")).filter(Boolean));
+  const onlineNames = new Set(presenceList.map(p=>norm(p.name)));
   const isOnline = e => onlineIds.has(String(e.discordId)) || onlineNames.has(norm(e.name));
-  const list = employees.filter(e=>!e.licencie && e.discordId)
+  const list = employees.filter(e=>!e.licencie && e.discordId && EDITABLE_LEVELS.includes(e.grade))
     .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name));
   const opt = e => `<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`;
   const online = list.filter(isOnline), others = list.filter(e=>!isOnline(e));
@@ -3903,6 +3932,10 @@ function populateForceLogoutSelect(){
     (online.length ? `<optgroup label="🟢 En ligne (${online.length})">${online.map(opt).join("")}</optgroup>` : "") +
     `<optgroup label="Tous les autres (${others.length})">${others.map(opt).join("")}</optgroup>`;
   if(previous) sel.value = previous;
+}
+function populateForceLogoutSelect(){
+  populateOneForceLogoutSelect("forceLogoutPersonSelect", rosterPresenceActive);
+  populateOneForceLogoutSelect("forceLogoutPillboxPersonSelect", forceLogoutPresence);
 }
 
 // Capacités effectives de la session (grade + matrice + exceptions
@@ -3923,6 +3956,7 @@ function hasCap(name){
 function applyCapsUi(){
   document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
   document.getElementById("forceLogoutCard").style.display = hasCap("force_logout") ? "" : "none";
+  document.getElementById("forceLogoutPillboxCard").style.display = hasCap("force_logout") ? "" : "none";
   populateForceLogoutSelect();
 }
 async function refreshUserCaps(){
@@ -4034,7 +4068,7 @@ async function rosterCheckKicked(){
   try{
     const res = await fetch("/.netlify/functions/force-logout", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ token: currentSessionToken, action:"check" }),
+      body: JSON.stringify({ token: currentSessionToken, action:"check", scope:"roster" }),
     });
     const data = await res.json().catch(()=>({}));
     if(res.ok && data.kickedAt && data.kickedAt > rosterSessionEstablishedAt){
@@ -4082,12 +4116,44 @@ async function refreshEmployeesFromCloud(){
   }catch(e){ /* échec silencieux -- retente au prochain sondage */ }
 }
 
+// (10/10, demandé) Présence du Roster lui-même — séparée de celle de
+// Pillbox (pillbox-presence.js) : quelqu'un peut être sur le Roster
+// sans avoir Pillbox ouvert, et inversement. Même rythme (~25s),
+// expire après ~90s sans nouveau signal (roster-presence.js).
+let rosterPresenceActive = [];
+async function rosterSendHeartbeat(){
+  if(!currentSessionToken) return;
+  try{
+    await fetch("/.netlify/functions/roster-presence", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"heartbeat" }),
+    });
+  }catch(e){}
+}
+async function refreshRosterPresence(){
+  if(!currentSessionToken) return;
+  try{
+    const res = await fetch("/.netlify/functions/roster-presence", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"list" }),
+    });
+    if(!res.ok) return;
+    const data = await res.json().catch(()=>({}));
+    rosterPresenceActive = Array.isArray(data.active) ? data.active : [];
+    populateForceLogoutSelect();
+  }catch(e){}
+}
+
 function startRosterLiveUpdates(){
+  rosterSendHeartbeat();
+  refreshRosterPresence();
   if(rosterLiveUpdateInterval) clearInterval(rosterLiveUpdateInterval);
   rosterLiveUpdateInterval = setInterval(async ()=>{
     if(!currentSessionToken) return;
     const kicked = await rosterCheckKicked();
     if(kicked) return;
+    rosterSendHeartbeat();
+    refreshRosterPresence();
     refreshForceLogoutPresence();
     refreshEmployeesFromCloud();
     try{
