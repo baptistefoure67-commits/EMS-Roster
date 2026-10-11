@@ -51,14 +51,18 @@ const DEFAULT_PERMISSIONS = {
     send_pillbox_formation: true,
     send_pillbox_psychologie: true,
     send_pillbox_all: false,
-    view_logs: false,
+    // (10/10 — audit permissions) MC obtient maintenant les logs et
+    // l'accès au Terminal Paie (Pillbox), demandé explicitement.
+    view_logs: true,
     view_member_history: false,
     modify_role_label: false,
     manage_advanced_settings: false,
     manage_permissions: false,
-    use_pillbox_terminal: false,
+    use_pillbox_terminal: true,
     manage_individual_permissions: false,
-    request_individual_permission: false,
+    // (10/10 — audit permissions) MC peut désormais DEMANDER une
+    // exception individuelle (jamais l'appliquer directement).
+    request_individual_permission: true,
     review_permission_requests: false,
     cancel_lower_decisions: false,
   },
@@ -93,26 +97,42 @@ const DEFAULT_PERMISSIONS = {
   CD: {
     // hérite de tout ADD, plus les droits de gestion avancée
     modify_role_label: true,
-    manage_advanced_settings: true,
     manage_permissions: false,
-    manage_individual_permissions: true, // peut modifier directement (09/09)
-    review_permission_requests: true,    // peut valider une demande d'ADD
-    cancel_lower_decisions: false,       // rien en dessous de CD à annuler
+    // (10/10 — audit permissions) manage_advanced_settings,
+    // manage_individual_permissions et review_permission_requests
+    // resserrés à D+ (voir bloc D) — CD ne les a plus par défaut.
     reopen_week: true, // peut réouvrir une semaine de paie clôturée (Pillbox, 09/09)
     reopen_roster_week: true, // peut réouvrir une semaine Formation/Psychologue clôturée côté Roster (09/09)
+    // (10/10 — audit permissions) Déconnexion forcée élargie à CD
+    // (c'était D+ seulement jusqu'ici).
+    force_logout: true,
   },
   D: {
     // hérite de tout CD, plus la gestion des permissions elle-même
     manage_permissions: true,
+    // (10/10 — audit permissions) Resserrés depuis CD vers D — gestion
+    // avancée, exceptions individuelles (gérer + valider une demande).
+    manage_advanced_settings: true,
+    manage_individual_permissions: true,
+    review_permission_requests: true,
+    // (10/10 — audit permissions) D peut désormais annuler une
+    // décision de rang inférieur (avant : DG uniquement). Note : cette
+    // permission n'est actuellement vérifiée nulle part dans le code —
+    // le vrai contrôle d'annulation passe par manage_individual_permissions
+    // + la comparaison de rang (INDIVIDUAL_DECISION_AUTHORITY_ORDER)
+    // dans manage-individual-permissions.js, qui autorise déjà D à
+    // annuler une décision CD du simple fait d'avoir
+    // manage_individual_permissions. Gardée ici pour cohérence
+    // documentaire, à vérifier si un jour un usage réel en dépend.
+    cancel_lower_decisions: true,
     // (03/10) Panneau de réglages des paies — réservé D, DG, OWNER
     // uniquement (point 14 de l'audit des règles) : tarif réa, salaires
     // fixes de référence, bonus de classement, règles PPA. Jamais
     // accordé à CD par héritage, contrairement au reste de ce niveau.
     manage_pay_rules: true,
-    // (10/10, demandé) Déconnexion forcée — D, DG, OWNER côté Roster.
-    // Pillbox restreint lui-même ce bouton au seul Concepteur (OWNER)
-    // dans son interface, voir force-logout.js ; la permission serveur
-    // reste D+ pour correspondre à ce que le Roster autorise.
+    // (10/10, demandé) Déconnexion forcée — CD, D, DG, OWNER côté
+    // Roster. Pillbox restreint lui-même ce bouton au seul Concepteur
+    // (OWNER) dans son interface, voir force-logout.js.
     force_logout: true,
   },
   DG: {
