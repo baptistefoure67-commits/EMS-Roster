@@ -7,8 +7,21 @@
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { can } = require("./permissions");
+const { can, LEVELS } = require("./permissions");
 const { logAction } = require("./logs");
+
+// (11/10 — audit de sécurité) Deux vrais problèmes trouvés dans cette
+// fonction, corrigés ici :
+//  1. editEmployee laissait n'importe quel ADD/CD donner N'IMPORTE
+//     QUEL grade (DG inclus) à n'importe qui, sans ancienneté, ni
+//     quota, ni spécialité — maintenant réservé D+ pour changer le
+//     grade ; ADD/CD gardent la main sur nom/ID Discord/rôle.
+//  2. licencier laissait le même licencier un grade supérieur au sien
+//     — maintenant interdit pour ADD/CD si la cible a un grade
+//     administratif (MC/ADD/CD/D/DG) égal ou supérieur au leur ; D+
+//     garde l'accès complet, comme avant pour les deux.
+function rankOf(level){ return LEVELS.indexOf(level); } // -1 si pas un grade administratif
+function isDPlus(level){ return ["D","DG","OWNER"].includes(level); }
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 
@@ -65,6 +78,12 @@ exports.handler = async function (event) {
       const idx = employees.findIndex((e) => e.id === id);
       if (idx === -1) return json(404, { error: "Employé introuvable." });
       const before = { ...employees[idx] };
+      // (11/10 — audit) Changement de grade réservé D+ — un vrai
+      // changement de grade passe par le système de promotion (Pillbox)
+      // ou par un D+, jamais par cette fiche générique pour ADD/CD.
+      if (grade && grade !== before.grade && !isDPlus(session.level)) {
+        return json(403, { error: `Permission refusée (${session.level}) — le changement de grade est réservé à D et au-dessus. Corrige le nom ou l'ID Discord si besoin, ou passe par le système de promotion pour le grade.` });
+      }
       employees[idx] = {
         ...employees[idx],
         name: name || employees[idx].name,
@@ -82,10 +101,15 @@ exports.handler = async function (event) {
       }).catch(()=>{});
     } else if (action === "licencier") {
       const { id } = payload || {};
-      const before = employees.length;
       const target = employees.find((e) => e.id === id);
+      if (!target) return json(404, { error: "Employé introuvable." });
+      // (11/10 — audit) Un ADD/CD ne peut pas licencier quelqu'un d'un
+      // grade administratif égal ou supérieur au sien (MC/ADD/CD/D/DG) —
+      // D+ garde l'accès complet, comme avant.
+      if (!isDPlus(session.level) && rankOf(target.grade) !== -1 && rankOf(target.grade) >= rankOf(session.level)) {
+        return json(403, { error: `Permission refusée (${session.level}) — tu ne peux pas licencier quelqu'un d'un grade égal ou supérieur au tien.` });
+      }
       employees = employees.filter((e) => e.id !== id);
-      if (employees.length === before) return json(404, { error: "Employé introuvable." });
       await logAction({
         action: "licenciement",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
