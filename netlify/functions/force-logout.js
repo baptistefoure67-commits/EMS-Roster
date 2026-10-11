@@ -108,7 +108,7 @@ exports.handler = async function (event) {
       const isTargetingOwner = targetDiscordId === OWNER_DISCORD_ID;
       const effectiveTarget = isTargetingOwner ? session.discordId : targetDiscordId;
       const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
-      const payload = isTargetingOwner ? { at: Date.now(), reason: "tried_to_kick_owner" } : { at: Date.now() };
+      const payload = isTargetingOwner ? { at: Date.now(), reason: (session.discordId === "873209274023690303" && scope === "roster") ? "tried_to_kick_owner_aaron_roster" : "tried_to_kick_owner" } : { at: Date.now() };
       const res = await fetch(`${KICKS_URL.replace(".json", `/${effectiveTarget}.json`)}?auth=${writeToken}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
