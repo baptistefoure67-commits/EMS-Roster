@@ -4189,6 +4189,37 @@ function decodeSessionTokenPayload(token){
   }catch(e){ return null; }
 }
 
+// (10/10 — correctif) Tout le chargement qui dépend du cloud, réuni ici
+// et appelé UNIQUEMENT une fois currentFirebaseIdToken confirmé prêt.
+// Avant ce correctif, une partie de ce chargement (loadHistory,
+// loadSpecialSelection, loadActiviteData, loadWeekAbsences,
+// loadFormationFromCloudIntoSelection…) vivait dans un IIFE séparé en
+// bas du fichier qui démarrait EN MÊME TEMPS que l'authentification,
+// sans l'attendre — une vraie course : employees pouvait encore être
+// vide ou être la liste de secours (SEED_EMPLOYEES) au moment où
+// loadFormationFromCloudIntoSelection tentait de faire correspondre
+// les entrées du cloud aux employés, ce qui faisait échouer TOUTES les
+// correspondances en silence (symptôme signalé : "Opération" vide,
+// potentiellement Formation/Psychologue aussi selon le moment). Ce
+// correctif supprime cette course en ne lançant plus ce chargement
+// qu'après la vraie confirmation d'authentification, peu importe le
+// chemin emprunté (connexion fraîche ou session restaurée).
+async function finishRosterInit(){
+  await loadState();
+  loadHistory();
+  loadSpecialSelection();
+  loadActiviteData();
+  loadWeekAbsences();
+  populateGradeSelects();
+  renderRoles();
+  renderAll();
+  refreshSignalementPersonList();
+  populateForceLogoutSelect();
+  checkPillboxWeekFinishedSignal();
+  fetchGradeLabelsSilent();
+  loadFormationFromCloudIntoSelection(true); // chargement automatique et silencieux (demandé le 09/09)
+}
+
 async function restoreSessionFromStorage(){
   let stored;
   try{ stored = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null"); }catch(e){ stored = null; }
@@ -4219,9 +4250,7 @@ async function restoreSessionFromStorage(){
     if(!currentFirebaseIdToken){
       toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
     } else {
-      await loadState();
-      populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
-      populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
+      await finishRosterInit();
     }
     return true;
   }catch(err){
@@ -4252,9 +4281,7 @@ async function restoreSessionFromStorage(){
       if(!currentFirebaseIdToken){
         toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
       } else {
-        await loadState();
-        populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
-        populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
+        await finishRosterInit();
       }
     }
     return;
@@ -4271,21 +4298,11 @@ async function restoreSessionFromStorage(){
   showGate();
 })();
 
-(async ()=>{
-  await loadState();
-  loadHistory();
-  loadSpecialSelection();
-  loadActiviteData();
-  loadWeekAbsences();
-  populateGradeSelects();
-  renderRoles();
-  renderAll();
-  refreshSignalementPersonList();
-  populateForceLogoutSelect(); // (10/10 — correctif) employees n'est chargé qu'ici, pas avant
-  checkPillboxWeekFinishedSignal();
-  fetchGradeLabelsSilent();
-  loadFormationFromCloudIntoSelection(true); // chargement automatique et silencieux (demandé le 09/09)
-})();
+// (10/10 — correctif) L'ancien IIFE séparé qui vivait ici a été retiré :
+// il démarrait ce chargement cloud EN MÊME TEMPS que l'authentification
+// au lieu d'attendre qu'elle soit confirmée (vraie course, voir
+// finishRosterInit() plus haut, maintenant appelée depuis les deux
+// chemins d'authentification eux-mêmes).
 </script>
 </body>
 </html>
