@@ -4062,6 +4062,7 @@ const ROSTER_SESSION_STORAGE_KEY = "rosterDiscordSession_v1";
 // ancien signalement.
 let rosterSessionEstablishedAt = 0;
 let rosterLiveUpdateInterval = null;
+let rosterKickCheckInterval = null;
 
 async function rosterCheckKicked(){
   if(!currentSessionToken) return false;
@@ -4073,17 +4074,32 @@ async function rosterCheckKicked(){
     const data = await res.json().catch(()=>({}));
     if(res.ok && data.kickedAt && data.kickedAt > rosterSessionEstablishedAt){
       if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
+      if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
       clearSessionFromStorage();
       currentSessionToken = null; currentFirebaseIdToken = null;
       // (10/10, demandé) Retour de bâton silencieux : qui tente de
       // déconnecter le Concepteur se déconnecte lui-même, avec ce
       // message dédié au lieu du message habituel.
+      const aaronRoasts = [
+        "Va te faire enculer, connard 🖕",
+        "Déconnecté par un haut-gradé meilleur que toi 🖕",
+        "Tu vas jamais up, connard 🖕",
+        "Range ton ego, t'es pas encore au niveau 🖕",
+        "C'est moi le haut-gradé ici, retourne t'entraîner 🖕",
+        "Va réviser tes grades avant de faire le malin 🖕",
+        "T'as perdu l'accès, pas la grande bouche apparemment 🖕",
+        "Même ton grade te demande de faire une pause 🖕",
+        "Déconnexion validée. Le niveau, lui, reste à travailler 🖕",
+        "Un jour je te donnerai accès au Roster et à l'outil de paie, et je te formerai à tout… mais pas tout de suite, enculé 🖕",
+        "Patience, je te formerai un jour sur le Roster et l'outil de paie. Pour l'instant, pas encore, connard 🖕",
+        "Ava va te quitter, connard 🖕"
+      ];
       const msg = data.reason === "tried_to_kick_owner_aaron_roster"
         ? "La prochaine fois, ne fais pas ça au Concepteur. 🖕"
         : data.reason === "tried_to_kick_owner"
           ? "La prochaine fois, ne fais pas ça au Concepteur."
           : data.reason === "owner_kicked_aaron_roster"
-            ? "Ava va te quitter, connard 🖕"
+            ? aaronRoasts[Math.floor(Math.random() * aaronRoasts.length)]
             : "Tu as été déconnecté(e) par un responsable.";
       showGate(msg);
       return true;
@@ -4152,10 +4168,14 @@ function startRosterLiveUpdates(){
   rosterSendHeartbeat();
   refreshRosterPresence();
   if(rosterLiveUpdateInterval) clearInterval(rosterLiveUpdateInterval);
+  if(rosterKickCheckInterval) clearInterval(rosterKickCheckInterval);
+  // Détection de déconnexion forcée rapide (environ 1,5 s), sans accélérer
+  // les autres appels de rafraîchissement du Roster.
+  rosterKickCheckInterval = setInterval(()=>{
+    if(currentSessionToken) rosterCheckKicked();
+  }, 1500);
   rosterLiveUpdateInterval = setInterval(async ()=>{
     if(!currentSessionToken) return;
-    const kicked = await rosterCheckKicked();
-    if(kicked) return;
     rosterSendHeartbeat();
     refreshRosterPresence();
     refreshForceLogoutPresence();
@@ -4170,6 +4190,7 @@ function startRosterLiveUpdates(){
 }
 function stopRosterLiveUpdates(){
   if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
+  if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
 }
 
 function saveSessionToStorage(token, session){
