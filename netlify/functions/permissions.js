@@ -64,7 +64,6 @@ const DEFAULT_PERMISSIONS = {
     // exception individuelle (jamais l'appliquer directement).
     request_individual_permission: true,
     review_permission_requests: false,
-    cancel_lower_decisions: false,
   },
   ADD: {
     view_roster: true,
@@ -89,7 +88,6 @@ const DEFAULT_PERMISSIONS = {
     manage_individual_permissions: false,
     request_individual_permission: true, // peut DEMANDER, jamais appliquer directement
     review_permission_requests: false,
-    cancel_lower_decisions: false,
     delete_week: true, // peut supprimer une semaine de l'historique (09/09)
     reset_activite_streak: true, // peut réinitialiser manuellement un suivi d'inactivité (10/09)
     manage_absences: true, // peut synchroniser les absences détectées et basculer Prise en compte OUI/NON (03/10)
@@ -124,7 +122,6 @@ const DEFAULT_PERMISSIONS = {
     // annuler une décision CD du simple fait d'avoir
     // manage_individual_permissions. Gardée ici pour cohérence
     // documentaire, à vérifier si un jour un usage réel en dépend.
-    cancel_lower_decisions: true,
     // (03/10) Panneau de réglages des paies — réservé D, DG, OWNER
     // uniquement (point 14 de l'audit des règles) : tarif réa, salaires
     // fixes de référence, bonus de classement, règles PPA. Jamais
@@ -139,7 +136,6 @@ const DEFAULT_PERMISSIONS = {
     // Toutes les permissions FONCTIONNELLES de OWNER (calculé plus bas,
     // comme OWNER) — mais reste dans le tableau normal, donc reste
     // soumis aux exceptions individuelles, contrairement à OWNER.
-    cancel_lower_decisions: true, // peut annuler une décision CD (09/09)
   },
   OWNER: {
     // tout, sans exception — jamais limité par ce tableau, jamais
@@ -157,7 +153,6 @@ function buildEffectivePermissions(overrides){
     if(level === "OWNER" || level === "DG"){
       // OWNER et DG : toutes les clés fonctionnelles connues, à true,
       // PUIS on applique les entrées spécifiques du niveau (ex:
-      // cancel_lower_decisions pour DG) par-dessus.
       const allKeys = new Set();
       Object.values(table).forEach(perms => Object.keys(perms).forEach(k=>allKeys.add(k)));
       const base = {};
