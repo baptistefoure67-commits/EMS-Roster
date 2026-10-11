@@ -4041,7 +4041,13 @@ async function rosterCheckKicked(){
       if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
       clearSessionFromStorage();
       currentSessionToken = null; currentFirebaseIdToken = null;
-      showGate("Tu as été déconnecté(e) par un responsable.");
+      // (10/10, demandé) Retour de bâton silencieux : qui tente de
+      // déconnecter le Concepteur se déconnecte lui-même, avec ce
+      // message dédié au lieu du message habituel.
+      const msg = data.reason === "tried_to_kick_owner"
+        ? "La prochaine fois, ne fais pas ça au Concepteur."
+        : "Tu as été déconnecté(e) par un responsable.";
+      showGate(msg);
       return true;
     }
   }catch(e){}
