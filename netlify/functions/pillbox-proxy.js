@@ -17,7 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { computeAbsenceSignalements } = require("./absences-actions");
+const { computeAbsenceSignalements, pruneExpiredAbsences } = require("./absences-actions");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
@@ -50,6 +50,8 @@ const DEFAULT_PAY_RULES = {
   stgProposalThreshold: 2,
   stgAutoThreshold: 3,
   aProposalThreshold: 3,
+  infProposalEnabled: false,
+  infProposalThreshold: 3,
   qaCumulThreshold: 3,
 };
 
@@ -127,7 +129,11 @@ exports.handler = async function (event) {
     ]);
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
-    const absences = absencesRes.ok ? await absencesRes.json() : null;
+    let absences = absencesRes.ok ? await absencesRes.json() : null;
+    // (10/10, demandé) Même nettoyage automatique que côté Roster
+    // (absences-actions.js GET) — pour que Pillbox ne voie jamais une
+    // entrée WDV ou expirée (3 semaines) que le Roster aurait déjà purgée.
+    if(absences) absences = await pruneExpiredAbsences(absences, idToken);
     const storedPayRules = payRulesRes.ok ? await payRulesRes.json() : null;
     // Fusionne sur les valeurs par défaut — si rien n'a encore été
     // configuré (payRulesConfig vide ou absente), Pillbox reçoit les
