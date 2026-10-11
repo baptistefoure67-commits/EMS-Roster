@@ -3722,6 +3722,17 @@ function renderPayRulesForm(){
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Cumul Q+A &gt; <input type="number" min="1" step="1" id="payRuleQaCumul" value="${c.qaCumulThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveQLicen">Enregistrer</button>
       </div>
+      <!-- (11/10, demandé) Infirmiers — même principe que l'Ambulancier
+           (proposition, jamais automatique), mais DÉSACTIVÉ par défaut
+           tant que la case n'est pas cochée : sans ça, les Infirmiers
+           continuent de suivre uniquement le cumul Q+A, comme avant. -->
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">
+          <input type="checkbox" id="payRuleInfEnabled" ${c.infProposalEnabled?"checked":""}> Activer une proposition pour les Infirmiers
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Infirmier — proposition à Q <input type="number" min="1" step="1" id="payRuleInfProposal" value="${c.infProposalThreshold}" style="width:80px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveInf">Enregistrer</button>
+      </div>
     </div>
 
     <details>
@@ -3788,6 +3799,14 @@ function renderPayRulesForm(){
     await savePayRuleField("aProposalThreshold", aProposal, e.target);
     await savePayRuleField("qaCumulThreshold", qaCumul, e.target);
   });
+  document.getElementById("btnSaveInf").addEventListener("click", async (e)=>{
+    const enabled = document.getElementById("payRuleInfEnabled").checked;
+    const threshold = +document.getElementById("payRuleInfProposal").value;
+    if(!(threshold>=1)){ toast("Seuil invalide"); return; }
+    e.target.disabled = true;
+    await savePayRuleField("infProposalEnabled", enabled, e.target);
+    await savePayRuleField("infProposalThreshold", threshold, e.target);
+  });
   document.getElementById("btnSaveSalaries").addEventListener("click", (e)=>{
     const value = {};
     let invalid = false;
@@ -3810,7 +3829,7 @@ async function renderPayRulesHistory(){
     const all = res.ok ? (await res.json()) : {};
     const entries = Object.values(all||{}).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     if(!entries.length){ box.textContent = "Aucune modification enregistrée pour l'instant."; return; }
-    const fieldLabel = { reaRate:"Tarif réa", bonusByRank:"Bonus de classement", ppaWeeklyCap:"Plafond PPA", ppaEligibleGrades:"Grades PPA", fixedSalaryByGrade:"Salaires fixes", quotaStandard:"Quota standard", quotaStaff:"Quota staff", exemptGrades:"Grades exemptés", nearMissGrades:"Grades (presque atteint)", nearMissThreshold:"Seuil presque atteint", stgProposalThreshold:"STG proposition", stgAutoThreshold:"STG automatique", aProposalThreshold:"A proposition", qaCumulThreshold:"Cumul Q+A" };
+    const fieldLabel = { reaRate:"Tarif réa", bonusByRank:"Bonus de classement", ppaWeeklyCap:"Plafond PPA", ppaEligibleGrades:"Grades PPA", fixedSalaryByGrade:"Salaires fixes", quotaStandard:"Quota standard", quotaStaff:"Quota staff", exemptGrades:"Grades exemptés", nearMissGrades:"Grades (presque atteint)", nearMissThreshold:"Seuil presque atteint", stgProposalThreshold:"STG proposition", stgAutoThreshold:"STG automatique", aProposalThreshold:"A proposition", qaCumulThreshold:"Cumul Q+A", infProposalEnabled:"INF proposition (activé)", infProposalThreshold:"INF proposition (seuil)" };
     box.innerHTML = entries.slice(0,100).map(e=>`
       <div style="padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
         <div><b>${esc(fieldLabel[e.field]||e.field)}</b> — ${new Date(e.createdAt).toLocaleString("fr-FR")}</div>
