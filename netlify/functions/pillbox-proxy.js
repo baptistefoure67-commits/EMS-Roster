@@ -18,6 +18,7 @@
 
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { computeAbsenceSignalements, pruneExpiredAbsences } = require("./absences-actions");
+const { verify } = require("./session-token");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
@@ -67,21 +68,37 @@ exports.handler = async function (event) {
   // doit obligatoirement passer par ce relais, comme le reste.
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Secret",
+    "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Secret, X-Pillbox-Session",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   };
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  const { PILLBOX_SERVICE_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
-  if (!PILLBOX_SERVICE_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
+  const { SESSION_SECRET, PILLBOX_SERVICE_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
+  if (!SESSION_SECRET || !PILLBOX_SERVICE_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
     return json(500, { error: "Configuration manquante côté serveur." }, corsHeaders);
   }
 
   const provided = (event.headers && (event.headers["x-pillbox-secret"] || event.headers["X-Pillbox-Secret"])) || "";
   if (provided !== PILLBOX_SERVICE_SECRET) {
     return json(403, { error: "Secret invalide." }, corsHeaders);
+  }
+  // (11/10 — audit de sécurité) Le secret ci-dessus est visible dans le
+  // code source de Pillbox (il doit l'être, Pillbox n'a pas de backend à
+  // lui) — il ne protège donc que contre "quelqu'un qui tombe sur
+  // l'adresse par hasard", pas contre quelqu'un qui inspecte le code de
+  // Pillbox. En plus de ce secret, on exige maintenant aussi une vraie
+  // session Discord valide (Pillbox en a une depuis le 09/09) : sans
+  // elle, même en connaissant le secret, impossible de lire quoi que ce
+  // soit — il faut s'être réellement connecté avec Discord au moins une
+  // fois. Dégradation prévue et normale AVANT la connexion (les quatre
+  // appels côté Pillbox tombent déjà silencieusement sur leurs valeurs
+  // par défaut dans ce cas, comportement inchangé).
+  const sessionToken = (event.headers && (event.headers["x-pillbox-session"] || event.headers["X-Pillbox-Session"])) || "";
+  const session = verify(sessionToken, SESSION_SECRET);
+  if (!session) {
+    return json(401, { error: "Session Discord invalide ou expirée — reconnecte-toi." }, corsHeaders);
   }
 
   try {
