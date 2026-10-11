@@ -257,7 +257,15 @@
 
   <div id="discordAuthBar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:4px;flex-wrap:wrap;">
     <div id="discordAuthStatus" style="font-size:0.85rem;"></div>
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <!-- (10/10, demandé) Remplace les anciens menus manuels "☁️
+           Sélection (cloud)" / "☁️ Cloud (vers Pillbox)" (Formation
+           Opération, Formateur, Psychologue) — un seul bouton,
+           sauvegarde tout d'un coup, propagé automatiquement à tout le
+           monde ensuite (comme employees), sans bouton "Charger" à
+           cliquer nulle part. -->
+      <button type="button" class="btn-ghost btn-small" id="btnSaveAll" title="Sauvegarde la sélection Formation Opération et le suivi d'activité Formateur/Psychologue">💾 Sauvegarder</button>
+      <span id="saveAllStatus" style="font-size:0.74rem;color:var(--text-dim);"></span>
       <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
       <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
         Se déconnecter
@@ -444,13 +452,8 @@
           <label><input type="radio" name="specialCopyFormat" value="nameUnique"> Nom : ID unique</label>
         </div>
         <button class="btn-primary" id="btnSpecialCopy">📋 Copier la sélection</button>
-        <details class="cloud-group">
-          <summary class="btn-ghost">☁️ Sélection (cloud)</summary>
-          <div class="cloud-group-menu">
-            <button class="btn-ghost btn-small" id="btnSpecialCloudSave">💾 Sauvegarder</button>
-            <button class="btn-ghost btn-small" id="btnSpecialCloudLoad">📥 Charger</button>
-          </div>
-        </details>
+        <!-- (10/10, demandé) Menu "☁️ Sélection (cloud)" retiré — voir
+             le bouton unique "💾 Sauvegarder" en haut de page. -->
       </div>
       <div class="special-controls" style="margin-top:4px;">
         <textarea id="specialImportText" rows="4" style="flex:1;min-width:260px;" placeholder="Colle une liste (un par ligne), ça coche automatiquement, ex :
@@ -459,13 +462,9 @@ STG Djam Mas
 Le grade est facultatif, le nom seul suffit aussi"></textarea>
       </div>
       <div class="special-controls">
-        <details class="cloud-group">
-          <summary class="btn-ghost btn-small">☁️ Formation Opération (cloud, vers Pillbox)</summary>
-          <div class="cloud-group-menu">
-            <button class="btn-ghost btn-small" id="btnSpecialFormationCloudLoad">📥 Charger la liste (cloud)</button>
-            <!-- btnSpecialFormationCloudSend retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
-          </div>
-        </details>
+        <!-- (10/10, demandé) Menu "☁️ Formation Opération (cloud, vers
+             Pillbox)" retiré — ce chargement se fait déjà tout seul,
+             silencieusement, au démarrage (finishRosterInit). -->
         <span class="special-sub" id="specialImportStatus"></span>
       </div>
       <div class="special-list" id="specialList"></div>
@@ -479,13 +478,10 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div id="formateurAlerts" style="margin-bottom:10px;"></div>
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
         <button class="btn-ghost btn-small" id="btnActiviteFormateurReset">↺ Clôturer la semaine (remet à 0 + met à jour l'historique)</button>
-        <details class="cloud-group">
-          <summary class="btn-ghost btn-small">☁️ Cloud (vers Pillbox)</summary>
-          <div class="cloud-group-menu">
-            <!-- btnActiviteCloudSave retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
-            <button class="btn-ghost btn-small" id="btnActiviteCloudLoad">📥 Charger</button>
-          </div>
-        </details>
+        <!-- (10/10, demandé) Menu "☁️ Cloud (vers Pillbox)" retiré —
+             chargement déjà automatique à l'ouverture de cet onglet
+             (loadActiviteFromCloud(true) dans switchTab), et le bouton
+             "💾 Sauvegarder" en haut de page couvre l'envoi. -->
       </div>
       <div id="formateurList"></div>
     </div>
@@ -504,13 +500,10 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div id="psychologueAlerts" style="margin-bottom:10px;"></div>
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
         <button class="btn-ghost btn-small" id="btnActivitePsyReset">↺ Clôturer la semaine (remet à 0 + met à jour l'historique)</button>
-        <details class="cloud-group">
-          <summary class="btn-ghost btn-small">☁️ Cloud (vers Pillbox)</summary>
-          <div class="cloud-group-menu">
-            <!-- btnActivitePsyCloudSave retiré le 09/09 — voir "🔄 Synchroniser avec Pillbox" en haut de page -->
-            <button class="btn-ghost btn-small" id="btnActivitePsyCloudLoad">📥 Charger</button>
-          </div>
-        </details>
+        <!-- (10/10, demandé) Menu "☁️ Cloud (vers Pillbox)" retiré —
+             chargement déjà automatique à l'ouverture de cet onglet
+             (loadActiviteFromCloud(true) dans switchTab), et le bouton
+             "💾 Sauvegarder" en haut de page couvre l'envoi. -->
       </div>
       <div id="psychologueList"></div>
     </div>
@@ -1859,7 +1852,6 @@ document.getElementById("specialImportText").addEventListener("input", ()=>{
   clearTimeout(specialImportDebounce);
   specialImportDebounce = setTimeout(()=>applySpecialListAction(true), 400);
 });
-document.getElementById("btnSpecialFormationCloudLoad").addEventListener("click", loadFormationFromCloudIntoSelection);
 document.getElementById("btnSpecialCopy").addEventListener("click", ()=>{
   const result = buildSpecialSelectionList();
   if(!result.selectedCount){ toast("Aucun employé sélectionné"); return; }
@@ -1867,37 +1859,47 @@ document.getElementById("btnSpecialCopy").addEventListener("click", ()=>{
   const skipped = result.selectedCount - result.outputCount;
   copyToClipboard(result.text, skipped ? `Sélection copiée — ${skipped} sans ID unique ignoré(s)` : `Sélection copiée (${result.outputCount})`);
 });
-document.getElementById("btnSpecialCloudSave").addEventListener("click", async ()=>{
-  const btn = document.getElementById("btnSpecialCloudSave");
+// (10/10, demandé) Sauvegarde cloud de la sélection Formation Opération
+// — reprise telle quelle de l'ancien btnSpecialCloudSave, maintenant
+// appelée par le bouton unique "💾 Sauvegarder" (voir plus bas,
+// saveSpecialSelectionToCloud). Le chargement (ancien btnSpecialCloudLoad)
+// n'existe plus : la sélection se synchronise désormais automatiquement
+// depuis le cloud (voir refreshSpecialSelectionFromCloud).
+async function saveSpecialSelectionToCloud(){
   const selectedEmployees = employees.filter(e=>!e.licencie && specialSelected.has(e.id)).map(e=>({
     id:e.id, name:e.name, discordId:e.discordId, idUnique:e.idUnique||null, grade:e.grade
   }));
-  btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Sauvegarde…";
-  try{
-    const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()})});
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    toast(`✓ Sélection cloud sauvegardée (${selectedEmployees.length})`);
-  }catch(err){ console.error(err); toast(`✕ Échec cloud : ${err.message}`); }
-  finally{ btn.disabled=false; btn.textContent=original; }
-});
-document.getElementById("btnSpecialCloudLoad").addEventListener("click", async ()=>{
-  const btn = document.getElementById("btnSpecialCloudLoad");
-  btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Chargement…";
+  const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()})});
+  if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return selectedEmployees.length;
+}
+let specialSelectionLastSavedAt = 0;
+async function refreshSpecialSelectionFromCloud(){
+  if(!currentFirebaseIdToken && !currentSessionToken) return;
   try{
     const res = await fetch(SPECIAL_SELECTION_CLOUD_URL);
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if(!res.ok) return;
     const data = await res.json();
-    if(!data || !Array.isArray(data.selectedEmployees)){ toast("Aucune sélection cloud trouvée"); return; }
+    if(!data || !Array.isArray(data.selectedEmployees) || !data.savedAt) return;
+    if(data.savedAt <= specialSelectionLastSavedAt) return; // rien de plus récent que ce qu'on a déjà
     const ids = new Set();
     data.selectedEmployees.forEach(saved=>{
       const match = employees.find(e=>!e.licencie && (e.id===saved.id || (saved.discordId && e.discordId===saved.discordId) || (saved.idUnique && e.idUnique===saved.idUnique)));
       if(match) ids.add(match.id);
     });
-    specialSelected = ids; saveSpecialSelection(); renderSpecialSelection();
-    toast(`✓ Sélection cloud chargée (${ids.size})`);
-  }catch(err){ console.error(err); toast(`✕ Échec cloud : ${err.message}`); }
-  finally{ btn.disabled=false; btn.textContent=original; }
-});
+    specialSelected = ids; specialSelectionLastSavedAt = data.savedAt;
+    saveSpecialSelection(); renderSpecialSelection();
+    // (10/10, demandé) Affiche "la dernière sauvegarde" pour TOUT LE
+    // MONDE, pas seulement la personne qui a cliqué "Sauvegarder" —
+    // mis à jour ici dès qu'une sauvegarde plus récente que la sienne
+    // est détectée, pas seulement juste après son propre clic.
+    const statusEl = document.getElementById("saveAllStatus");
+    if(statusEl && !statusEl.textContent.startsWith("⚠")){
+      statusEl.textContent = `✓ Dernière sauvegarde : ${new Date(data.savedAt).toLocaleString("fr-FR")}`;
+      statusEl.style.color = "var(--text-dim)";
+    }
+  }catch(e){ /* échec silencieux -- retente au prochain sondage */ }
+}
 
 // ═══════════════════════════ ENVOI VERS PILLBOX (CLOUD) ═══════════════════════════
 // Utilise EXACTEMENT le même point d'accès Firebase que le bouton "Charger
@@ -2898,9 +2900,40 @@ async function loadActiviteFromCloud(silent){
 }
 // (btnActiviteCloudSave / btnActivitePsyCloudSave retirés le 09/09 —
 // remplacés par le bouton unique "🔄 Synchroniser avec Pillbox", qui
-// appelle exactement la même fonction saveActiviteToCloud().)
-document.getElementById("btnActiviteCloudLoad").addEventListener("click", loadActiviteFromCloud);
-document.getElementById("btnActivitePsyCloudLoad").addEventListener("click", loadActiviteFromCloud);
+// appelle exactement la même fonction saveActiviteToCloud(). Les boutons
+// "📥 Charger" ont été retirés le 10/10 — chargement déjà automatique
+// à l'ouverture de l'onglet Formateur/Psychologue.)
+
+// (10/10, demandé) Bouton unique "💾 Sauvegarder" — remplace les quatre
+// anciens menus manuels (Sélection, Formation Opération, Formateur,
+// Psychologue). Sauvegarde la sélection ET l'activité en un clic ;
+// chaque PC se resynchronise ensuite tout seul (voir
+// refreshSpecialSelectionFromCloud et le rafraîchissement silencieux
+// déjà existant de l'activité), sans bouton "Charger" nulle part.
+document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
+  const btn = e.target;
+  const statusEl = document.getElementById("saveAllStatus");
+  btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Sauvegarde…";
+  const done = []; const failed = [];
+  try{
+    const count = await saveSpecialSelectionToCloud();
+    specialSelectionLastSavedAt = Date.now();
+    done.push(`Sélection (${count})`);
+  }catch(err){ failed.push(`Sélection (${err.message})`); }
+  try{
+    await saveActiviteToCloud("all");
+    done.push("Activité");
+  }catch(err){ failed.push(`Activité (${err.message})`); }
+  btn.disabled = false; btn.textContent = original;
+  const when = new Date().toLocaleString("fr-FR");
+  if(statusEl){
+    statusEl.textContent = failed.length
+      ? `⚠ Partiel (${done.join(", ")||"rien"}) — échec : ${failed.join(", ")}`
+      : `✓ Dernière sauvegarde : ${when}`;
+    statusEl.style.color = failed.length ? "var(--amber)" : "var(--text-dim)";
+  }
+  toast(failed.length ? `⚠ Sauvegarde partielle : ${failed.join(", ")}` : "✓ Sauvegardé");
+});
 
 
 const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie"];
@@ -4167,6 +4200,7 @@ async function refreshRosterPresence(){
 function startRosterLiveUpdates(){
   rosterSendHeartbeat();
   refreshRosterPresence();
+  refreshSpecialSelectionFromCloud();
   if(rosterLiveUpdateInterval) clearInterval(rosterLiveUpdateInterval);
   if(rosterKickCheckInterval) clearInterval(rosterKickCheckInterval);
   // Détection de déconnexion forcée rapide (environ 1,5 s), sans accélérer
@@ -4180,6 +4214,7 @@ function startRosterLiveUpdates(){
     refreshRosterPresence();
     refreshForceLogoutPresence();
     refreshEmployeesFromCloud();
+    refreshSpecialSelectionFromCloud();
     try{
       const permView = document.getElementById("permissionsView");
       if(permView && permView.style.display !== "none"){
