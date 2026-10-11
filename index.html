@@ -1445,7 +1445,7 @@ function quickDepartureInfo(p, now){
     days,
     departStr: fmt(departDate),
     returnStr: fmt(returnDate),
-    line: `${p.name} | ${p.discordId||"ID inconnu"} | Départ le ${fmt(departDate)} | Retour autorisé le ${fmt(returnDate)}`,
+    line: `${p.name} | Départ le ${fmt(departDate)} | Retour autorisé le ${fmt(returnDate)}`,
   };
 }
 function quickDepartureWording(qd){
@@ -1741,7 +1741,7 @@ function attachRowHandlers(){
           if(changes.length) logHistory("Modification", e.name, changes.join(", "));
           saveState(); renderAll(); toast(`${e.name} mis à jour (vérifié serveur)`);
         }catch(err){
-          toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — clique d'abord sur « Sauvegarder le roster » puis réessaie." : `✕ Refusé : ${err.message}`);
+          toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
           saveBtn.disabled = false; saveBtn.textContent = original;
         }
       });
@@ -1765,7 +1765,7 @@ function attachRowHandlers(){
         logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
         toast(`${e.name} licencié et retiré du roster`);
       }catch(err){
-        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — clique d'abord sur « Sauvegarder le roster » puis réessaie." : `✕ Refusé : ${err.message}`);
+        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
         btn.disabled = false; btn.textContent = original;
       }
     });
