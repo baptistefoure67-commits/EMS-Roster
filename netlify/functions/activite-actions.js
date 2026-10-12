@@ -18,7 +18,7 @@
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { can } = require("./permissions");
+const { can, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
@@ -67,7 +67,7 @@ exports.handler = async function (event) {
   // zéro ciblée) — vérifiée avec sa propre permission, jamais juste un
   // bouton caché côté interface.
   if (action === "resetStreak") {
-    if (!can(session.level, "reset_activite_streak")) {
+    if (!(await canFor(session, "reset_activite_streak"))) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
     }
     if (!targetKey || !["formateur", "psychologue"].includes(scope)) {
@@ -106,7 +106,7 @@ exports.handler = async function (event) {
   // zero manuelle (ADD et au-dessus), et TOUJOURS tracee dans les journaux
   // (qui l'a active/retire, pour qui, quand) -- jamais juste un bouton.
   if (action === "setExcused") {
-    if (!can(session.level, "reset_activite_streak")) {
+    if (!(await canFor(session, "reset_activite_streak"))) {
       return json(403, { error: `Permission refusee (${session.level}) -- reserve a ADD et au-dessus.` });
     }
     const excused = body.excused === true;
@@ -160,7 +160,7 @@ exports.handler = async function (event) {
 
   const permissionNeeded = SCOPE_PERMISSION[scope];
   if (!permissionNeeded) return json(400, { error: `Portée invalide : "${scope}".` });
-  if (!can(session.level, permissionNeeded)) {
+  if (!(await canFor(session, permissionNeeded))) {
     return json(403, { error: `Permission refusée (${session.level}) — "${scope}" nécessite ${permissionNeeded}.` });
   }
   if (!activiteData || typeof activiteData !== "object") {
@@ -243,6 +243,17 @@ exports.handler = async function (event) {
         }
       }catch(e){ /* non bloquant */ }
       await fetch(histUrl, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(historyEntry) }).catch(()=>{});
+      // (11/10) Trace de la dernière clôture par pôle — lue par la
+      // clôture automatique déclenchée depuis Pillbox (activite-close.js)
+      // pour ne jamais re-clôturer un pôle déjà clôturé à la main la même
+      // semaine, et par les Roster ouverts pour recharger tout de suite.
+      const lastPatch = {};
+      (scope === "all" ? ["formateur","psychologue"] : [scope]).forEach(sc => { if (sc==="formateur"||sc==="psychologue") lastPatch[sc] = Date.now(); });
+      if (Object.keys(lastPatch).length) {
+        await fetch(`https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterActiviteLastClosure.json?auth=${idToken}`, {
+          method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(lastPatch),
+        }).catch(()=>{});
+      }
     }
 
     await logAction({

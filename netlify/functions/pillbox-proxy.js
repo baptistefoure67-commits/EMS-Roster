@@ -19,6 +19,8 @@
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { computeAbsenceSignalements, pruneExpiredAbsences } = require("./absences-actions");
 const { verify } = require("./session-token");
+const { closeActiviteWeekServer } = require("./activite-close");
+const { logAction } = require("./logs");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
@@ -124,16 +126,19 @@ exports.handler = async function (event) {
       let body = {};
       try { body = JSON.parse(event.body || "{}"); } catch (e) {}
       if (body.action === "weekFinished") {
-        const patchRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ weekFinishedAt: Date.now() }),
+        // (11/10) La clôture Formateur/Psy est maintenant faite ICI, par
+        // le serveur, au moment même du clic dans Pillbox — plus un
+        // simple horodatage qu'un Roster ouvert devait remarquer (et qui
+        // se faisait effacer par la moindre sauvegarde d'activité).
+        // Idempotent par semaine : double clic / relance = sans danger.
+        const r = await closeActiviteWeekServer({
+          idToken, session,
+          weekKey: body.weekKey, weekEndMs: body.weekEndMs,
+          absentIds: Array.isArray(body.absentIds) ? body.absentIds : [],
+          absentNames: Array.isArray(body.absentNames) ? body.absentNames : [],
+          logAction,
         });
-        if (!patchRes.ok) {
-          const t = await patchRes.text().catch(() => "");
-          return json(502, { error: `Échec de l'envoi du signal (${patchRes.status}) : ${t.slice(0, 200)}` }, corsHeaders);
-        }
-        return json(200, { ok: true }, corsHeaders);
+        return json(r.status, r.body, corsHeaders);
       }
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }

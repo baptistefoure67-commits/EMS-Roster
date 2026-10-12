@@ -166,7 +166,13 @@ exports.handler = async function (event) {
     } else if (field === "ppaEligibleGrades") {
       if (!Array.isArray(value) || !value.every(g => VALID_GRADES.includes(g))) return json(400, { error: "Liste de grades PPA invalide." });
       current.ppaEligibleGrades = [...new Set(value)];
-    } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "qaCumulThreshold" || field === "infProposalThreshold") {
+    } else if (field === "qaCumulThreshold") {
+      // (11/10, demandé) Plafonné à 3 — contrairement aux autres seuils
+      // de cette section, celui-ci ne doit jamais pouvoir être réglé
+      // au-dessus (le rôle même de la règle de cumul Q+A).
+      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le cumul Q+A ne peut pas dépasser 3." });
+      current[field] = value;
+    } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "infProposalThreshold") {
       if (typeof value !== "number" || !(value >= 1) || value > 20) return json(400, { error: "Seuil invalide." });
       current[field] = value;
     } else if (field === "infProposalEnabled") {

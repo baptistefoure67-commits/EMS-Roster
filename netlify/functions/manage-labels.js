@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
@@ -50,7 +50,7 @@ exports.handler = async function (event) {
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée." });
-  if (!can(session.level, "modify_role_label")) {
+  if (!(await canFor(session, "modify_role_label"))) {
     return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus.` });
   }
   if (!VALID_GRADES.includes(grade)) return json(400, { error: "Grade invalide." });

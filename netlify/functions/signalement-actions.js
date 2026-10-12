@@ -13,7 +13,7 @@
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { can } = require("./permissions");
+const { can, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 const crypto = require("crypto");
 
@@ -52,7 +52,7 @@ exports.handler = async function (event) {
     const authedUrl = (url) => `${url}?auth=${idToken}`;
 
     if (action === "createSignalementOfficial") {
-      if (!can(session.level, "create_signalement")) {
+      if (!(await canFor(session, "create_signalement"))) {
         return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
       }
       const { personName, personId, personGrade, category, reason, activiteSnapshot } = payload || {};
@@ -77,7 +77,7 @@ exports.handler = async function (event) {
     }
 
     if (action === "proposeSignalement") {
-      if (!can(session.level, "propose_signalement")) {
+      if (!(await canFor(session, "propose_signalement"))) {
         return json(403, { error: `Permission refusée (${session.level}) — impossible de proposer un signalement.` });
       }
       const { personName, personId, personGrade, category, reason, activiteSnapshot } = payload || {};
@@ -107,7 +107,7 @@ exports.handler = async function (event) {
     }
 
     if (["validateProposition","refuseProposition","requestMoreInfo"].includes(action)) {
-      if (!can(session.level, "validate_signalement")) {
+      if (!(await canFor(session, "validate_signalement"))) {
         return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
       }
       const { propositionId, message } = payload || {};

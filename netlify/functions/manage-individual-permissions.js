@@ -15,7 +15,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can, LEVELS, OWNER_DISCORD_ID, INDIVIDUAL_DECISION_AUTHORITY_ORDER, buildEffectivePermissions } = require("./permissions");
+const { can, canFor, LEVELS, OWNER_DISCORD_ID, INDIVIDUAL_DECISION_AUTHORITY_ORDER, buildEffectivePermissions } = require("./permissions");
+// (12/10) Inventaire RÉEL des permissions (source unique : permissions.js)
+const ALL_PERMISSION_KEYS = [...new Set(LEVELS.flatMap(l => Object.keys(buildEffectivePermissions()[l] || {})))];
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
@@ -53,8 +55,8 @@ exports.handler = async function (event) {
     const token = (event.queryStringParameters && event.queryStringParameters.token) || "";
     const session = verify(token, SESSION_SECRET);
     if (!session) return json(401, { error: "Session invalide ou expirée." }, corsHeaders);
-    if (!can(session.level, "manage_individual_permissions")) {
-      return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus.` }, corsHeaders);
+    if (!(await canFor(session, "manage_individual_permissions"))) {
+      return json(403, { error: `Permission refusée (${session.level}) — il faut la permission « Gérer les exceptions individuelles ».` }, corsHeaders);
     }
     try {
       const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
@@ -67,7 +69,7 @@ exports.handler = async function (event) {
       const gradeRes = await fetch(`${GRADE_OVERRIDE_URL}?auth=${idToken}`);
       const gradeOverrides = gradeRes.ok ? (await gradeRes.json()) : {};
       const effectiveByGrade = buildEffectivePermissions(gradeOverrides || {});
-      return json(200, { individualPermissions: all || {}, effectiveByGrade }, corsHeaders);
+      return json(200, { individualPermissions: all || {}, effectiveByGrade, allPermissions: ALL_PERMISSION_KEYS }, corsHeaders);
     } catch (err) {
       return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
     }
@@ -84,55 +86,73 @@ exports.handler = async function (event) {
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée." }, corsHeaders);
-  if (!can(session.level, "manage_individual_permissions")) {
-    return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus.` }, corsHeaders);
+  // (12/10) Vérification COMPLÈTE : une exception individuelle accordée à
+  // quelqu'un pour « Gérer les exceptions individuelles » fonctionne
+  // maintenant réellement (avant, seul le grade comptait).
+  if (!(await canFor(session, "manage_individual_permissions"))) {
+    return json(403, { error: `Permission refusée (${session.level}) — il faut la permission « Gérer les exceptions individuelles ».` }, corsHeaders);
   }
-  if (!targetDiscordId || typeof permissionName !== "string") {
-    return json(400, { error: "Paramètres manquants." }, corsHeaders);
-  }
+  if (!targetDiscordId) return json(400, { error: "Paramètres manquants." }, corsHeaders);
   if (targetDiscordId === OWNER_DISCORD_ID) {
     return json(403, { error: "OWNER ne peut jamais être la cible d'une exception individuelle (protection spéciale)." }, corsHeaders);
   }
-
-  // La couche d'écriture est TOUJOURS celle du niveau réel de l'auteur
-  // (jamais choisie par le client) — un CD écrit forcément à la couche
-  // CD, un DG à la couche DG, etc. "D" et "DG" partagent la permission
-  // manage_individual_permissions par héritage ; on écrit à la couche
-  // exacte du niveau réel de la personne.
-  const authorLayer = session.level; // "CD", "D", "DG", ou "OWNER" (OWNER agit alors à la couche DG, la plus haute normale)
-  const effectiveLayer = authorLayer === "OWNER" ? "DG" : authorLayer;
-  if (!DECISION_LEVELS.includes(effectiveLayer)) {
-    return json(403, { error: `Niveau (${session.level}) non habilité à décider d'une exception individuelle.` }, corsHeaders);
+  // (12/10) Personne (sauf le Concepteur) ne peut modifier SES PROPRES
+  // permissions — sinon une seule exception suffirait à s'en donner d'autres.
+  if (String(targetDiscordId) === String(session.discordId) && session.level !== "OWNER") {
+    return json(403, { error: "Tu ne peux pas modifier tes propres permissions." }, corsHeaders);
   }
+  const isBatch = action === "setAll" || action === "clearAll";
+  if (!isBatch && (typeof permissionName !== "string" || !ALL_PERMISSION_KEYS.includes(permissionName))) {
+    return json(400, { error: `Permission inconnue : "${permissionName}".` }, corsHeaders);
+  }
+
+  // Couche d'écriture = niveau réel de l'auteur (jamais choisie par le
+  // client). OWNER écrit à la couche DG. (12/10) Un MC/ADD à qui on a
+  // accordé cette permission individuellement écrit à la couche la plus
+  // basse (CD) — toujours écrasable par un D ou un DG.
+  const effectiveLayer = session.level === "OWNER" ? "DG" : (DECISION_LEVELS.includes(session.level) ? session.level : "CD");
+  const authorRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(effectiveLayer); // 0=DG,1=D,2=CD
+  const cancellableLayers = DECISION_LEVELS.filter(l => INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(l) >= authorRank);
 
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
     const authedUrl = `${INDIVIDUAL_URL}?auth=${idToken}`;
-
     const res = await fetch(authedUrl);
-    const all = res.ok ? (await res.json()) : {};
-    const current = all || {};
+    const current = (res.ok ? (await res.json()) : null) || {};
     current[targetDiscordId] = current[targetDiscordId] || {};
-    current[targetDiscordId][permissionName] = current[targetDiscordId][permissionName] || { CD: null, D: null, DG: null };
-    const before = { ...current[targetDiscordId][permissionName] };
+    const beforePerson = JSON.parse(JSON.stringify(current[targetDiscordId]));
+    const ensure = (perm) => { current[targetDiscordId][perm] = current[targetDiscordId][perm] || { CD: null, D: null, DG: null }; return current[targetDiscordId][perm]; };
 
+    let logActionName, details;
     if (action === "set") {
       if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." }, corsHeaders);
-      current[targetDiscordId][permissionName][effectiveLayer] = value;
+      ensure(permissionName)[effectiveLayer] = value;
+      logActionName = "exception_individuelle_definie"; details = `Permission "${permissionName}" -> ${value ? "Autorisé" : "Refusé"} (couche ${effectiveLayer})`;
     } else if (action === "cancel") {
-      // "cancel" efface la décision d'une couche précise — un DG peut
-      // effacer CD ou D ou sa propre couche ; un D ne peut effacer que
-      // CD ou sa propre couche (jamais DG, protégé par la vérification
-      // de rang ci-dessous, section 10 du cahier des charges).
-      if (!cancelLayer || !DECISION_LEVELS.includes(cancelLayer)) {
-        return json(400, { error: "Couche à annuler invalide." }, corsHeaders);
-      }
-      const authorRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(effectiveLayer); // 0=DG,1=D,2=CD (plus petit = plus fort)
-      const targetRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(cancelLayer);
-      if (authorRank > targetRank) {
+      if (!cancelLayer || !DECISION_LEVELS.includes(cancelLayer)) return json(400, { error: "Couche à annuler invalide." }, corsHeaders);
+      if (!cancellableLayers.includes(cancelLayer)) {
         return json(403, { error: `Un ${session.level} ne peut pas annuler une décision de rang supérieur (${cancelLayer}).` }, corsHeaders);
       }
-      current[targetDiscordId][permissionName][cancelLayer] = null;
+      ensure(permissionName)[cancelLayer] = null;
+      logActionName = "exception_individuelle_annulee"; details = `Permission "${permissionName}" (couche ${cancelLayer} effacée)`;
+    } else if (action === "setAll") {
+      // « Tout sélectionner » : TOUTES les permissions de l'inventaire réel,
+      // en une seule écriture (jamais un état à moitié appliqué). Le Mode
+      // troll ne fait pas partie de cet inventaire : impossible à attribuer.
+      // (12/10) Le Mode troll n'est JAMAIS coché par « Tout sélectionner » :
+      // il faut le cocher à la main, volontairement.
+      const BULK_EXCLUDED = ["manage_troll"];
+      ALL_PERMISSION_KEYS.filter(p => !BULK_EXCLUDED.includes(p)).forEach(perm => { ensure(perm)[effectiveLayer] = true; });
+      logActionName = "exceptions_individuelles_tout_selectionner"; details = `${ALL_PERMISSION_KEYS.length - 1} permissions autorisées, Mode troll exclu (couche ${effectiveLayer})`;
+    } else if (action === "clearAll") {
+      // « Tout retirer » : efface toutes les décisions que l'auteur a le
+      // droit d'effacer (sa couche et celles en dessous) -> retour au grade.
+      let n = 0;
+      Object.keys(current[targetDiscordId]).forEach(perm => {
+        const layers = current[targetDiscordId][perm] || {};
+        cancellableLayers.forEach(l => { if (layers[l] === true || layers[l] === false) { layers[l] = null; n++; } });
+      });
+      logActionName = "exceptions_individuelles_tout_retirer"; details = `${n} décision(s) retirée(s) (couches ${cancellableLayers.join(", ")})`;
     } else {
       return json(400, { error: `Action inconnue : "${action}".` }, corsHeaders);
     }
@@ -141,14 +161,15 @@ exports.handler = async function (event) {
     if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
 
     await logAction({
-      action: action === "set" ? "exception_individuelle_definie" : "exception_individuelle_annulee",
+      action: logActionName,
       authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-      targetDiscordId, details: `Permission "${permissionName}"${action==="cancel" ? ` (couche ${cancelLayer} effacée)` : ""}`,
-      oldValue: JSON.stringify(before), newValue: JSON.stringify(current[targetDiscordId][permissionName]),
+      targetDiscordId, details,
+      oldValue: JSON.stringify(isBatch ? beforePerson : (beforePerson[permissionName] || null)),
+      newValue: JSON.stringify(isBatch ? current[targetDiscordId] : current[targetDiscordId][permissionName]),
       idToken,
     }).catch(()=>{});
 
-    return json(200, { ok: true, current: current[targetDiscordId][permissionName] }, corsHeaders);
+    return json(200, { ok: true, current: isBatch ? null : current[targetDiscordId][permissionName], person: current[targetDiscordId] }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }

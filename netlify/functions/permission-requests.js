@@ -9,7 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const crypto = require("crypto");
@@ -50,7 +50,7 @@ exports.handler = async function (event) {
     const authedRequestsUrl = (path) => `${REQUESTS_URL.replace(".json", path)}?auth=${idToken}`;
 
     if (action === "create") {
-      if (!can(session.level, "request_individual_permission")) {
+      if (!(await canFor(session, "request_individual_permission"))) {
         return json(403, { error: `Permission refusée (${session.level}) — seuls les ADD peuvent créer une demande.` }, corsHeaders);
       }
       if (!targetDiscordId || typeof permissionName !== "string" || typeof requestedValue !== "boolean") {
@@ -75,7 +75,7 @@ exports.handler = async function (event) {
     }
 
     if (["approve", "refuse"].includes(action)) {
-      if (!can(session.level, "review_permission_requests")) {
+      if (!(await canFor(session, "review_permission_requests"))) {
         return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus.` }, corsHeaders);
       }
       if (!requestId) return json(400, { error: "Identifiant de demande manquant." }, corsHeaders);

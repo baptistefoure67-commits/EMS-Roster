@@ -38,6 +38,10 @@ const INDIVIDUAL_DECISION_AUTHORITY_ORDER = ["DG", "D", "CD"];
 // coup, sans toucher au reste du code.
 const DEFAULT_PERMISSIONS = {
   MC: {
+    // (12/10) Mode troll : une permission comme les autres, mais décochée
+    // pour TOUS les grades par défaut (DG compris, voir plus bas). Le
+    // Concepteur l'a toujours. Cochée par grade ou individuellement = accès.
+    manage_troll: false,
     view_roster: true,
     manage_roster: false,
     manage_ppa: true,
@@ -133,6 +137,7 @@ const DEFAULT_PERMISSIONS = {
     force_logout: true,
   },
   DG: {
+    manage_troll: false, // (12/10) sinon le DG l'aurait d'office (il reçoit « tout à vrai » ci-dessous)
     // Toutes les permissions FONCTIONNELLES de OWNER (calculé plus bas,
     // comme OWNER) — mais reste dans le tableau normal, donc reste
     // soumis aux exceptions individuelles, contrairement à OWNER.
@@ -157,10 +162,13 @@ function buildEffectivePermissions(overrides){
       Object.values(table).forEach(perms => Object.keys(perms).forEach(k=>allKeys.add(k)));
       const base = {};
       allKeys.forEach(k => base[k] = true);
-      table[level] = { ...base, ...(overrides?.[level] || DEFAULT_PERMISSIONS[level] || {}) };
+      // (12/10) Défauts du niveau TOUJOURS appliqués, puis les modifications
+      // enregistrées par-dessus (avant : une seule case modifiée faisait
+      // oublier tous les défauts de ce niveau à l'écran).
+      table[level] = { ...base, ...(DEFAULT_PERMISSIONS[level] || {}), ...(overrides?.[level] || {}) };
       continue;
     }
-    inherited = { ...inherited, ...(overrides?.[level] || DEFAULT_PERMISSIONS[level] || {}) };
+    inherited = { ...inherited, ...(DEFAULT_PERMISSIONS[level] || {}), ...(overrides?.[level] || {}) };
     table[level] = { ...inherited };
   }
   return table;
@@ -247,7 +255,59 @@ const LEVEL_LABEL = {
   OWNER: "OWNER — Concepteur",
 };
 
+
+// ─── (12/10) Vérification COMPLÈTE d'une permission ──────────────────────
+// Cause réelle de « je coche une permission individuelle et ça ne marche
+// pas » : 13 vérifications serveur appelaient can(session.level, …) SANS
+// le contexte (matrice modifiée par grade + exceptions individuelles) —
+// seul le grade comptait. canFor() charge ce contexte elle-même (avec son
+// propre jeton Firebase) : remplacer can(session.level, "x") par
+// await canFor(session, "x") suffit. En cas d'impossibilité de charger le
+// contexte, retombe sur le grade seul — jamais plus permissif.
+async function serviceIdTokenFor(session){
+  const { FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
+  if(!FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) return null;
+  const { createFirebaseCustomToken } = require("./firebase-token");
+  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(session.discordId), claims: { level: session.level } });
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+  });
+  const data = await res.json().catch(()=>({}));
+  return res.ok ? data.idToken : null;
+}
+async function canFor(session, permissionName, idToken){
+  if(!session) return false;
+  if(session.level === "OWNER") return true;
+  try{
+    const tok = idToken || await serviceIdTokenFor(session);
+    if(tok){
+      const ctx = await loadPermissionContext(tok);
+      return can(session.level, permissionName, ctx.custom, session.discordId, ctx.individual);
+    }
+  }catch(e){ /* repli ci-dessous */ }
+  return can(session.level, permissionName);
+}
+// Carte complète des permissions effectives d'une session — utilisée par
+// le Roster pour afficher/masquer chaque bouton selon les VRAIS droits.
+async function effectivePermissionsFor(session, idToken){
+  const all = [...new Set(LEVELS.flatMap(l => Object.keys(buildEffectivePermissions()[l] || {})))];
+  let ctx = { custom: null, individual: null };
+  try{ const tok = idToken || await serviceIdTokenFor(session); if(tok) ctx = await loadPermissionContext(tok); }catch(e){}
+  const out = {};
+  all.forEach(p => { out[p] = can(session.level, p, ctx.custom, session.discordId, ctx.individual); });
+  return out;
+}
+
+// (12/10) Mode troll — l'ACCÈS passe par la permission « manage_troll »
+// (décochée partout par défaut, cochable par grade ou individuellement).
+// isTrollAdmin = le Concepteur lui-même : lui seul voit et gère TOUTES les
+// blagues ; les autres ne voient que les leurs et ne peuvent pas le viser.
+const TROLL_ADMIN_IDS = [OWNER_DISCORD_ID];
+function isTrollAdmin(session){ return !!session && TROLL_ADMIN_IDS.includes(String(session.discordId)); }
+
 module.exports = {
   OWNER_DISCORD_ID, LEVELS, DEFAULT_PERMISSIONS, INDIVIDUAL_DECISION_AUTHORITY_ORDER,
   buildEffectivePermissions, resolveIndividualDecision, can, resolveUserLevel, LEVEL_LABEL, loadPermissionContext,
+  canFor, effectivePermissionsFor, isTrollAdmin, TROLL_ADMIN_IDS,
 };

@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can, buildEffectivePermissions, DEFAULT_PERMISSIONS, LEVELS } = require("./permissions");
+const { can, buildEffectivePermissions, DEFAULT_PERMISSIONS, LEVELS, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
@@ -37,7 +37,7 @@ exports.handler = async function (event) {
     const token = (event.queryStringParameters && event.queryStringParameters.token) || "";
     const session = verify(token, SESSION_SECRET);
     if (!session) return json(401, { error: "Session invalide ou expirée." });
-    if (!can(session.level, "manage_permissions")) {
+    if (!(await canFor(session, "manage_permissions"))) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à D et OWNER.` });
     }
     try {
@@ -59,7 +59,7 @@ exports.handler = async function (event) {
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée." });
-  if (!can(session.level, "manage_permissions")) {
+  if (!(await canFor(session, "manage_permissions"))) {
     return json(403, { error: `Permission refusée (${session.level}) — réservé à D et OWNER.` });
   }
   if (!LEVELS.includes(targetLevel) || targetLevel === "OWNER") {

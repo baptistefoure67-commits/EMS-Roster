@@ -37,7 +37,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can, loadPermissionContext, OWNER_DISCORD_ID } = require("./permissions");
+const { can, loadPermissionContext, OWNER_DISCORD_ID, effectivePermissionsFor, isTrollAdmin } = require("./permissions");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { logAction } = require("./logs");
 
@@ -92,11 +92,12 @@ exports.handler = async function (event) {
     }
 
     if (action === "caps") {
-      const ctx = await loadPermissionContext(idToken);
-      return json(200, {
-        force_logout: can(session.level, "force_logout", ctx.custom, session.discordId, ctx.individual),
-        manage_pay_rules: can(session.level, "manage_pay_rules", ctx.custom, session.discordId, ctx.individual),
-      }, corsHeaders);
+      // (12/10) Carte COMPLÈTE des droits effectifs (grade + matrice
+      // modifiée + exceptions individuelles) : le Roster s'en sert pour
+      // TOUS ses boutons et onglets, au lieu de grades écrits en dur.
+      const perms = await effectivePermissionsFor(session, idToken);
+      // isTrollAdmin = accès à l'onglet Mode troll (permission manage_troll ; le Concepteur l'a toujours)
+      return json(200, { ...perms, perms, isTrollAdmin: perms.manage_troll === true, isTrollOwner: isTrollAdmin(session) }, corsHeaders);
     }
 
     if (action === "kick") {

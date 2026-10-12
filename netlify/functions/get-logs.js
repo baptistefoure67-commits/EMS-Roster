@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, canFor } = require("./permissions");
 const { LOGS_URL } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
@@ -18,7 +18,7 @@ exports.handler = async function (event) {
   const token = (event.queryStringParameters && event.queryStringParameters.token) || "";
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
-  if (!can(session.level, "view_logs")) {
+  if (!(await canFor(session, "view_logs"))) {
     return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
   }
 

@@ -7,7 +7,7 @@
 
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { can, LEVELS } = require("./permissions");
+const { can, LEVELS, canFor } = require("./permissions");
 const { logAction } = require("./logs");
 
 // (11/10 — audit de sécurité) Deux vrais problèmes trouvés dans cette
@@ -59,7 +59,7 @@ exports.handler = async function (event) {
   if (!session) {
     return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
   }
-  if (!can(session.level, "manage_roster")) {
+  if (!(await canFor(session, "manage_roster"))) {
     return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
   }
 

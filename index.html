@@ -285,6 +285,7 @@
     <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
     <button type="button" class="tab-btn" id="tabReglagesPaieBtn" style="display:none;">⚙️ Réglages des paies</button>
+    <button type="button" class="tab-btn" id="tabTrollBtn" style="display:none;">🎭 Mode troll</button>
   </div>
 
   <div id="rosterView">
@@ -586,6 +587,11 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <option value="">— Choisir une personne —</option>
       </select>
       <div id="individualPermPersonInfo" class="sub"></div>
+      <div id="individualPermBulkBar" style="display:none;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button type="button" class="btn-primary btn-small" id="btnIndivSelectAll">✅ Tout sélectionner</button>
+        <button type="button" class="btn-ghost btn-small" id="btnIndivClearAll">↺ Tout retirer</button>
+        <span id="individualPermBulkStatus" style="font-size:0.78rem;color:var(--text-dim);"></span>
+      </div>
       <div id="individualPermTable" style="margin-top:10px;"></div>
     </div>
 
@@ -641,6 +647,53 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
        uniquement. Les valeurs par défaut reproduisent exactement les
        constantes codées en dur de Pillbox — rien ne change tant que
        personne ne modifie un champ ici. -->
+  <!-- (12/10) Mode troll — réservé au Concepteur (vérifié côté serveur, troll-actions.js). -->
+  <div id="trollView" style="display:none;">
+    <div class="card">
+      <div class="special-title">🎭 Mode troll</div>
+      <div class="special-sub" style="margin-bottom:12px;">Accès : le Concepteur, et les personnes à qui il donne la permission « 🎭 Mode troll » (par grade ou individuellement). Chacun ne voit et ne gère que ses propres blagues. Une blague s'affiche une seule fois par outil choisi, à la prochaine ouverture par la personne ciblée — jamais chez quelqu'un d'autre. Elle expire 7 jours après avoir été déclenchée. Le son démarre au premier clic de la personne.</div>
+      <div style="display:grid;gap:10px;max-width:640px;">
+        <label style="font-size:0.82rem;">Nom de la blague<input type="text" id="trollName" maxlength="80" placeholder="ex : Réveil d'Aaron" style="width:100%;margin-top:4px;"></label>
+        <div style="font-size:0.82rem;">Destinataire
+          <input type="text" id="trollTargetSearch" placeholder="🔍 Rechercher par nom ou ID Discord" style="width:100%;margin:4px 0;">
+          <select id="trollTargetSelect" style="width:100%;"><option value="">— Choisir la personne —</option></select>
+          <div class="sub" style="font-size:0.72rem;margin-top:2px;">Seules les personnes qui ont accès au Roster ou à Pillbox (MC et au-dessus) peuvent la recevoir.</div>
+        </div>
+        <div style="font-size:0.82rem;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">Où ?
+          <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="trollAppRoster" checked> Roster</label>
+          <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="trollAppPillbox"> Pillbox (Terminal Paie)</label>
+        </div>
+        <label style="font-size:0.82rem;">💬 Phrase (facultative)<textarea id="trollText" maxlength="500" rows="3" placeholder="Le message exact à afficher" style="width:100%;margin-top:4px;"></textarea><span id="trollTextCount" class="sub" style="font-size:0.72rem;">0 / 500</span></label>
+        <div style="font-size:0.82rem;">🖼️ Image (facultative — PNG, JPG, JPEG, WEBP, 5 Mo max)
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+            <input type="file" id="trollImageInput" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+            <button type="button" class="btn-ghost btn-small" id="trollImageRemove" style="display:none;">Retirer l'image</button>
+          </div>
+          <div id="trollImageInfo" class="sub" style="font-size:0.75rem;margin-top:4px;">Aucune image</div>
+          <img id="trollImagePreview" alt="" style="display:none;max-width:220px;max-height:160px;border-radius:8px;margin-top:6px;">
+        </div>
+        <div style="font-size:0.82rem;">🔊 Son (facultatif — MP3, 7 Mo max)
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+            <input type="file" id="trollAudioInput" accept=".mp3,audio/mpeg">
+            <button type="button" class="btn-ghost btn-small" id="trollAudioRemove" style="display:none;">Retirer le son</button>
+          </div>
+          <div id="trollAudioInfo" class="sub" style="font-size:0.75rem;margin-top:4px;">Aucun son</div>
+          <audio id="trollAudioPreview" controls style="display:none;margin-top:6px;max-width:100%;"></audio>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn-primary btn-small" id="trollSaveBtn">💾 Enregistrer</button>
+          <button type="button" class="btn-ghost btn-small" id="trollTestBtn">👁 Tester le rendu</button>
+          <button type="button" class="btn-ghost btn-small" id="trollNewBtn">➕ Nouvelle blague</button>
+          <span id="trollFormStatus" style="font-size:0.78rem;"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="special-title">📋 Blagues enregistrées</div>
+      <div id="trollList" class="sub">Chargement…</div>
+    </div>
+  </div>
+
   <div id="reglagesPaieView" style="display:none;">
     <div class="card">
       <div class="special-title">⚙️ Réglages des paies</div>
@@ -705,7 +758,7 @@ async function fetchGradeLabelsSilent(){
 // manage-labels.js, jamais ici).
 function renderGradeLabelsEditor(){
   const card = document.getElementById("gradeLabelsCard");
-  const canEdit = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canEdit = hasCap("modify_role_label");
   card.style.display = canEdit ? "" : "none";
   if(!canEdit) return;
   const box = document.getElementById("gradeLabelsEditor");
@@ -1297,8 +1350,8 @@ function empRowHtml(e, isLicencie){
   // Modifier/Licencier/Réintégrer restent réservés à ADD et au-dessus —
   // masqués ici pour un MC (juste le confort visuel, la vraie
   // protection reste côté serveur dans protected-write.js).
-  const canManageRoster = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
-  const canViewHistory = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canManageRoster = hasCap("manage_roster");
+  const canViewHistory = hasCap("view_member_history");
   const historyBtn = canViewHistory ? `<button class="btn-ghost btn-small" data-view-history="${esc(e.name)}" title="Voir l'historique de cette personne">🕘</button>` : "";
   const actionsHtml = !canManageRoster ? historyBtn : (isLicencie
     ? `${historyBtn}<button class="btn-ghost btn-small" data-reintegrer="${e.id}">Réintégrer</button>`
@@ -1943,7 +1996,7 @@ function parseDiscordIdsText(text){
 async function syncWithPillbox(){
   const btn = document.getElementById("btnSyncPillbox");
   const statusEl = document.getElementById("syncPillboxStatus");
-  const canAll = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canAll = hasCap("send_pillbox_all");
   btn.disabled = true;
   const original = btn.innerHTML;
   btn.innerHTML = "🔄 Synchronisation en cours…";
@@ -2373,7 +2426,7 @@ function renderAbsencesTab(){
   const box = document.getElementById("absencesList");
   const alertsBox = document.getElementById("absencesAlerts");
   if(!box) return;
-  const canManage = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canManage = hasCap("manage_absences");
   const q = norm(document.getElementById("absencesSearch")?.value || "");
   const filterPEC = document.getElementById("absencesFilterPriseEnCompte")?.value || "";
 
@@ -2520,7 +2573,7 @@ function renderActiviteTab(type){
   // le compteur augmente encore ensuite, l'alerte réapparaît (nouvelle
   // valeur, jamais vue), mais reste masquée tant qu'il ne bouge pas.
   const dismissedAlerts = getDismissedActiviteAlerts();
-  const canReset = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canReset = hasCap("reset_activite_streak");
   const alerts = concerned
     .map(e=>({ e, streak: activiteStreak[activiteKeyFor(e)]?.streak||0, key: activiteKeyFor(e) }))
     .filter(x=>x.streak >= streakThresholdFor(x.e) && dismissedAlerts[x.key] !== x.streak);
@@ -2737,7 +2790,7 @@ async function renderActiviteWeekHistory(scope){
       .map(([weekKey, byScope]) => ({ weekKey, entry: byScope[scope] }))
       .sort((a,b) => b.weekKey.localeCompare(a.weekKey));
     if(!weeks.length){ box.textContent = "Aucune semaine clôturée pour l'instant."; return; }
-    const canReopen = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+    const canReopen = hasCap("reopen_roster_week");
     // "before" = les vrais chiffres accumulés PENDANT la semaine (avant
     // la remise à zéro) — c'est ÇA qui répond à "qu'est-ce qui s'est
     // passé cette semaine", pas "after" (qui n'est que l'état remis à
@@ -2847,34 +2900,36 @@ async function saveActiviteToCloud(scope, closeWeek){
     toast(`✕ Échec de l'envoi : ${err.message}`);
   }
 }
-// Déclenchement automatique de la clôture depuis Pillbox : quand Pillbox
-// clique "J'ai terminé cette semaine", il écrit un horodatage
-// (weekFinishedAt) sur ce même chemin cloud. Ici, on compare ça à la
-// dernière clôture qu'on a nous-même traitée (mémorisée en local) — si
-// Pillbox a terminé une semaine plus récente que notre dernière clôture,
-// on déclenche automatiquement closeActiviteWeek() pour les deux,
-// sans avoir besoin de cliquer le bouton manuel (demandé le 08/09).
-const LAST_ACTIVITE_RESET_HANDLED_KEY = "rosterLastActiviteResetHandled_v1";
+// (11/10 — refonte de la synchronisation inverse) La clôture
+// Formateur/Psychologue n'est PLUS faite ici, dans le navigateur : elle
+// est faite par le serveur au moment même où Pillbox clique « J'ai
+// terminé cette semaine » (netlify/functions/activite-close.js). Avant,
+// ce code refaisait la clôture lui-même — ce qui (1) n'arrivait que si
+// quelqu'un ouvrait le Roster, (2) se perdait dès qu'une sauvegarde
+// d'activité effaçait le signal, (3) pouvait être refait par CHAQUE
+// navigateur (mémoire "déjà traité" locale à chaque PC).
+// Ici, on se contente de remarquer qu'une clôture a eu lieu (Pillbox ou
+// bouton manuel d'un autre PC) et de recharger l'activité depuis le
+// cloud — appelé au démarrage ET toutes les 3 secondes.
+const LAST_ACTIVITE_CLOSURE_SEEN_KEY = "rosterLastActiviteClosureSeen_v2";
 async function checkPillboxWeekFinishedSignal(){
-  let lastHandled = 0;
-  try{ lastHandled = parseInt(localStorage.getItem(LAST_ACTIVITE_RESET_HANDLED_KEY), 10) || 0; }catch(e){}
+  if(!currentFirebaseIdToken) return;
   try{
-    const res = await fetch(ACTIVITE_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth("https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterActiviteLastClosure.json"));
     if(!res.ok) return;
-    const data = await res.json();
-    const signal = data && data.weekFinishedAt;
-    if(signal && signal > lastHandled){
-      // Récupère d'abord les dernières données cloud (Pillbox a pu tourner
-      // sur un autre PC entre-temps) avant de clôturer, pour ne pas
-      // clôturer une version périmée.
-      if(data.data) activiteData = data.data;
-      if(data.streak) activiteStreak = data.streak;
-      await closeActiviteWeek("formateur");
-      await closeActiviteWeek("psychologue");
-      try{ localStorage.setItem(LAST_ACTIVITE_RESET_HANDLED_KEY, String(signal)); }catch(e){}
-      toast("Semaine clôturée automatiquement (signalée terminée depuis Pillbox)");
-    }
-  }catch(err){ console.error("Vérification du signal de fin de semaine impossible:", err); }
+    const last = (await res.json()) || {};
+    const latest = Math.max(last.formateur||0, last.psychologue||0);
+    if(!latest) return;
+    let seen = 0;
+    try{ seen = parseInt(localStorage.getItem(LAST_ACTIVITE_CLOSURE_SEEN_KEY), 10) || 0; }catch(e){}
+    if(latest <= seen) return;
+    try{ localStorage.setItem(LAST_ACTIVITE_CLOSURE_SEEN_KEY, String(latest)); }catch(e){}
+    await loadActiviteFromCloud(true);
+    renderActiviteTab("formateur"); renderActiviteTab("psychologue");
+    // Pas de message au tout premier passage sur ce navigateur (seen=0) :
+    // ce n'est pas une nouvelle clôture, juste la première synchronisation.
+    if(seen) toast(`Semaine Formateur/Psychologue clôturée le ${new Date(latest).toLocaleString("fr-FR")} — compteurs à jour.`);
+  }catch(err){ console.error("Vérification de clôture impossible:", err); }
 }
 
 async function loadActiviteFromCloud(silent){
@@ -2936,7 +2991,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 });
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
@@ -2947,11 +3002,12 @@ function switchTab(active){
     loadSignalementPending();
     loadPropositionsPending();
     const submitBtn = document.getElementById("signalementSubmitBtn");
-    if(submitBtn) submitBtn.textContent = currentUserLevel==="MC" ? "Proposer un signalement" : "Envoyer anonymement";
+    if(submitBtn) submitBtn.textContent = !hasCap("create_signalement") ? "Proposer un signalement" : "Envoyer anonymement"; // (12/10) selon le droit réel, plus le grade
   }
   if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
+  if(active==="Troll"){ trollRenderTab(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
   if(active==="ReglagesPaie"){ loadPayRulesConfig(); renderPayRulesHistory(); }
@@ -3080,7 +3136,7 @@ document.getElementById("signalementSubmitBtn").addEventListener("click", async 
   // choix ici n'est qu'un confort d'affichage : la fonction serveur
   // revérifie de toute façon le niveau réel avant d'accepter quoi que
   // ce soit (08/09).
-  const isMc = currentUserLevel === "MC";
+  const isMc = !hasCap("create_signalement"); // (12/10) « proposer » si pas le droit de créer (grade ou exception individuelle)
   const action = isMc ? "proposeSignalement" : "createSignalementOfficial";
 
   try{
@@ -3112,7 +3168,7 @@ function signalementTimeAgo(ts){
 
 async function loadSignalementPending(){
   const list = document.getElementById("signalementPendingList");
-  const isAdmin = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  const isAdmin = hasCap("validate_signalement");
   list.textContent = "Chargement…";
   try{
     const res = await fetch(signalementsUrl());
@@ -3157,7 +3213,7 @@ const PROPOSITION_STATUS_LABEL = {
 };
 
 function canValidateSignalement(){
-  return ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel);
+  return hasCap("validate_signalement");
 }
 
 async function loadPropositionsPending(){
@@ -3311,12 +3367,16 @@ const PERMISSION_LABEL = {
   manage_absences: "Gérer les absences (synchroniser, Prise en compte)",
   manage_pay_rules: "Réglages des paies (gestionnaire paie)",
   force_logout: "Déconnexion forcée (déconnecter quelqu'un)",
+  // (12/10) Manquaient : impossibles à cocher individuellement jusqu'ici.
+  reset_activite_streak: "Réinitialiser une série d'inactivité (Formateur/Psy)",
+  reopen_roster_week: "Réouvrir une semaine Formateur/Psychologue clôturée",
+  manage_troll: "🎭 Mode troll (créer et déclencher des blagues) — décoché par défaut",
 };
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
 async function loadPermissionsTable(){
-  document.getElementById("permissionsGradeTableCard").style.display = ["D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
-  if(!["D","DG","OWNER"].includes(currentUserLevel)) return;
+  document.getElementById("permissionsGradeTableCard").style.display = hasCap("manage_permissions") ? "" : "none";
+  if(!hasCap("manage_permissions")) return;
   const box = document.getElementById("permissionsTable");
   if(!currentSessionToken){ box.textContent = "Session expirée."; return; }
   box.textContent = "Chargement…";
@@ -3366,13 +3426,16 @@ async function loadPermissionsTable(){
 // ═══════════════════════════════════════════════════════════════════
 // EXCEPTIONS INDIVIDUELLES (09/09) — réservé à CD/D/DG/OWNER.
 // ═══════════════════════════════════════════════════════════════════
-const INDIVIDUAL_PERM_KEYS = Object.keys(PERMISSION_LABEL).filter(k => k !== "manage_permissions"); // manage_permissions reste géré par grade uniquement, trop sensible pour une exception
+// (12/10, demandé) Toutes les permissions, « Gérer les permissions » comprise. La liste
+// réelle vient du serveur (allPermissions) ; celle-ci ne sert que de repli.
+const INDIVIDUAL_PERM_KEYS = Object.keys(PERMISSION_LABEL);
+let individualAllPermsCache = null;
 let individualPermsCache = null;
 let effectiveByGradeCache = null;
 
 async function renderIndividualPermissionsCard(){
   const card = document.getElementById("individualPermissionsCard");
-  const canManage = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+  const canManage = hasCap("manage_individual_permissions");
   card.style.display = canManage ? "" : "none";
   if(!canManage) return;
 
@@ -3387,26 +3450,74 @@ async function renderIndividualPermissionsCard(){
   try{
     const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
     const data = await res.json().catch(()=>({}));
-    if(res.ok){ individualPermsCache = data.individualPermissions || {}; effectiveByGradeCache = data.effectiveByGrade || null; }
+    if(res.ok){ individualPermsCache = data.individualPermissions || {}; effectiveByGradeCache = data.effectiveByGrade || null; if(Array.isArray(data.allPermissions)) individualAllPermsCache = data.allPermissions; }
   }catch(err){ /* le tableau se rechargera au prochain changement de sélection */ }
 
   renderIndividualPermTableForSelected();
 }
 document.getElementById("individualPermPersonSelect").addEventListener("change", renderIndividualPermTableForSelected);
 
+// (12/10, demandé) « Tout sélectionner » / « Tout retirer » — une seule
+// écriture côté serveur (jamais un état à moitié appliqué), boutons
+// bloqués pendant l'envoi (pas de double clic), resynchronisation avec
+// le serveur en cas d'échec pour que l'affichage reflète toujours la base.
+async function individualBulk(action){
+  const discordId = document.getElementById("individualPermPersonSelect").value;
+  if(!discordId) return;
+  const emp = employees.find(e=>e.discordId===discordId);
+  const who = emp ? `${emp.name} (${emp.grade})` : discordId;
+  const n = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).filter(k=>k!=="manage_troll").length;
+  const msg = action === "setAll"
+    ? `Accorder TOUTES les permissions (${n}) à ${who} ?\n\nSon grade réel, sa paie et son ancienneté ne changent pas.\n\nLe Mode troll n'est PAS inclus : il se coche uniquement à la main.`
+    : `Retirer toutes les exceptions individuelles de ${who} (celles que ton niveau peut retirer) ?\n\nIl retrouvera exactement les droits de son grade.`;
+  if(!confirm(msg)) return;
+  const btns = [document.getElementById("btnIndivSelectAll"), document.getElementById("btnIndivClearAll")];
+  const status = document.getElementById("individualPermBulkStatus");
+  btns.forEach(b=>b.disabled = true);
+  status.style.color = "var(--text-dim)"; status.textContent = "Enregistrement…";
+  try{
+    const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action, targetDiscordId: discordId }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    individualPermsCache = individualPermsCache || {};
+    individualPermsCache[discordId] = data.person || {};
+    renderIndividualPermTableForSelected();
+    const st = document.getElementById("individualPermBulkStatus");
+    st.style.color = "var(--green)"; st.textContent = action === "setAll" ? "✓ Toutes les permissions accordées et enregistrées" : "✓ Exceptions retirées et enregistrées";
+    toast(action === "setAll" ? `✓ Toutes les permissions accordées à ${emp ? emp.name : discordId}` : `✓ Exceptions retirées pour ${emp ? emp.name : discordId}`);
+  }catch(err){
+    try{ await renderIndividualPermissionsCard(); }catch(e){} // resynchronise l'affichage avec la base…
+    const st = document.getElementById("individualPermBulkStatus"); // …PUIS affiche l'erreur (sinon la resynchro l'effaçait)
+    st.style.color = "var(--red)"; st.textContent = `✕ Échec : ${err.message} — rien n'a été modifié.`;
+  }finally{
+    btns.forEach(b=>b.disabled = false);
+  }
+}
+document.getElementById("btnIndivSelectAll").addEventListener("click", ()=>individualBulk("setAll"));
+document.getElementById("btnIndivClearAll").addEventListener("click", ()=>individualBulk("clearAll"));
+
 function renderIndividualPermTableForSelected(){
   const select = document.getElementById("individualPermPersonSelect");
   const discordId = select.value;
   const info = document.getElementById("individualPermPersonInfo");
   const table = document.getElementById("individualPermTable");
-  if(!discordId){ info.textContent = ""; table.innerHTML = ""; return; }
+  const bulkBar = document.getElementById("individualPermBulkBar");
+  if(!discordId){ info.textContent = ""; table.innerHTML = ""; bulkBar.style.display = "none"; return; }
   const emp = employees.find(e=>e.discordId===discordId);
-  info.textContent = emp ? `${emp.name} — grade actuel : ${emp.grade}` : "";
+  const isSelf = currentUserDiscordId && String(discordId) === String(currentUserDiscordId) && currentUserLevel !== "OWNER";
+  info.textContent = (emp ? `${emp.name} — grade actuel : ${emp.grade}` : "") + (isSelf ? " — tu ne peux pas modifier tes propres permissions." : "");
+  bulkBar.style.display = isSelf ? "none" : "flex";
+  document.getElementById("individualPermBulkStatus").textContent = "";
 
-  const myLayer = currentUserLevel === "OWNER" ? "DG" : currentUserLevel; // même règle que côté serveur
+  // Même règle que côté serveur : OWNER -> DG ; CD/D/DG -> leur couche ;
+  // quelqu'un d'autre ayant reçu cette permission -> couche CD.
+  const myLayer = currentUserLevel === "OWNER" ? "DG" : (["CD","D","DG"].includes(currentUserLevel) ? currentUserLevel : "CD");
   const personEntry = (individualPermsCache && individualPermsCache[discordId]) || {};
 
-  table.innerHTML = INDIVIDUAL_PERM_KEYS.map(perm=>{
+  table.innerHTML = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).map(perm=>{
     const layers = personEntry[perm] || { CD:null, D:null, DG:null };
     // couche active = la plus haute qui a une valeur
     let activeLayer = null, activeValue = null;
@@ -3459,8 +3570,10 @@ function renderIndividualPermTableForSelected(){
 // ═══════════════════════════════════════════════════════════════════
 async function renderPermissionRequestsCard(){
   const card = document.getElementById("permissionRequestsCard");
-  const isAdd = currentUserLevel === "ADD";
-  const canReview = ["CD","D","DG","OWNER"].includes(currentUserLevel);
+  // (12/10) Selon les droits réels : peut demander (sans pouvoir décider
+  // directement) / peut traiter les demandes.
+  const isAdd = hasCap("request_individual_permission") && !hasCap("manage_individual_permissions");
+  const canReview = hasCap("review_permission_requests");
   card.style.display = (isAdd || canReview) ? "" : "none";
   if(!isAdd && !canReview) return;
 
@@ -3998,15 +4111,24 @@ function populateForceLogoutSelect(){
 // repli générique aurait affiché le mauvais niveau par défaut pour
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
-const CAP_DEFAULT_LEVELS = {
-  manage_pay_rules: ["D","DG","OWNER"],
-  force_logout: ["CD","D","DG","OWNER"],
-};
+const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu
 function hasCap(name){
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
 }
+let currentUserDiscordId = null;
+const PERMISSIONS_TAB_CAPS = ["manage_permissions","manage_individual_permissions","request_individual_permission","review_permission_requests","force_logout"];
 function applyCapsUi(){
+  document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
+  const trollBtn = document.getElementById("tabTrollBtn");
+  if(trollBtn) trollBtn.style.display = (userCaps && userCaps.isTrollAdmin === true) ? "" : "none";
+  try{ renderGradeLabelsEditor(); }catch(e){}
+  if(userCaps){ try{ renderAll(); }catch(e){} }
+  const permView = document.getElementById("permissionsView");
+  if(userCaps && permView && permView.style.display !== "none"){
+    try{ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }catch(e){}
+  }
   document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
   document.getElementById("forceLogoutCard").style.display = hasCap("force_logout") ? "" : "none";
   document.getElementById("forceLogoutPillboxCard").style.display = hasCap("force_logout") ? "" : "none";
@@ -4028,8 +4150,9 @@ function showApp(session){
   document.getElementById("accessGate").style.display = "none";
   document.getElementById("appContent").style.display = "";
   document.getElementById("discordAuthStatus").innerHTML = `${session.level==="OWNER"?"👑":"✅"} <b>${esc(session.name)}</b> — ${esc(session.levelLabel)}`;
-  document.getElementById("tabLogsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
-  document.getElementById("tabPermissionsBtn").style.display = ["ADD","CD","D","DG","OWNER"].includes(currentUserLevel) ? "" : "none";
+  currentUserDiscordId = session.id || null;
+  document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
   userCaps = null; // repart du grade tant que le serveur n'a pas répondu
   applyCapsUi();
   refreshUserCaps();
@@ -4235,6 +4358,7 @@ function startRosterLiveUpdates(){
     refreshForceLogoutPresence();
     refreshEmployeesFromCloud();
     refreshSpecialSelectionFromCloud();
+    checkPillboxWeekFinishedSignal(); // (11/10) clôture faite ailleurs -> rechargement immédiat
     try{
       const permView = document.getElementById("permissionsView");
       if(permView && permView.style.display !== "none"){
@@ -4284,6 +4408,346 @@ function decodeSessionTokenPayload(token){
 // correctif supprime cette course en ne lançant plus ce chargement
 // qu'après la vraie confirmation d'authentification, peu importe le
 // chemin emprunté (connexion fraîche ou session restaurée).
+// ═══════════════════════════════════════════════════════════════════
+// (12/10) MODE TROLL — lecteur côté destinataire. Le serveur (troll-
+// actions) ne remet une blague QU'À la personne ciblée, et une seule fois
+// par outil : elle est « réservée » juste avant l'affichage, donc une
+// actualisation ou un deuxième onglet ne la relancent jamais. Les médias
+// sont téléchargés en morceaux, depuis un stockage privé (jamais public).
+// Image/phrase : fermeture par ✕, clic à côté ou Échap, sinon 12 s.
+// Son : volume modéré, démarre au PREMIER CLIC de la personne (les
+// navigateurs bloquent le son avant toute interaction), bouton « Couper ».
+// ═══════════════════════════════════════════════════════════════════
+const TROLL_ENDPOINT = "/.netlify/functions/troll-actions";
+let trollChecked = false;
+async function trollCall(body){
+  const res = await fetch(TROLL_ENDPOINT, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ token: currentSessionToken, ...body }) });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok){ const e = new Error(data.error || String(res.status)); e.status = res.status; e.data = data; throw e; }
+  return data;
+}
+async function trollFetchMedia(id, meta, kind){
+  const parts = [];
+  for(let i=0; i<meta.chunks; i++){
+    const d = await trollCall({ action:"mediaChunk", id, kind, index:i });
+    const bin = atob(d.data); const arr = new Uint8Array(bin.length);
+    for(let k=0; k<bin.length; k++) arr[k] = bin.charCodeAt(k);
+    parts.push(arr);
+  }
+  return URL.createObjectURL(new Blob(parts, { type: meta.mime }));
+}
+function trollPlay(opts){
+  const { text, imageUrl, audioUrl, immediateSound } = opts || {};
+  return new Promise(resolve=>{
+    let overlay = null, audio = null, soundBtn = null, timer = null, finished = false;
+    const done = ()=>{ if(finished || overlay || audio) return; finished = true; resolve(); };
+    const stopSound = ()=>{ if(audio){ try{ audio.pause(); }catch(e){} audio = null; } if(soundBtn){ soundBtn.remove(); soundBtn = null; } done(); };
+    const onKey = e=>{ if(e.key === "Escape"){ closeOverlay(); stopSound(); } };
+    const closeOverlay = ()=>{ if(timer) clearTimeout(timer); if(overlay){ overlay.remove(); overlay = null; } document.removeEventListener("keydown", onKey); done(); };
+    if(text || imageUrl){
+      overlay = document.createElement("div");
+      overlay.setAttribute("data-troll-overlay", "1");
+      overlay.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;";
+      const card = document.createElement("div");
+      card.style.cssText = "position:relative;max-width:min(92vw,720px);max-height:88vh;overflow:auto;background:#111;color:#fff;border-radius:14px;padding:18px 18px 16px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6);";
+      const close = document.createElement("button");
+      close.type = "button"; close.textContent = "✕"; close.title = "Fermer";
+      close.style.cssText = "position:absolute;top:6px;right:10px;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;";
+      close.addEventListener("click", e=>{ e.stopPropagation(); closeOverlay(); });
+      card.appendChild(close);
+      if(imageUrl){
+        const img = document.createElement("img");
+        img.src = imageUrl; img.alt = "";
+        img.style.cssText = "max-width:100%;max-height:65vh;border-radius:10px;display:block;margin:14px auto 4px;";
+        img.onerror = ()=>{ img.remove(); if(!text) closeOverlay(); };
+        card.appendChild(img);
+      }
+      if(text){
+        const t = document.createElement("div");
+        t.textContent = text;
+        t.style.cssText = "font-size:1.35rem;font-weight:800;margin-top:12px;white-space:pre-wrap;word-break:break-word;";
+        card.appendChild(t);
+      }
+      overlay.appendChild(card);
+      overlay.addEventListener("click", e=>{ if(e.target === overlay) closeOverlay(); });
+      document.body.appendChild(overlay);
+      document.addEventListener("keydown", onKey);
+      timer = setTimeout(closeOverlay, 12000);
+    }
+    if(audioUrl){
+      audio = new Audio(audioUrl);
+      audio.volume = 0.6;
+      audio.addEventListener("ended", stopSound);
+      audio.addEventListener("error", stopSound);
+      const start = ()=>{
+        if(!audio) return;
+        audio.play().then(()=>{
+          if(!audio) return;
+          soundBtn = document.createElement("button");
+          soundBtn.type = "button"; soundBtn.textContent = "🔇 Couper le son";
+          soundBtn.style.cssText = "position:fixed;bottom:20px;right:20px;z-index:2147483001;background:#222;color:#fff;border:1px solid #555;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;";
+          soundBtn.addEventListener("click", e=>{ e.stopPropagation(); stopSound(); });
+          document.body.appendChild(soundBtn);
+        }).catch(stopSound);
+      };
+      if(immediateSound) start();
+      else document.addEventListener("pointerdown", start, { once:true, capture:true });
+    }
+    done();
+  });
+}
+async function trollCheckPending(app){
+  if(trollChecked || !(currentSessionToken)) return;
+  trollChecked = true;
+  let list = [];
+  try{ list = (await trollCall({ action:"pending", app })).pending || []; }catch(e){ return; }
+  for(const p of list){
+    // Médias téléchargés AVANT la réservation : si tout échoue (et pas de
+    // phrase), on ne réserve pas — la blague reste en attente au lieu
+    // d'être perdue. Réservation ensuite : si elle échoue (déjà jouée
+    // dans un autre onglet, annulée entre-temps…), rien n'est affiché.
+    let imageUrl = null, audioUrl = null;
+    try{ if(p.image) imageUrl = await trollFetchMedia(p.id, p.image, "image"); }catch(e){}
+    try{ if(p.audio) audioUrl = await trollFetchMedia(p.id, p.audio, "audio"); }catch(e){}
+    if(!p.text && !imageUrl && !audioUrl) continue;
+    let joke = null;
+    try{ joke = (await trollCall({ action:"claim", id:p.id, app })).joke; }catch(e){ continue; }
+    await trollPlay({ text: p.text, imageUrl, audioUrl, immediateSound:false });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// (12/10) MODE TROLL — gestion (Concepteur uniquement ; le serveur
+// refuse toute action de gestion venant de quelqu'un d'autre).
+// ═══════════════════════════════════════════════════════════════════
+const TROLL_CHUNK = 3 * 1024 * 1024;
+const TROLL_LIMITS = {
+  image: { max: 5*1024*1024, mimes: ["image/png","image/jpeg","image/webp"], exts: [".png",".jpg",".jpeg",".webp"] },
+  audio: { max: 7*1024*1024, mimes: ["audio/mpeg","audio/mp3"], exts: [".mp3"] },
+};
+let trollJokesCache = [];
+let trollEditingId = null;
+let trollFiles = { image: undefined, audio: undefined }; // File = nouveau ; null = à retirer ; undefined = inchangé
+let trollBusy = false;
+const trollMb = n => (n/1048576).toFixed(n < 1048576 ? 2 : 1) + " Mo";
+function trollStatus(msg, kind){ const el = document.getElementById("trollFormStatus"); el.textContent = msg || ""; el.style.color = kind==="ok" ? "var(--green)" : kind==="err" ? "var(--red)" : "var(--text-dim)"; }
+function trollElements(j){ return [j.text?"💬 phrase":null, j.image?"🖼️ image":null, j.audio?"🔊 son":null].filter(Boolean).join(" + ") || "rien (à compléter)"; }
+function trollApps(a){ return [a&&a.roster?"Roster":null, a&&a.pillbox?"Pillbox":null].filter(Boolean).join(" + ") || "aucun outil"; }
+function trollBadge(st){
+  const c = { "en attente":"#d99a2b", "déclenchée (partiellement)":"#3b82f6", "terminée":"#16a34a", "expirée":"#6b7280", "annulée":"#dc2626", "désactivée":"#6b7280" }[st] || "#6b7280";
+  return `<span style="background:${c};color:#fff;border-radius:999px;padding:1px 9px;font-size:0.7rem;font-weight:700;">${esc(st)}</span>`;
+}
+function trollValidateFile(kind, file){
+  const L = TROLL_LIMITS[kind], name = (file.name||"").toLowerCase();
+  if(!L.exts.some(x=>name.endsWith(x)) || (file.type && !L.mimes.includes(file.type))) return kind==="image" ? "Format refusé : PNG, JPG, JPEG ou WEBP uniquement." : "Format refusé : MP3 uniquement.";
+  if(!file.size) return "Fichier vide.";
+  if(file.size > L.max) return `Fichier trop volumineux (${trollMb(file.size)}, max ${L.max/1048576} Mo).`;
+  return null;
+}
+function trollMimeOf(kind, file){
+  if(file.type && TROLL_LIMITS[kind].mimes.includes(file.type)) return file.type;
+  if(kind==="audio") return "audio/mpeg";
+  return { png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg", webp:"image/webp" }[(file.name.split(".").pop()||"").toLowerCase()];
+}
+function trollPopulateTargets(keepId){
+  const q = (document.getElementById("trollTargetSearch").value||"").trim().toLowerCase();
+  const sel = document.getElementById("trollTargetSelect");
+  const prev = keepId || sel.value;
+  const list = employees.filter(e=>!e.licencie && e.discordId && EDITABLE_LEVELS.includes(e.grade))
+    // (12/10) Le Concepteur ne peut être visé que par lui-même (refusé côté serveur aussi).
+    .filter(e=>(userCaps && userCaps.isTrollOwner) || String(e.discordId) !== "861557966083850250")
+    .filter(e=>!q || e.name.toLowerCase().includes(q) || String(e.discordId).includes(q))
+    .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name));
+  let html = `<option value="">— Choisir la personne —</option>` + list.map(e=>`<option value="${esc(e.discordId)}" data-name="${esc(e.name)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
+  const editing = trollEditingId ? trollJokesCache.find(x=>x.id===trollEditingId) : null;
+  if(prev && !list.some(e=>String(e.discordId)===String(prev)) && editing && String(editing.targetDiscordId)===String(prev)){
+    html += `<option value="${esc(prev)}" data-name="${esc(editing.targetName||"")}">${esc(editing.targetName||prev)} (destinataire actuel)</option>`;
+  }
+  sel.innerHTML = html;
+  if(prev) sel.value = prev;
+}
+function trollRenderMediaUi(){
+  const j = trollEditingId ? trollJokesCache.find(x=>x.id===trollEditingId) : null;
+  for(const kind of ["image","audio"]){
+    const info = document.getElementById(kind==="image" ? "trollImageInfo" : "trollAudioInfo");
+    const rm = document.getElementById(kind==="image" ? "trollImageRemove" : "trollAudioRemove");
+    const prev = document.getElementById(kind==="image" ? "trollImagePreview" : "trollAudioPreview");
+    const f = trollFiles[kind], stored = j && j[kind];
+    if(f instanceof File){
+      prev.src = URL.createObjectURL(f); prev.style.display = "";
+      info.textContent = `${f.name} — ${trollMb(f.size)} (pas encore enregistré : clique « Enregistrer »)`; rm.style.display = "";
+    } else if(f === null){
+      prev.style.display = "none"; prev.removeAttribute("src");
+      info.textContent = stored ? "Retiré — sera supprimé à l'enregistrement." : (kind==="image" ? "Aucune image" : "Aucun son"); rm.style.display = "none";
+    } else if(stored){
+      prev.style.display = "none"; prev.removeAttribute("src");
+      info.textContent = `Enregistré : ${stored.name} (${trollMb(stored.size)})`; rm.style.display = "";
+    } else {
+      prev.style.display = "none"; prev.removeAttribute("src");
+      info.textContent = kind==="image" ? "Aucune image" : "Aucun son"; rm.style.display = "none";
+    }
+  }
+  const t = document.getElementById("trollText"); document.getElementById("trollTextCount").textContent = `${t.value.length} / 500`;
+}
+function trollFillForm(j){
+  trollEditingId = j ? j.id : null;
+  trollFiles = { image: undefined, audio: undefined };
+  document.getElementById("trollName").value = j ? j.name : "";
+  document.getElementById("trollText").value = j && j.text ? j.text : "";
+  document.getElementById("trollAppRoster").checked = j ? !!(j.apps&&j.apps.roster) : true;
+  document.getElementById("trollAppPillbox").checked = j ? !!(j.apps&&j.apps.pillbox) : false;
+  document.getElementById("trollImageInput").value = ""; document.getElementById("trollAudioInput").value = "";
+  document.getElementById("trollTargetSearch").value = "";
+  trollPopulateTargets(j ? j.targetDiscordId : "");
+  trollRenderMediaUi();
+  trollStatus(j ? `Modification de « ${j.name} »` : "");
+}
+async function trollLoadList(){
+  const box = document.getElementById("trollList");
+  try{
+    trollJokesCache = (await trollCall({ action:"list" })).jokes || [];
+    trollRenderList();
+  }catch(e){ box.textContent = `Impossible de charger les blagues (${e.message}).`; }
+}
+function trollRenderList(){
+  const box = document.getElementById("trollList");
+  if(!trollJokesCache.length){ box.textContent = "Aucune blague pour l'instant."; return; }
+  box.innerHTML = trollJokesCache.map(j=>{
+    const fini = ["terminée","expirée","annulée","désactivée"].includes(j.status);
+    const deliv = [j.delivered&&j.delivered.roster?`Roster le ${new Date(j.delivered.roster).toLocaleString("fr-FR")}`:null, j.delivered&&j.delivered.pillbox?`Pillbox le ${new Date(j.delivered.pillbox).toLocaleString("fr-FR")}`:null].filter(Boolean).join(", ");
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border-soft);">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><b>${esc(j.name)}</b> ${trollBadge(j.status)}</div>
+      <div style="font-size:0.78rem;color:var(--text-dim);margin-top:3px;">${userCaps && userCaps.isTrollOwner && j.createdByName ? `par ${esc(j.createdByName)} · ` : ""}→ ${esc(j.targetName||j.targetDiscordId)} · ${esc(trollApps(j.apps))} · ${esc(trollElements(j))}${j.status==="en attente"&&j.expiresAt?` · expire le ${new Date(j.expiresAt).toLocaleString("fr-FR")}`:""}${deliv?` · déclenchée : ${esc(deliv)}`:""}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+        <button type="button" class="btn-ghost btn-small" data-troll="edit" data-id="${esc(j.id)}">✏️ Modifier</button>
+        <button type="button" class="btn-ghost btn-small" data-troll="test" data-id="${esc(j.id)}">👁 Tester</button>
+        <button type="button" class="btn-primary btn-small" data-troll="arm" data-id="${esc(j.id)}">🚀 ${fini && j.status!=="désactivée" ? "Re-déclencher" : "Déclencher"}</button>
+        ${j.active && !j.cancelledAt && !fini ? `<button type="button" class="btn-ghost btn-small" data-troll="disarm" data-id="${esc(j.id)}">⏸ Désactiver</button>` : ""}
+        ${j.active && !j.cancelledAt && !fini ? `<button type="button" class="btn-ghost btn-small" data-troll="cancel" data-id="${esc(j.id)}">⛔ Annuler</button>` : ""}
+        <button type="button" class="btn-danger btn-small" data-troll="delete" data-id="${esc(j.id)}">🗑 Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+async function trollUploadFile(id, kind, file, onProgress){
+  const mime = trollMimeOf(kind, file);
+  const total = Math.ceil(file.size / TROLL_CHUNK);
+  const uploadId = Array.from({length:10}, ()=>"abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random()*36)]).join("");
+  for(let i=0; i<total; i++){
+    if(onProgress) onProgress(i+1, total);
+    const data = await new Promise((res, rej)=>{
+      const fr = new FileReader();
+      fr.onload = ()=>res(String(fr.result).split(",")[1] || "");
+      fr.onerror = ()=>rej(new Error("lecture du fichier impossible"));
+      fr.readAsDataURL(file.slice(i*TROLL_CHUNK, (i+1)*TROLL_CHUNK));
+    });
+    await trollCall({ action:"uploadChunk", id, kind, uploadId, index:i, total, size:file.size, mime, data });
+  }
+  await trollCall({ action:"finalizeMedia", id, kind, uploadId, name:file.name, mime, size:file.size });
+}
+function trollSetBusy(b){ trollBusy = b; ["trollSaveBtn","trollTestBtn","trollNewBtn"].forEach(x=>{ document.getElementById(x).disabled = b; }); }
+async function trollSave(){
+  if(trollBusy) return;
+  const name = document.getElementById("trollName").value.trim();
+  const sel = document.getElementById("trollTargetSelect");
+  const targetDiscordId = sel.value;
+  const targetName = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].dataset.name) || "";
+  const apps = { roster: document.getElementById("trollAppRoster").checked, pillbox: document.getElementById("trollAppPillbox").checked };
+  const text = document.getElementById("trollText").value;
+  if(!name) return trollStatus("✕ Donne un nom à la blague.", "err");
+  if(!targetDiscordId) return trollStatus("✕ Choisis le destinataire.", "err");
+  if(!apps.roster && !apps.pillbox) return trollStatus("✕ Choisis au moins un outil (Roster et/ou Pillbox).", "err");
+  trollSetBusy(true); trollStatus("Enregistrement…");
+  let step = "la blague";
+  try{
+    const r = await trollCall({ action:"save", id: trollEditingId || undefined, joke:{ name, targetDiscordId, targetName, apps, text } });
+    trollEditingId = r.joke.id;
+    for(const kind of ["image","audio"]){
+      const label = kind==="image" ? "l'image" : "le son";
+      if(trollFiles[kind] instanceof File){
+        step = label;
+        await trollUploadFile(trollEditingId, kind, trollFiles[kind], (i,n)=>trollStatus(`Envoi de ${label} : morceau ${i}/${n}…`));
+        trollFiles[kind] = undefined;
+      } else if(trollFiles[kind] === null){
+        step = `la suppression de ${label}`;
+        await trollCall({ action:"deleteMedia", id: trollEditingId, kind });
+        trollFiles[kind] = undefined;
+      }
+    }
+    await trollLoadList();
+    trollRenderMediaUi();
+    trollStatus("✓ Enregistrée. Clique « 🚀 Déclencher » dans la liste quand tu es prêt.", "ok");
+  }catch(e){
+    await trollLoadList().catch(()=>{});
+    trollRenderMediaUi();
+    trollStatus(`✕ Échec pour ${step} : ${e.message}`, "err");
+  }finally{ trollSetBusy(false); }
+}
+async function trollMediaUrlFor(j, kind){
+  if(trollEditingId && j && j.id===trollEditingId && trollFiles[kind] instanceof File) return URL.createObjectURL(trollFiles[kind]);
+  if(trollEditingId && j && j.id===trollEditingId && trollFiles[kind] === null) return null;
+  if(j && j[kind]) return trollFetchMedia(j.id, j[kind], kind);
+  return null;
+}
+async function trollTest(j, fromForm){
+  try{
+    trollStatus("Préparation de l'aperçu…");
+    const text = fromForm ? document.getElementById("trollText").value.trim() : (j && j.text);
+    const base = fromForm ? (trollEditingId ? trollJokesCache.find(x=>x.id===trollEditingId) : null) : j;
+    let imageUrl = fromForm && trollFiles.image instanceof File ? URL.createObjectURL(trollFiles.image) : await trollMediaUrlFor(base, "image");
+    let audioUrl = fromForm && trollFiles.audio instanceof File ? URL.createObjectURL(trollFiles.audio) : await trollMediaUrlFor(base, "audio");
+    if(!text && !imageUrl && !audioUrl){ trollStatus("Rien à tester : ajoute une phrase, une image ou un son.", "err"); return; }
+    trollStatus("");
+    await trollPlay({ text, imageUrl, audioUrl, immediateSound:true });
+  }catch(e){ trollStatus(`✕ Aperçu impossible : ${e.message}`, "err"); }
+}
+async function trollRenderTab(){
+  if(!(userCaps && userCaps.isTrollAdmin)) return;
+  trollPopulateTargets();
+  trollRenderMediaUi();
+  await trollLoadList();
+}
+document.getElementById("trollTargetSearch").addEventListener("input", ()=>trollPopulateTargets());
+document.getElementById("trollText").addEventListener("input", trollRenderMediaUi);
+["image","audio"].forEach(kind=>{
+  const input = document.getElementById(kind==="image" ? "trollImageInput" : "trollAudioInput");
+  input.addEventListener("change", ()=>{
+    const f = input.files && input.files[0];
+    if(!f) return;
+    const err = trollValidateFile(kind, f);
+    if(err){ input.value = ""; trollStatus(`✕ ${err}`, "err"); return; }
+    trollFiles[kind] = f; trollStatus(""); trollRenderMediaUi();
+  });
+  document.getElementById(kind==="image" ? "trollImageRemove" : "trollAudioRemove").addEventListener("click", ()=>{
+    const j = trollEditingId ? trollJokesCache.find(x=>x.id===trollEditingId) : null;
+    trollFiles[kind] = (j && j[kind]) ? null : undefined;
+    input.value = ""; trollRenderMediaUi();
+  });
+});
+document.getElementById("trollSaveBtn").addEventListener("click", trollSave);
+document.getElementById("trollTestBtn").addEventListener("click", ()=>trollTest(null, true));
+document.getElementById("trollNewBtn").addEventListener("click", ()=>trollFillForm(null));
+document.getElementById("trollList").addEventListener("click", async (e)=>{
+  const b = e.target.closest("[data-troll]"); if(!b) return;
+  const j = trollJokesCache.find(x=>x.id===b.dataset.id); if(!j) return;
+  const what = b.dataset.troll;
+  if(what==="edit"){ trollFillForm(j); window.scrollTo({ top:0, behavior:"smooth" }); return; }
+  if(what==="test"){ trollTest(j, false); return; }
+  if(what==="arm"){
+    if(!j.text && !j.image && !j.audio){ toast("Rien à envoyer : ajoute une phrase, une image ou un son."); return; }
+    if(!confirm(`Déclencher « ${j.name} » ?\n\nPersonne ciblée : ${j.targetName || j.targetDiscordId}\nÉléments : ${trollElements(j)}\nOù : ${trollApps(j.apps)}\n\nElle s'affichera à sa prochaine ouverture (une seule fois par outil) et expirera dans 7 jours si elle n'ouvre pas.`)) return;
+  }
+  if(what==="cancel" && !confirm(`Annuler « ${j.name} » ? Elle ne sera jamais déclenchée.`)) return;
+  if(what==="delete" && !confirm(`Supprimer définitivement « ${j.name} » et ses fichiers ?`)) return;
+  b.disabled = true;
+  try{
+    await trollCall({ action: what, id: j.id });
+    if(what==="delete" && trollEditingId===j.id) trollFillForm(null);
+    toast({ arm:"✓ Blague déclenchée — en attente de la personne", disarm:"✓ Désactivée", cancel:"✓ Annulée", delete:"✓ Supprimée" }[what] || "✓");
+    await trollLoadList();
+  }catch(err){ toast(`✕ ${err.message}`); b.disabled = false; }
+});
+
 async function finishRosterInit(){
   await loadState();
   loadHistory();
@@ -4298,6 +4762,7 @@ async function finishRosterInit(){
   checkPillboxWeekFinishedSignal();
   fetchGradeLabelsSilent();
   loadFormationFromCloudIntoSelection(true); // chargement automatique et silencieux (demandé le 09/09)
+  trollCheckPending("roster"); // (12/10) Mode troll : blague éventuelle destinée à cette personne
 }
 
 async function restoreSessionFromStorage(){
