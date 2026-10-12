@@ -29,6 +29,7 @@
 const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { isTrollAdmin, canFor, OWNER_DISCORD_ID } = require("./permissions");
+const { logAction } = require("./logs");
 
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const CHUNK_BYTES = 3 * 1024 * 1024;
@@ -39,6 +40,38 @@ const LIMITS = {
 const EXPIRY_MS = 7 * 24 * 3600 * 1000;
 const MAX_TEXT = 500, MAX_NAME = 80;
 const APPS = ["roster", "pillbox"];
+const KICKS_URL_BY_SCOPE = { roster: `${BASE}/rosterForcedLogouts`, pillbox: `${BASE}/pillboxForcedLogouts` };
+
+// (12/10, demandé) Retour de bâton si on tente de viser le Concepteur
+// avec le Mode troll — même mécanisme que force-logout.js (même chemin
+// Firebase, même jeton de niveau "D" exigé par la règle d'écriture,
+// même lecture côté client via rosterCheckKicked/pillboxCheckKicked,
+// déjà en place et déjà testée). Deux déconnexions distinctes : une
+// immédiate (là où la tentative a eu lieu — toujours le Roster, seul
+// endroit où le Mode troll se gère), une seconde à la prochaine
+// ouverture de Pillbox précisément.
+async function backfireOnOwnerTarget(session, authorDiscordId){
+  const { FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
+  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(authorDiscordId), claims: { level: "D" } });
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+  });
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) return; // échec silencieux : au pire, pas de blague en retour — jamais d'erreur visible pour l'auteur
+  const writeToken = data.idToken;
+  const now = Date.now();
+  await Promise.all([
+    fetch(`${KICKS_URL_BY_SCOPE.roster}/${authorDiscordId}.json?auth=${writeToken}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ at: now, reason: "tried_to_troll_owner" }) }),
+    fetch(`${KICKS_URL_BY_SCOPE.pillbox}/${authorDiscordId}.json?auth=${writeToken}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ at: now, reason: "tried_to_troll_owner_pillbox" }) }),
+  ]).catch(()=>{});
+  await logAction({
+    action: "deconnexion_forcee",
+    authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+    targetDiscordId: authorDiscordId,
+    details: "[Mode troll] Tentative de viser le Concepteur — retournée contre l'auteur (blague), déconnexion Roster immédiate + Pillbox à la prochaine ouverture",
+    idToken: writeToken,
+  }).catch(()=>{});
+}
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 function json(statusCode, obj){ return { statusCode, headers: { "Content-Type": "application/json", ...corsHeaders }, body: JSON.stringify(obj) }; }
@@ -81,7 +114,7 @@ function magicOk(kind, mime, firstBytes){
   return b.slice(0,3).toString() === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0); // en-tête ID3 ou trame MPEG
 }
 function publicJoke(id, j, now){
-  return { id, name: j.name, targetDiscordId: j.targetDiscordId, targetName: j.targetName, apps: j.apps || {}, text: j.text || null,
+  return { id, name: j.name, targetDiscordId: j.targetDiscordId, targetName: j.targetName, apps: j.apps || {}, text: j.text || null, clickSound: !!j.clickSound,
     image: j.image ? { name: j.image.name, mime: j.image.mime, size: j.image.size, chunks: j.image.chunks } : null,
     audio: j.audio ? { name: j.audio.name, mime: j.audio.mime, size: j.audio.size, chunks: j.audio.chunks } : null,
     active: !!j.active, armedAt: j.armedAt || null, expiresAt: j.expiresAt || null, delivered: j.delivered || {}, cancelledAt: j.cancelledAt || null,
@@ -121,11 +154,15 @@ exports.handler = async function (event) {
       const all = (await get("trollJokes", tok)) || {};
       const mine = Object.entries(all)
         .filter(([, j]) => j && String(j.targetDiscordId) === String(session.discordId) && j.active && !j.cancelledAt
-          && j.apps && j.apps[body.app] && !(j.delivered && j.delivered[body.app]) && (!j.expiresAt || now <= j.expiresAt))
+          && j.apps && j.apps[body.app]
+          // (12/10) « Son à chaque clic » : jamais marquée « livrée », elle reste
+          // présente tant qu'elle est active — une blague classique, elle, ne
+          // réapparaît plus une fois réservée (claim).
+          && (j.clickSound || !(j.delivered && j.delivered[body.app])) && (!j.expiresAt || now <= j.expiresAt))
         .sort((a, b) => (a[1].armedAt||0) - (b[1].armedAt||0))
         // Le destinataire reçoit ici la description de SA blague (pas les
         // médias eux-mêmes) pour pouvoir télécharger AVANT de la réserver.
-        .map(([jid, j]) => { const pj = publicJoke(jid, j, now); return { id: jid, text: pj.text, image: pj.image, audio: pj.audio }; });
+        .map(([jid, j]) => { const pj = publicJoke(jid, j, now); return { id: jid, text: pj.text, image: pj.image, audio: pj.audio, clickSound: pj.clickSound }; });
       return json(200, { pending: mine });
     }
 
@@ -173,17 +210,25 @@ exports.handler = async function (event) {
       const name = String(j.name || "").trim();
       const text = j.text == null ? "" : String(j.text);
       const apps = { roster: !!(j.apps && j.apps.roster), pillbox: !!(j.apps && j.apps.pillbox) };
+      const clickSound = !!j.clickSound;
       if (!name || name.length > MAX_NAME) return json(400, { error: `Nom obligatoire (${MAX_NAME} caractères max).` });
       if (text.length > MAX_TEXT) return json(400, { error: `Phrase trop longue (${MAX_TEXT} caractères max).` });
       if (!j.targetDiscordId || !/^\d{5,25}$/.test(String(j.targetDiscordId))) return json(400, { error: "Destinataire invalide." });
       if (!apps.roster && !apps.pillbox) return json(400, { error: "Choisis au moins un outil (Roster et/ou Pillbox)." });
-      if (!owner && String(j.targetDiscordId) === OWNER_DISCORD_ID) return json(403, { error: "Le Concepteur est intouchable." });
+      if (!owner && String(j.targetDiscordId) === OWNER_DISCORD_ID) {
+        // (12/10, demandé) Jamais de refus visible : la tentative a l'air
+        // de réussir normalement (même réponse qu'un enregistrement
+        // classique), mais rien n'est réellement enregistré — la
+        // personne découvre la vraie réponse en se faisant déconnecter.
+        backfireOnOwnerTarget(session, session.discordId).catch(()=>{});
+        return json(200, { ok: true, joke: { id: `j${now.toString(36)}`, name, text: text.trim() ? text : null, apps, clickSound, targetDiscordId: String(j.targetDiscordId), targetName: String(j.targetName||"").slice(0,100), image:null, audio:null, active:false, armedAt:null, expiresAt:null, delivered:{}, cancelledAt:null, createdAt: now, updatedAt: now, status: "désactivée" } });
+      }
       const jid = id || `j${now.toString(36)}${Math.random().toString(36).slice(2,8)}`;
       const existing = id ? await get(`trollJokes/${jid}`, tok) : null;
       if (id && !existing) return json(404, { error: "Blague introuvable." });
       if (existing && !ownsJoke(existing)) return json(403, { error: "Ce n'est pas ta blague." });
       const merged = { ...(existing || { active:false, delivered:{}, createdAt: now, image:null, audio:null, createdByDiscordId: String(session.discordId), createdByName: String(session.name||"").slice(0,100) }),
-        name, text: text.trim() ? text : null, apps, targetDiscordId: String(j.targetDiscordId),
+        name, text: text.trim() ? text : null, apps, clickSound, targetDiscordId: String(j.targetDiscordId),
         targetName: String(j.targetName || "").slice(0, 100), updatedAt: now };
       // Changement de destinataire ou d'outils : la blague repart de zéro (jamais livrée par erreur à l'ancien).
       if (existing && (existing.targetDiscordId !== merged.targetDiscordId || JSON.stringify(existing.apps) !== JSON.stringify(apps))) {
@@ -253,6 +298,7 @@ exports.handler = async function (event) {
       let next;
       if (action === "arm") {
         if (!j.text && !j.image && !j.audio) return json(400, { error: "Rien à envoyer : ajoute une phrase, une image ou un son." });
+        if (j.clickSound && !j.audio) return json(400, { error: "Le mode « son à chaque clic » a besoin d'un son — ajoute un MP3." });
         next = { ...j, active: true, armedAt: now, expiresAt: now + EXPIRY_MS, delivered: {}, cancelledAt: null, updatedAt: now };
       } else if (action === "disarm") {
         next = { ...j, active: false, updatedAt: now };

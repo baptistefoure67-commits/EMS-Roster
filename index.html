@@ -679,6 +679,12 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
           </div>
           <div id="trollAudioInfo" class="sub" style="font-size:0.75rem;margin-top:4px;">Aucun son</div>
           <audio id="trollAudioPreview" controls style="display:none;margin-top:6px;max-width:100%;"></audio>
+          <!-- (12/10, demandé) Mode continu : le son ne se joue plus une
+               seule fois à l'ouverture, mais à CHAQUE clic sur un bouton,
+               dans tout l'outil, tant que la blague reste active. -->
+          <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:0.78rem;">
+            <input type="checkbox" id="trollClickSound"> 🔊 Jouer ce son à CHAQUE clic sur un bouton (au lieu d'une seule fois) — nécessite un son
+          </label>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button type="button" class="btn-primary btn-small" id="trollSaveBtn">💾 Enregistrer</button>
@@ -4276,7 +4282,10 @@ async function rosterCheckKicked(){
           ? "La prochaine fois, ne fais pas ça au Concepteur."
           : data.reason === "owner_kicked_aaron_roster"
             ? aaronRoasts[Math.floor(Math.random() * aaronRoasts.length)]
-            : "Tu as été déconnecté(e) par un responsable.";
+            // (12/10, demandé) Tentative de viser le Concepteur avec le Mode troll
+            : data.reason === "tried_to_troll_owner"
+              ? "🖕 Prochaine fois, ne fais pas ça, gamin."
+              : "Tu as été déconnecté(e) par un responsable.";
       showGate(msg);
       return true;
     }
@@ -4358,6 +4367,7 @@ function startRosterLiveUpdates(){
     refreshForceLogoutPresence();
     refreshEmployeesFromCloud();
     refreshSpecialSelectionFromCloud();
+    trollCheckPending("roster"); // (12/10, demandé) plus besoin d'actualiser pour voir une blague
     checkPillboxWeekFinishedSignal(); // (11/10) clôture faite ailleurs -> rechargement immédiat
     try{
       const permView = document.getElementById("permissionsView");
@@ -4419,7 +4429,25 @@ function decodeSessionTokenPayload(token){
 // navigateurs bloquent le son avant toute interaction), bouton « Couper ».
 // ═══════════════════════════════════════════════════════════════════
 const TROLL_ENDPOINT = "/.netlify/functions/troll-actions";
-let trollChecked = false;
+let trollChecked = false; // conservé pour compat, plus utilisé comme garde-fou (remplacé par trollCheckInFlight)
+let trollCheckInFlight = false;
+// (12/10, demandé) « Son à chaque clic » — jamais réservée côté serveur,
+// reste simplement présente dans "pending" tant qu'elle est active : on
+// recalcule l'ensemble des sons actifs à chaque sondage, et un seul
+// écouteur de clic partagé pioche dedans.
+let trollActiveClickSounds = {};
+let trollClickListenerInstalled = false;
+function trollEnsureClickListener(app){
+  if(trollClickListenerInstalled) return;
+  trollClickListenerInstalled = true;
+  document.addEventListener("click", ()=>{
+    const map = trollActiveClickSounds[app];
+    if(!map || !map.size) return;
+    const urls = [...map.values()];
+    const url = urls[Math.floor(Math.random()*urls.length)];
+    try{ const a = new Audio(url); a.volume = 0.6; a.play().catch(()=>{}); }catch(e){}
+  }, true);
+}
 async function trollCall(body){
   const res = await fetch(TROLL_ENDPOINT, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ token: currentSessionToken, ...body }) });
   const data = await res.json().catch(()=>({}));
@@ -4497,23 +4525,40 @@ function trollPlay(opts){
   });
 }
 async function trollCheckPending(app){
-  if(trollChecked || !(currentSessionToken)) return;
-  trollChecked = true;
-  let list = [];
-  try{ list = (await trollCall({ action:"pending", app })).pending || []; }catch(e){ return; }
-  for(const p of list){
-    // Médias téléchargés AVANT la réservation : si tout échoue (et pas de
-    // phrase), on ne réserve pas — la blague reste en attente au lieu
-    // d'être perdue. Réservation ensuite : si elle échoue (déjà jouée
-    // dans un autre onglet, annulée entre-temps…), rien n'est affiché.
-    let imageUrl = null, audioUrl = null;
-    try{ if(p.image) imageUrl = await trollFetchMedia(p.id, p.image, "image"); }catch(e){}
-    try{ if(p.audio) audioUrl = await trollFetchMedia(p.id, p.audio, "audio"); }catch(e){}
-    if(!p.text && !imageUrl && !audioUrl) continue;
-    let joke = null;
-    try{ joke = (await trollCall({ action:"claim", id:p.id, app })).joke; }catch(e){ continue; }
-    await trollPlay({ text: p.text, imageUrl, audioUrl, immediateSound:false });
-  }
+  // (12/10, demandé) Sondage répété (plus de garde-fou "une seule fois")
+  // pour qu'une blague armée pendant que la personne utilise déjà
+  // l'outil se déclenche sans avoir besoin d'actualiser la page —
+  // juste un garde-fou anti-chevauchement si un sondage précédent tourne
+  // encore. La réservation ("claim") empêche déjà tout doublon réel.
+  if(trollCheckInFlight || !(currentSessionToken)) return;
+  trollCheckInFlight = true;
+  try{
+    let list = [];
+    try{ list = (await trollCall({ action:"pending", app })).pending || []; }catch(e){ return; }
+
+    const stillActive = new Map();
+    for(const p of list.filter(p=>p.clickSound)){
+      const already = trollActiveClickSounds[app] && trollActiveClickSounds[app].get(p.id);
+      if(already){ stillActive.set(p.id, already); continue; }
+      try{ if(p.audio) stillActive.set(p.id, await trollFetchMedia(p.id, p.audio, "audio")); }catch(e){}
+    }
+    trollActiveClickSounds[app] = stillActive;
+    if(stillActive.size) trollEnsureClickListener(app);
+
+    for(const p of list.filter(p=>!p.clickSound)){
+      // Médias téléchargés AVANT la réservation : si tout échoue (et pas de
+      // phrase), on ne réserve pas — la blague reste en attente au lieu
+      // d'être perdue. Réservation ensuite : si elle échoue (déjà jouée
+      // dans un autre onglet, annulée entre-temps…), rien n'est affiché.
+      let imageUrl = null, audioUrl = null;
+      try{ if(p.image) imageUrl = await trollFetchMedia(p.id, p.image, "image"); }catch(e){}
+      try{ if(p.audio) audioUrl = await trollFetchMedia(p.id, p.audio, "audio"); }catch(e){}
+      if(!p.text && !imageUrl && !audioUrl) continue;
+      let joke = null;
+      try{ joke = (await trollCall({ action:"claim", id:p.id, app })).joke; }catch(e){ continue; }
+      await trollPlay({ text: p.text, imageUrl, audioUrl, immediateSound:false });
+    }
+  } finally { trollCheckInFlight = false; }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4531,7 +4576,7 @@ let trollFiles = { image: undefined, audio: undefined }; // File = nouveau ; nul
 let trollBusy = false;
 const trollMb = n => (n/1048576).toFixed(n < 1048576 ? 2 : 1) + " Mo";
 function trollStatus(msg, kind){ const el = document.getElementById("trollFormStatus"); el.textContent = msg || ""; el.style.color = kind==="ok" ? "var(--green)" : kind==="err" ? "var(--red)" : "var(--text-dim)"; }
-function trollElements(j){ return [j.text?"💬 phrase":null, j.image?"🖼️ image":null, j.audio?"🔊 son":null].filter(Boolean).join(" + ") || "rien (à compléter)"; }
+function trollElements(j){ return [j.text?"💬 phrase":null, j.image?"🖼️ image":null, j.audio?(j.clickSound?"🔁 son à chaque clic":"🔊 son"):null].filter(Boolean).join(" + ") || "rien (à compléter)"; }
 function trollApps(a){ return [a&&a.roster?"Roster":null, a&&a.pillbox?"Pillbox":null].filter(Boolean).join(" + ") || "aucun outil"; }
 function trollBadge(st){
   const c = { "en attente":"#d99a2b", "déclenchée (partiellement)":"#3b82f6", "terminée":"#16a34a", "expirée":"#6b7280", "annulée":"#dc2626", "désactivée":"#6b7280" }[st] || "#6b7280";
@@ -4596,6 +4641,7 @@ function trollFillForm(j){
   document.getElementById("trollText").value = j && j.text ? j.text : "";
   document.getElementById("trollAppRoster").checked = j ? !!(j.apps&&j.apps.roster) : true;
   document.getElementById("trollAppPillbox").checked = j ? !!(j.apps&&j.apps.pillbox) : false;
+  document.getElementById("trollClickSound").checked = j ? !!j.clickSound : false;
   document.getElementById("trollImageInput").value = ""; document.getElementById("trollAudioInput").value = "";
   document.getElementById("trollTargetSearch").value = "";
   trollPopulateTargets(j ? j.targetDiscordId : "");
@@ -4654,13 +4700,16 @@ async function trollSave(){
   const targetName = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].dataset.name) || "";
   const apps = { roster: document.getElementById("trollAppRoster").checked, pillbox: document.getElementById("trollAppPillbox").checked };
   const text = document.getElementById("trollText").value;
+  const clickSound = document.getElementById("trollClickSound").checked;
   if(!name) return trollStatus("✕ Donne un nom à la blague.", "err");
   if(!targetDiscordId) return trollStatus("✕ Choisis le destinataire.", "err");
   if(!apps.roster && !apps.pillbox) return trollStatus("✕ Choisis au moins un outil (Roster et/ou Pillbox).", "err");
+  const hasAudio = (trollFiles.audio instanceof File) || (trollFiles.audio === undefined && trollEditingId && trollJokesCache.find(x=>x.id===trollEditingId)?.audio);
+  if(clickSound && !hasAudio) return trollStatus("✕ Le mode « son à chaque clic » a besoin d'un son — ajoute un MP3.", "err");
   trollSetBusy(true); trollStatus("Enregistrement…");
   let step = "la blague";
   try{
-    const r = await trollCall({ action:"save", id: trollEditingId || undefined, joke:{ name, targetDiscordId, targetName, apps, text } });
+    const r = await trollCall({ action:"save", id: trollEditingId || undefined, joke:{ name, targetDiscordId, targetName, apps, text, clickSound } });
     trollEditingId = r.joke.id;
     for(const kind of ["image","audio"]){
       const label = kind==="image" ? "l'image" : "le son";
@@ -4735,7 +4784,8 @@ document.getElementById("trollList").addEventListener("click", async (e)=>{
   if(what==="test"){ trollTest(j, false); return; }
   if(what==="arm"){
     if(!j.text && !j.image && !j.audio){ toast("Rien à envoyer : ajoute une phrase, une image ou un son."); return; }
-    if(!confirm(`Déclencher « ${j.name} » ?\n\nPersonne ciblée : ${j.targetName || j.targetDiscordId}\nÉléments : ${trollElements(j)}\nOù : ${trollApps(j.apps)}\n\nElle s'affichera à sa prochaine ouverture (une seule fois par outil) et expirera dans 7 jours si elle n'ouvre pas.`)) return;
+    const whenMsg = j.clickSound ? "Le son se jouera à CHAQUE clic sur un bouton, dans tout l'outil, jusqu'à ce que tu la désactives ou l'annules (ou 7 jours sans ouverture)." : "Elle s'affichera à sa prochaine ouverture (une seule fois par outil) et expirera dans 7 jours si elle n'ouvre pas.";
+    if(!confirm(`Déclencher « ${j.name} » ?\n\nPersonne ciblée : ${j.targetName || j.targetDiscordId}\nÉléments : ${trollElements(j)}\nOù : ${trollApps(j.apps)}\n\n${whenMsg}`)) return;
   }
   if(what==="cancel" && !confirm(`Annuler « ${j.name} » ? Elle ne sera jamais déclenchée.`)) return;
   if(what==="delete" && !confirm(`Supprimer définitivement « ${j.name} » et ses fichiers ?`)) return;
