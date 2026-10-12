@@ -3466,9 +3466,9 @@ async function individualBulk(action){
   if(!discordId) return;
   const emp = employees.find(e=>e.discordId===discordId);
   const who = emp ? `${emp.name} (${emp.grade})` : discordId;
-  const n = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).filter(k=>k!=="manage_troll").length;
+  const n = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).length;
   const msg = action === "setAll"
-    ? `Accorder TOUTES les permissions (${n}) à ${who} ?\n\nSon grade réel, sa paie et son ancienneté ne changent pas.\n\nLe Mode troll n'est PAS inclus : il se coche uniquement à la main.`
+    ? `Accorder TOUTES les permissions (${n}) à ${who} ?\n\nSon grade réel, sa paie et son ancienneté ne changent pas.\n\nLe Mode troll sera également activé.`
     : `Retirer toutes les exceptions individuelles de ${who} (celles que ton niveau peut retirer) ?\n\nIl retrouvera exactement les droits de son grade.`;
   if(!confirm(msg)) return;
   const btns = [document.getElementById("btnIndivSelectAll"), document.getElementById("btnIndivClearAll")];

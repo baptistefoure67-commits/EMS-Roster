@@ -136,14 +136,10 @@ exports.handler = async function (event) {
       ensure(permissionName)[cancelLayer] = null;
       logActionName = "exception_individuelle_annulee"; details = `Permission "${permissionName}" (couche ${cancelLayer} effacée)`;
     } else if (action === "setAll") {
-      // « Tout sélectionner » : TOUTES les permissions de l'inventaire réel,
-      // en une seule écriture (jamais un état à moitié appliqué). Le Mode
-      // troll ne fait pas partie de cet inventaire : impossible à attribuer.
-      // (12/10) Le Mode troll n'est JAMAIS coché par « Tout sélectionner » :
-      // il faut le cocher à la main, volontairement.
-      const BULK_EXCLUDED = ["manage_troll"];
-      ALL_PERMISSION_KEYS.filter(p => !BULK_EXCLUDED.includes(p)).forEach(perm => { ensure(perm)[effectiveLayer] = true; });
-      logActionName = "exceptions_individuelles_tout_selectionner"; details = `${ALL_PERMISSION_KEYS.length - 1} permissions autorisées, Mode troll exclu (couche ${effectiveLayer})`;
+      // « Tout sélectionner » accorde toutes les permissions connues,
+      // y compris le Mode troll, dans une seule écriture atomique.
+      ALL_PERMISSION_KEYS.forEach(perm => { ensure(perm)[effectiveLayer] = true; });
+      logActionName = "exceptions_individuelles_tout_selectionner"; details = `${ALL_PERMISSION_KEYS.length} permissions autorisées, Mode troll inclus (couche ${effectiveLayer})`;
     } else if (action === "clearAll") {
       // « Tout retirer » : efface toutes les décisions que l'auteur a le
       // droit d'effacer (sa couche et celles en dessous) -> retour au grade.
