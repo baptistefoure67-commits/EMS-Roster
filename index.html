@@ -112,11 +112,18 @@
   .cloud-group-menu button{ width:100%; text-align:left; }
 
   /* ── Onglets Roster / Signalement (combinaison des deux outils, 07/09) ── */
-  .tabbar{ display:flex; gap:8px; margin-bottom:16px; }
+  /* (13/10) Passé à flex-wrap pour la barre d'onglets : avec l'ajout du
+     Simulateur d'UP, 11 onglets ne tiennent plus sur une seule ligne à
+     largeur fixe — avant, ça écrasait le texte de certains boutons
+     (retour à la ligne DANS le bouton, "collé"). Chaque bouton garde
+     maintenant sa taille naturelle (flex:0 0 auto + white-space:nowrap)
+     et ceux qui ne tiennent pas passent proprement à la ligne suivante,
+     avec un espacement horizontal ET vertical cohérent (row-gap). */
+  .tabbar{ display:flex; flex-wrap:wrap; gap:10px 10px; margin-bottom:18px; }
   .tab-btn{
     background:var(--panel); border:1px solid var(--border); color:var(--text-dim);
-    border-radius:8px 8px 0 0; padding:9px 18px; font-size:0.85rem; font-weight:700;
-    cursor:pointer; border-bottom:none;
+    border-radius:8px 8px 0 0; padding:9px 16px; font-size:0.83rem; font-weight:700;
+    cursor:pointer; border-bottom:none; white-space:nowrap; flex:0 0 auto;
   }
   .tab-btn.active{ background:var(--panel-2); color:var(--cyan); border-color:var(--cyan); }
 
@@ -550,19 +557,21 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div class="special-title">🚀 Simulateur d'UP</div>
       <div class="special-sub" style="margin-bottom:10px;">
         Simulation uniquement — aucun bouton ici ne modifie le Roster, Pillbox ou le tableau EMS.
-        Colle le Tableau Complet de la semaine et le Tableau des Réanimations de la semaine,
-        clique sur « Analyser les UP » : le module croise les deux, applique les règles de
+        Clique sur « Analyser les UP » : le module croise les deux tableaux collés, applique les règles de
         quota/promotion réellement utilisées par Pillbox, et te propose les employés potentiellement
         éligibles — à valider toi-même plus tard, en vrai, au moment de recopier le tableau EMS.
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-dim);background:var(--bg-0);border:1px solid var(--border-soft);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+        ℹ️ <b>Le Tableau Complet correspond à la semaine déjà clôturée</b> (c'est son usage normal : il sert de base pour retraiter la semaine suivante) — colle à côté les <b>réanimations de la semaine en cours</b>. L'ancienneté affichée est calculée par rapport à aujourd'hui. La <b>Formation Opération</b> et l'<b>activité Formateur/Psychologue</b> (recrutements, formations, tests psy, PPA, consultations) sont récupérées automatiquement depuis ce Roster — pas besoin de les coller ni de les ressaisir.
       </div>
 
       <div class="special-controls" style="margin-top:0;align-items:flex-start;">
         <div style="flex:1;min-width:280px;">
-          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau complet de la semaine</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau complet (semaine clôturée)</div>
           <textarea id="upSimCompletText" rows="10" style="width:100%;" placeholder="Colle ici le Tableau Complet (format habituel : catégories, Nom (ID: ...), Grade :, Info :, Absences :, Date Up :)"></textarea>
         </div>
         <div style="flex:1;min-width:280px;">
-          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau des réanimations de la semaine</div>
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau des réanimations (semaine en cours)</div>
           <textarea id="upSimReaText" rows="10" style="width:100%;" placeholder="Colle ici le tableau des réanimations (ex : Brawn Cass — Réanimations : 487)"></textarea>
         </div>
       </div>
@@ -3056,7 +3065,14 @@ function switchTab(active){
   if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
-  if(active==="UpSim"){ if(!payRulesConfigCache) loadPayRulesConfig().catch(()=>{}); }
+  if(active==="UpSim"){
+    if(!payRulesConfigCache) loadPayRulesConfig().catch(()=>{});
+    // Rafraîchit silencieusement la Formation Opération et le Suivi
+    // d'activité Formateur/Psychologue (lus directement depuis ce
+    // Roster par le Simulateur, voir upBuildMessage) sans changer d'onglet.
+    loadFormationFromCloudIntoSelection(true).catch(()=>{});
+    loadActiviteFromCloud(true).catch(()=>{});
+  }
   if(active==="Troll"){ trollRenderTab(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
@@ -3233,6 +3249,33 @@ function upCrossReference(completEmployees, reaEntries){
   return { results, reaOnlyCount: reaOnly.length };
 }
 
+// ── Rapproche une fiche du tableau collé avec l'employé déjà présent
+// dans CE Roster (même ID unique EMS en priorité, sinon nom
+// normalisé) — pour aller chercher, directement dans les données déjà
+// chargées ici (jamais dans un 3ᵉ tableau à coller), la Formation
+// Opération (liste `specialSelected`, onglet 🎓 Opération) et le Suivi
+// d'activité Formateur/Psychologue (`activiteData`, alimenté par les
+// onglets 📚/🧠). Renvoie null si personne ne correspond. ──
+function upFindRosterEmployee(emp){
+  if(typeof employees === "undefined" || !Array.isArray(employees) || !employees.length) return null;
+  if(emp.id){
+    const byId = employees.find(e=>!e.licencie && e.idUnique && String(e.idUnique)===String(emp.id));
+    if(byId) return byId;
+  }
+  const norm = upNormalizeName(emp.name);
+  return employees.find(e=>!e.licencie && upNormalizeName(e.name)===norm) || null;
+}
+
+// true/false si on sait, null si on ne peut pas savoir (employé
+// introuvable dans ce Roster) — jamais supposé false par défaut (même
+// logique neutre que hasFormationOperation() côté Pillbox : une liste
+// vide ne doit accuser personne).
+function upHasFormationOperation(rosterEmployee){
+  if(!rosterEmployee) return null;
+  if(typeof specialSelected === "undefined" || !specialSelected || !specialSelected.size) return true;
+  return specialSelected.has(rosterEmployee.id);
+}
+
 function upParseInfoCodes(infoRaw){
   const res = { staff:false, benevole:false, Q:0, S:0, A:0, AB:0, raw: infoRaw||"", unknownTokens:[] };
   const s = (infoRaw||"").trim();
@@ -3288,7 +3331,7 @@ function upFormatSeniority(sen){
 //    "première réussite" — il faudra une seconde semaine réussie.
 //  • Médecin (M) : la cible n'est pas une seule case (MF/MP/MLP) —
 //    signalé comme "à déterminer", jamais inventé.
-function upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff){
+function upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff, rosterEmployee){
   const info = upParseInfoCodes(emp.info);
   const grade = upResolveGradeCode(emp.grade);
 
@@ -3311,13 +3354,23 @@ function upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff){
 
   if(info.S>=1){
     const targetGrade = UP_NEXT_SINGLE[grade] || null;
-    return { status:"eligible", targetGrade, ambiguousSpecialty: grade==="M", info, grade, quota };
+    const result = { status:"eligible", targetGrade, ambiguousSpecialty: grade==="M", info, grade, quota };
+    // Formation Opération : condition OBLIGATOIRE côté Pillbox pour le
+    // passage Ambulancier → Infirmier (hasFormationOperation()) —
+    // reprise ici à l'identique, via la liste déjà tenue par CE Roster
+    // (onglet 🎓 Opération), jamais redemandée.
+    if(grade==="A"){
+      const hasFo = upHasFormationOperation(rosterEmployee);
+      result.missingFormationOperation = (hasFo===false);
+      result.formationOperationUnknown = (hasFo===null);
+    }
+    return result;
   }
 
   return { status:"first_success", reason:`Quota atteint pour la première fois cette semaine (${emp.reaCount}/${quota}) — un S1 sera posé ; il faudra une seconde semaine réussie pour devenir éligible à une promotion.`, info, grade, quota };
 }
 
-function upBuildMessage(emp, ev, refDate){
+function upBuildMessage(emp, ev, refDate, rosterEmployee){
   const gradeLabel = GRADE_LABEL[ev.grade] || emp.grade || "?";
   let headline;
   if(ev.ambiguousSpecialty){
@@ -3335,9 +3388,32 @@ function upBuildMessage(emp, ev, refDate){
   ];
   if(ev.info.S>=1) parts.push("S1 déjà présent");
   parts.push(`dans ce grade depuis le ${dateUpText} (${upFormatSeniority(sen)})`);
-  if(["MF","MP","MLP","RF","RP","RL"].includes(ev.grade)){
-    parts.push("activités spécifiques du pôle (tests psy / PPA / formations / consultations) : indisponibles depuis ces deux tableaux — à vérifier dans le Suivi d'activité avant de valider");
+
+  // Formation Opération (obligatoire pour A → INF côté Pillbox) — lue
+  // directement dans ce Roster, jamais redemandée.
+  if(ev.missingFormationOperation){
+    parts.push("⚠️ n'a PAS la formation Opération — condition obligatoire pour la promotion Ambulancier → Infirmier côté Pillbox");
+  } else if(ev.formationOperationUnknown){
+    parts.push("formation Opération : employé introuvable dans ce Roster (ID/nom) — statut à vérifier manuellement dans l'onglet 🎓 Opération");
   }
+
+  // Activité du pôle Formateur/Psychologue — lue directement dans ce
+  // Roster (onglets 📚/🧠), jamais redemandée dans un 3ᵉ tableau à coller.
+  if(["MF","RF","MP","RP","MLP","RL"].includes(ev.grade)){
+    if(rosterEmployee){
+      const key = (typeof activiteKeyFor==="function") ? activiteKeyFor(rosterEmployee) : null;
+      const act = key ? activiteData[key] : null;
+      if(act){
+        if(["MF","RF"].includes(ev.grade)) parts.push(`activité Formateur (Roster) : ${act.recrutements||0} recrutement(s), ${act.formations||0} formation(s) cette semaine`);
+        else parts.push(`activité Psychologue (Roster) : ${act.testsPsy||0} test(s) psy, ${act.ppa||0} PPA, ${act.consultations||0} consultation(s) cette semaine`);
+      } else {
+        parts.push("activité du pôle : aucune donnée pour l'instant dans le Suivi d'activité du Roster — à vérifier avant de valider");
+      }
+    } else {
+      parts.push("activité du pôle : employé introuvable dans ce Roster — à vérifier manuellement dans le Suivi d'activité");
+    }
+  }
+
   if(emp.absences && !/^vide$/i.test(emp.absences)) parts.push(`absences signalées : ${emp.absences}`);
   return { headline, detail: parts.join(" — ") };
 }
@@ -3355,8 +3431,15 @@ function upSimAnalyze(){
     statusEl.style.color = "var(--amber)";
     return;
   }
+  // (13/10) Le Tableau Complet reflète l'état juste APRÈS la clôture de
+  // la semaine indiquée dans son en-tête ("sert de base pour retraiter
+  // la semaine suivante", voir CONTEXTE.txt de Pillbox) — ce n'est donc
+  // PAS la semaine en cours. Les réanimations collées à côté, elles,
+  // sont bien celles de la semaine EN COURS. L'ancienneté se calcule
+  // donc par rapport à aujourd'hui (date réelle), jamais par rapport à
+  // la date de fin indiquée dans l'en-tête du tableau.
   const week = upParseWeekHeader(completText);
-  const refDate = week && week.end ? week.end : new Date();
+  const refDate = new Date();
   const completEmployees = upParseCompletTable(completText);
   if(!completEmployees.length){
     statusEl.textContent = "⚠ Aucune fiche employé reconnue dans le tableau complet — vérifie le format collé (Nom (ID: ...), Grade :, etc.).";
@@ -3371,19 +3454,29 @@ function upSimAnalyze(){
   const quotaStandard = (cfg && typeof cfg.quotaStandard==="number") ? cfg.quotaStandard : UP_QUOTA_STANDARD_DEFAULT;
   const quotaStaff = (cfg && typeof cfg.quotaStaff==="number") ? cfg.quotaStaff : UP_QUOTA_STAFF_DEFAULT;
 
-  const evaluated = results.map(emp=>({ emp, ev: upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff) }));
+  const evaluated = results.map(emp=>{
+    const rosterEmployee = upFindRosterEmployee(emp);
+    return { emp, rosterEmployee, ev: upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff, rosterEmployee) };
+  });
+  const matchedCount = evaluated.filter(x=>x.rosterEmployee).length;
 
   upSimState = { employees: evaluated, decisions: {}, refDate, weekLabel: week ? `${week.startRaw} - ${week.endRaw}` : "" };
 
   const quotaNote = cfg
     ? `Quotas utilisés : ${quotaStandard} standard / ${quotaStaff} staff (réglages en vigueur).`
     : `⚠ Réglages de paie pas encore chargés — quotas par défaut utilisés (${UP_QUOTA_STANDARD_DEFAULT} standard / ${UP_QUOTA_STAFF_DEFAULT} staff). Ouvre une fois l'onglet « ⚙️ Réglages des paies » si tes quotas réels sont différents, puis relance l'analyse.`;
-  statusEl.textContent = `✓ ${completEmployees.length} fiche(s) lue(s) dans le tableau complet, ${reaEntries.length} ligne(s) de réanimations, ${reaOnlyCount} nom(s) présents uniquement dans le tableau réa (ignorés — pas de fiche correspondante). ${quotaNote}`;
+  const weekNote = week ? ` Semaine indiquée dans le tableau (déjà clôturée) : ${week.startRaw} - ${week.endRaw} — les réanimations collées sont supposées être celles de la semaine en cours.` : "";
+  statusEl.textContent = `✓ ${completEmployees.length} fiche(s) lue(s), ${reaEntries.length} ligne(s) de réanimations, ${reaOnlyCount} nom(s) présents uniquement dans le tableau réa, ${matchedCount}/${completEmployees.length} retrouvé(s) dans ce Roster (Formation Opération/activité). ${quotaNote}${weekNote}`;
   statusEl.style.color = cfg ? "var(--text-dim)" : "var(--amber)";
   upSimRender();
 }
 
 function upSimKey(emp){ return emp.id || upNormalizeName(emp.name); }
+
+function upSimGradeBadge(code){
+  if(!code || !GRADE_COLOR[code]) return `<span class="grade-badge" style="background:var(--border);color:var(--text-dim);">?</span>`;
+  return `<span class="grade-badge" style="background:${GRADE_COLOR[code]};color:${GRADE_TEXT_COLOR[code]};">${esc(code)}</span>`;
+}
 
 function upSimRender(){
   const box = document.getElementById("upSimResults");
@@ -3396,52 +3489,60 @@ function upSimRender(){
 
   let html = "";
 
+  html += `<div class="special-title" style="font-size:0.95rem;margin-bottom:8px;">✅ UP éligibles <span style="color:var(--text-dim);font-weight:400;">(${eligible.length})</span></div>`;
   if(!eligible.length){
     html += `<div class="empty-msg">Aucun UP éligible détecté pour cette semaine.</div>`;
   } else {
-    html += eligible.map(({emp,ev})=>{
+    html += eligible.map(({emp,ev,rosterEmployee})=>{
       const key = upSimKey(emp);
       const decision = upSimState.decisions[key];
-      const msg = upBuildMessage(emp, ev, upSimState.refDate);
+      const msg = upBuildMessage(emp, ev, upSimState.refDate, rosterEmployee);
+      const targetBadge = ev.ambiguousSpecialty
+        ? `<span style="color:var(--text-faint);font-size:0.72rem;">MF / MP / MLP ?</span>`
+        : upSimGradeBadge(ev.targetGrade);
       let decisionHtml;
       if(decision==="yes"){
-        decisionHtml = `<div style="color:var(--green);font-size:0.8rem;font-weight:600;margin-top:8px;">✓ Promotion acceptée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
+        decisionHtml = `<div style="color:var(--green);font-size:0.78rem;font-weight:600;margin-top:8px;">✓ Promotion acceptée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
       } else if(decision==="no"){
-        decisionHtml = `<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-top:8px;">✕ Promotion refusée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
+        decisionHtml = `<div style="color:var(--red);font-size:0.78rem;font-weight:600;margin-top:8px;">✕ Promotion refusée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
       } else {
         decisionHtml = `<div style="display:flex;gap:8px;margin-top:10px;">
           <button type="button" class="btn-primary btn-small" data-upsim-yes="${esc(key)}">✓ Oui</button>
           <button type="button" class="btn-ghost btn-small" data-upsim-no="${esc(key)}">Non</button>
         </div>`;
       }
-      return `<div class="card" style="margin-bottom:10px;">
-        <div style="font-weight:700;">${esc(msg.headline)}</div>
-        <div style="font-size:0.78rem;color:var(--text-dim);margin-top:4px;">(${esc(msg.detail)})</div>
+      return `<div class="edit-row" style="flex-direction:column;align-items:stretch;border-left:3px solid var(--green);background:var(--panel-2);">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${upSimGradeBadge(ev.grade)}
+          <span style="color:var(--text-faint);">→</span>
+          ${targetBadge}
+          <span style="font-weight:700;">${esc(emp.name)}</span>
+          ${rosterEmployee ? `<span title="Retrouvé dans ce Roster" style="font-size:0.72rem;color:var(--text-faint);">🔗 lié au Roster</span>` : `<span title="Pas retrouvé dans ce Roster" style="font-size:0.72rem;color:var(--amber);">⚠ non lié au Roster</span>`}
+        </div>
+        <div style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;">${esc(msg.detail)}</div>
         ${decisionHtml}
       </div>`;
     }).join("");
   }
 
-  if(firstSuccess.length){
-    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">ℹ️ ${firstSuccess.length} personne(s) à surveiller — quota réussi une 1ʳᵉ fois cette semaine (pas encore éligibles)</summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-        ${firstSuccess.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--text-dim);">${esc(emp.name)} (${esc(GRADE_LABEL[ev.grade]||emp.grade)}) — ${esc(ev.reason)}</div>`).join("")}
-      </div></details>`;
-  }
+  const section = (list, icon, title, color, bodyFn)=> list.length ? `
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:${color};list-style:none;display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-0);border:1px solid var(--border-soft);border-radius:8px;">
+        <span style="transition:transform .15s;">${icon}</span> ${title} <span style="color:var(--text-dim);font-weight:400;">(${list.length})</span>
+      </summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;padding-left:4px;">
+        ${list.map(bodyFn).join("")}
+      </div>
+    </details>` : "";
 
-  if(blocked.length){
-    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">⚠️ ${blocked.length} personne(s) bloquée(s) par un avertissement actif</summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-        ${blocked.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--amber);">${esc(emp.name)} (${esc(GRADE_LABEL[ev.grade]||emp.grade)}) — ${esc(ev.reason)}</div>`).join("")}
-      </div></details>`;
-  }
+  html += section(firstSuccess, "⏳", "À surveiller — quota réussi une 1ʳᵉ fois cette semaine (pas encore éligibles)", "var(--cyan)",
+    ({emp,ev})=>`<div class="edit-row" style="border-left:3px solid var(--cyan);">${upSimGradeBadge(ev.grade)}<span style="font-weight:600;">${esc(emp.name)}</span><span style="font-size:0.78rem;color:var(--text-dim);">${esc(ev.reason)}</span></div>`);
 
-  if(missing.length){
-    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">❓ ${missing.length} personne(s) avec des données manquantes ou ambiguës</summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-        ${missing.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--text-dim);">${esc(emp.name)}${emp.grade?` (${esc(emp.grade)})`:""} — ${esc(ev.reason)}</div>`).join("")}
-      </div></details>`;
-  }
+  html += section(blocked, "⚠️", "Bloqué(e)s par un avertissement actif", "var(--amber)",
+    ({emp,ev})=>`<div class="edit-row" style="border-left:3px solid var(--amber);">${upSimGradeBadge(ev.grade)}<span style="font-weight:600;">${esc(emp.name)}</span><span style="font-size:0.78rem;color:var(--amber);">${esc(ev.reason)}</span></div>`);
+
+  html += section(missing, "❓", "Données manquantes ou ambiguës", "var(--text-dim)",
+    ({emp,ev})=>`<div class="edit-row" style="border-left:3px solid var(--border);">${emp.grade?upSimGradeBadge(upResolveGradeCode(emp.grade)):""}<span style="font-weight:600;">${esc(emp.name)}</span><span style="font-size:0.78rem;color:var(--text-dim);">${esc(ev.reason)}</span></div>`);
 
   box.innerHTML = html;
 }
