@@ -282,6 +282,7 @@
     <button type="button" class="tab-btn" id="tabFormateurBtn">📚 Formateur</button>
     <button type="button" class="tab-btn" id="tabPsychologueBtn">🧠 Psychologue</button>
     <button type="button" class="tab-btn" id="tabAbsencesBtn">📅 Absences</button>
+    <button type="button" class="tab-btn" id="tabUpSimBtn" style="display:none;">🚀 Simulateur d'UP</button>
     <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
     <button type="button" class="tab-btn" id="tabReglagesPaieBtn" style="display:none;">⚙️ Réglages des paies</button>
@@ -531,6 +532,48 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <button class="btn-ghost btn-small" id="btnAbsencesRefresh">↻ Actualiser</button>
       </div>
       <div class="special-list" id="absencesList" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SIMULATEUR D'UP — module de SIMULATION UNIQUEMENT (11/10).
+       Croise le Tableau Complet collé et le Tableau des Réanimations
+       collé pour repérer, à l'avance, les employés qui rempliraient les
+       conditions d'une promotion. N'écrit JAMAIS aucune donnée réelle
+       (ni le Roster, ni Pillbox, ni le tableau EMS) : les boutons
+       "✓ Oui" / "Non" ne font que marquer l'affichage de cette page,
+       rien de plus. Les règles de quota/promotion reproduites ici sont
+       celles réellement utilisées par Pillbox (Q/S/A, voir
+       upEvaluateEligibility) — jamais inventées. -->
+  <div id="upSimView" style="display:none;">
+    <div class="card">
+      <div class="special-title">🚀 Simulateur d'UP</div>
+      <div class="special-sub" style="margin-bottom:10px;">
+        Simulation uniquement — aucun bouton ici ne modifie le Roster, Pillbox ou le tableau EMS.
+        Colle le Tableau Complet de la semaine et le Tableau des Réanimations de la semaine,
+        clique sur « Analyser les UP » : le module croise les deux, applique les règles de
+        quota/promotion réellement utilisées par Pillbox, et te propose les employés potentiellement
+        éligibles — à valider toi-même plus tard, en vrai, au moment de recopier le tableau EMS.
+      </div>
+
+      <div class="special-controls" style="margin-top:0;align-items:flex-start;">
+        <div style="flex:1;min-width:280px;">
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau complet de la semaine</div>
+          <textarea id="upSimCompletText" rows="10" style="width:100%;" placeholder="Colle ici le Tableau Complet (format habituel : catégories, Nom (ID: ...), Grade :, Info :, Absences :, Date Up :)"></textarea>
+        </div>
+        <div style="flex:1;min-width:280px;">
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Coller le tableau des réanimations de la semaine</div>
+          <textarea id="upSimReaText" rows="10" style="width:100%;" placeholder="Colle ici le tableau des réanimations (ex : Brawn Cass — Réanimations : 487)"></textarea>
+        </div>
+      </div>
+
+      <div class="special-controls" style="margin-top:10px;">
+        <button type="button" class="btn-primary" id="btnUpSimAnalyze">🔍 Analyser les UP</button>
+        <button type="button" class="btn-ghost btn-small" id="btnUpSimClear">↺ Effacer</button>
+        <span id="upSimStatus" style="font-size:0.78rem;color:var(--text-dim);"></span>
+      </div>
+
+      <div id="upSimResults" style="margin-top:16px;"></div>
     </div>
   </div>
 
@@ -2997,7 +3040,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 });
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","UpSim","Logs","Permissions","ReglagesPaie","Troll"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
@@ -3013,6 +3056,7 @@ function switchTab(active){
   if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
+  if(active==="UpSim"){ if(!payRulesConfigCache) loadPayRulesConfig().catch(()=>{}); }
   if(active==="Troll"){ trollRenderTab(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
@@ -3021,6 +3065,403 @@ function switchTab(active){
 TAB_IDS.forEach(name=>{
   document.getElementById(`tab${name}Btn`).addEventListener("click", ()=>switchTab(name));
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// SIMULATEUR D'UP (11/10) — module de SIMULATION UNIQUEMENT.
+// ═══════════════════════════════════════════════════════════════════
+// Croise le Tableau Complet collé et le Tableau des Réanimations collé
+// pour repérer, par avance, les employés qui rempliraient les
+// conditions d'une promotion. Les boutons "✓ Oui"/"Non" ne font QUE
+// marquer l'affichage local de cette page — ils ne modifient JAMAIS le
+// Roster, Pillbox, le tableau EMS, les grades, les dates d'UP, les
+// infos de dossier, et rien n'est sauvegardé en base ni en historique
+// permanent. Une nouvelle analyse ou un rechargement de page régénère
+// tout à partir des deux tableaux collés, rien n'est mémorisé ailleurs.
+//
+// Règles de quota/promotion : reproduites depuis le code réel de
+// Pillbox (voir le fichier CONTEXTE.txt généré par Pillbox, section 4
+// et 5, et la fonction de calcul des payes qui gère Q/S/A). Ce module
+// ne modifie PAS ces règles et n'en invente aucune : si une donnée
+// nécessaire manque (ancienneté, activités du pôle), il l'affiche
+// comme indisponible plutôt que de la deviner.
+
+const UP_EXEMPT = new Set(["MC","ADD","CD","D","DG"]); // haut gradés : pas de quota réa, hors périmètre de ce simulateur
+const UP_NEXT_SINGLE = {A:"INF", INF:"M", MF:"RF", MP:"RP", MLP:"RL", RF:"MC", RP:"MC", RL:"MC"};
+const UP_QUOTA_STANDARD_DEFAULT = 70; // valeur par défaut de Pillbox — à vérifier dans "⚙️ Réglages des paies" si elle a été changée
+const UP_QUOTA_STAFF_DEFAULT = 30;
+
+function upNormalizeName(s){
+  return (s||"").toString()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g," ")
+    .trim()
+    .replace(/\s+/g," ");
+}
+
+function upParseFrDate(raw){
+  const m = (raw||"").trim().match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+  if(!m) return null;
+  let [,d,mo,y] = m;
+  if(y.length===2) y = (Number(y)<70 ? "20" : "19") + y;
+  const dt = new Date(Number(y), Number(mo)-1, Number(d));
+  if(isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function upParseWeekHeader(text){
+  const m = (text||"").match(/Semaine\s+(\d{2}\/\d{2}\/\d{2,4})\s*-\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+  if(!m) return null;
+  return { startRaw:m[1], endRaw:m[2], start:upParseFrDate(m[1]), end:upParseFrDate(m[2]) };
+}
+
+// ── Résolution Grade (libellé → code) : réutilise GRADE_LABEL déjà
+// défini plus haut dans ce fichier (Roster), pour ne jamais désigner
+// deux étiquettes différentes pour le même grade. ──
+let UP_LABEL_TO_CODE = null;
+function upLabelToCode(){
+  if(UP_LABEL_TO_CODE) return UP_LABEL_TO_CODE;
+  UP_LABEL_TO_CODE = {};
+  for(const code of Object.keys(GRADE_LABEL)){
+    UP_LABEL_TO_CODE[upNormalizeName(GRADE_LABEL[code])] = code;
+  }
+  return UP_LABEL_TO_CODE;
+}
+function upResolveGradeCode(labelRaw){
+  if(!labelRaw) return null;
+  // retire les marqueurs ⬆️ NEW / ⬆️ UP (ex-...) collés sur la même ligne que le grade
+  const cleaned = labelRaw.replace(/⬆️.*$/,"").trim();
+  const map = upLabelToCode();
+  const norm = upNormalizeName(cleaned);
+  if(map[norm]) return map[norm];
+  const upper = cleaned.toUpperCase();
+  if(GRADE_ORDER.includes(upper)) return upper;
+  return null;
+}
+
+// ── Parseur du Tableau Complet (format documenté : catégories "── X ──",
+// fiches "Nom (ID: xxx)" suivies de Grade/Info/Absences/Date Up, séparées
+// par des lignes "────"). Les séparateurs décoratifs et les lignes
+// d'avertissement de bas de fichier ne sont jamais traités comme des
+// données. ──
+function upParseCompletTable(text){
+  const lines = (text||"").split(/\r?\n/);
+  let currentCategory = null;
+  const employees = [];
+  let current = null;
+  function flush(){ if(current && current.name) employees.push(current); current = null; }
+  for(const rawLine of lines){
+    const line = rawLine.trim();
+    if(!line) continue;
+    if(/^[─━_=]{3,}$/.test(line)) continue;      // séparateur horizontal
+    if(/^[═]{3,}$/.test(line)) continue;
+    const catMatch = line.match(/^──+\s*(.+?)\s*──+$/) || line.match(/^─\s*(.+?)\s*─$/);
+    if(catMatch){ currentCategory = catMatch[1].trim(); continue; }
+    if(/^TABLEAU COMPLET/i.test(line)) continue;
+    if(/^⚠/.test(line)) continue;
+    if(/Fichier à usage/i.test(line)) continue;
+    if(/Ne pas copier/i.test(line)) continue;
+
+    const nameMatch = line.match(/^(.+?)\s*\(\s*ID\s*:\s*([^)]+)\)\s*(.*)$/i);
+    if(nameMatch){
+      flush();
+      current = {
+        category: currentCategory,
+        name: nameMatch[1].trim(),
+        id: nameMatch[2].trim(),
+        headMarkers: nameMatch[3].trim(),
+        grade: null, gradeMarkers: "", info: null, absences: null, dateUp: null,
+      };
+      continue;
+    }
+    if(!current) continue;
+    let m;
+    if((m = line.match(/^Grade\s*:\s*(.*)$/i))){
+      const upIdx = m[1].search(/⬆️/);
+      if(upIdx>=0){ current.grade = m[1].slice(0,upIdx).trim(); current.gradeMarkers = m[1].slice(upIdx).trim(); }
+      else { current.grade = m[1].trim(); }
+      continue;
+    }
+    if((m = line.match(/^Info\s*:\s*(.*)$/i))){ current.info = m[1].trim(); continue; }
+    if((m = line.match(/^Absences\s*:\s*(.*)$/i))){ current.absences = m[1].trim(); continue; }
+    if((m = line.match(/^Date\s*Up\s*:\s*(.*)$/i))){ current.dateUp = m[1].trim(); continue; }
+  }
+  flush();
+  return employees;
+}
+
+// ── Parseur du Tableau des Réanimations : "Nom — Réanimations : N",
+// tolère la numérotation ("1. Nom — ..."), le tiret simple, les espaces
+// variables, et ignore toute autre ligne (factures, titres...). ──
+function upParseReaTable(text){
+  const lines = (text||"").split(/\r?\n/);
+  const entries = [];
+  for(const rawLine of lines){
+    let line = rawLine.trim();
+    if(!line) continue;
+    line = line.replace(/^\d+\.\s*/, "");
+    const m = line.match(/^(.+?)\s*[—–\-]\s*R[ée]animations\s*:?\s*(\d+)/i);
+    if(m) entries.push({ name: m[1].trim(), rea: parseInt(m[2],10) });
+  }
+  return entries;
+}
+
+// ── Rapprochement par nom normalisé. Une correspondance en double (deux
+// lignes différentes du tableau réa qui normalisent vers le même nom
+// avec des comptes différents) est signalée comme ambiguë plutôt que
+// devinée. ──
+function upCrossReference(completEmployees, reaEntries){
+  const byNorm = new Map();   // norm -> rea count (si unique)
+  const ambiguous = new Set();
+  for(const e of reaEntries){
+    const key = upNormalizeName(e.name);
+    if(byNorm.has(key) && byNorm.get(key) !== e.rea) ambiguous.add(key);
+    else byNorm.set(key, e.rea);
+  }
+  // noms présents uniquement dans le tableau réa (pas dans le complet) —
+  // pour information, aucune proposition d'UP n'est faite pour eux.
+  const completNorms = new Set(completEmployees.map(e=>upNormalizeName(e.name)));
+  const reaOnly = [...byNorm.keys()].filter(k=>!completNorms.has(k));
+
+  const results = completEmployees.map(emp=>{
+    const key = upNormalizeName(emp.name);
+    let reaCount = null, reaStatus = "missing";
+    if(ambiguous.has(key)) reaStatus = "ambiguous";
+    else if(byNorm.has(key)){ reaCount = byNorm.get(key); reaStatus = "ok"; }
+    return { ...emp, reaCount, reaStatus };
+  });
+  return { results, reaOnlyCount: reaOnly.length };
+}
+
+function upParseInfoCodes(infoRaw){
+  const res = { staff:false, benevole:false, Q:0, S:0, A:0, AB:0, raw: infoRaw||"", unknownTokens:[] };
+  const s = (infoRaw||"").trim();
+  if(!s || /^vide$/i.test(s)) return res;
+  if(/\[STAFF\]/i.test(s)) res.staff = true;
+  if(/\bBNVL\b|\bBNLV\b/i.test(s)) res.benevole = true;
+  let m;
+  if((m = s.match(/\bQ([0-3])\b/i))) res.Q = parseInt(m[1],10);
+  if((m = s.match(/\bS([0-9]+)\b/i))) res.S = parseInt(m[1],10);
+  if((m = s.match(/\bA([0-3])\b/i))) res.A = parseInt(m[1],10);
+  if((m = s.match(/\bAB([0-3])\b/i))) res.AB = parseInt(m[1],10);
+  return res;
+}
+
+function upParseDateUp(raw){
+  if(!raw) return null;
+  if(/À\s*COMPL[ÉE]TER/i.test(raw)) return null;
+  return upParseFrDate(raw);
+}
+
+function upComputeSeniority(dateUp, refDate){
+  if(!dateUp || !refDate) return null;
+  const totalDays = Math.round((refDate - dateUp) / 86400000);
+  if(totalDays < 0) return null;
+  // Différence calendaire exacte (mois civils complets + jours restants),
+  // plutôt qu'une approximation à 30,44 jours/mois.
+  let months = (refDate.getFullYear()-dateUp.getFullYear())*12 + (refDate.getMonth()-dateUp.getMonth());
+  let anchor = new Date(dateUp.getFullYear(), dateUp.getMonth()+months, dateUp.getDate());
+  if(anchor > refDate){ months--; anchor = new Date(dateUp.getFullYear(), dateUp.getMonth()+months, dateUp.getDate()); }
+  const remDays = Math.round((refDate - anchor) / 86400000);
+  return { days: totalDays, months, remDays };
+}
+function upFormatSeniority(sen){
+  if(!sen) return "ancienneté inconnue (date du dernier UP non renseignée ou illisible)";
+  if(sen.months<=0) return `${sen.days} jour(s)`;
+  return `${sen.months} mois et ${sen.remDays} jour(s)`;
+}
+
+// ── Cœur des règles d'éligibilité, reproduites depuis Pillbox (jamais
+// inventées) :
+//  • Grades hors quota (MC/ADD/CD/D/DG) et bénévoles (BNVL) : exclus.
+//  • Quota = quota staff si "[STAFF]" présent dans Info, sinon quota
+//    standard (réglages par défaut 30 / 70, à vérifier dans "⚙️ Réglages
+//    des paies" si personnalisés).
+//  • Stagiaire (STG) : promotion proposée dès que le quota est atteint
+//    cette semaine ET qu'aucun avertissement comportemental (A1/A2/A3)
+//    n'est actif — pas besoin d'un S1 préalable.
+//  • Tous les autres grades concernés (A/INF/M/MF/MP/MLP/RF/RP/RL) :
+//    promotion proposée seulement si un S1 était DÉJÀ présent (quota
+//    déjà réussi une fois) ET que le quota est de nouveau atteint cette
+//    semaine ET qu'aucun A actif. Si le quota est atteint pour la
+//    première fois (pas de S1 préalable), c'est juste signalé comme
+//    "première réussite" — il faudra une seconde semaine réussie.
+//  • Médecin (M) : la cible n'est pas une seule case (MF/MP/MLP) —
+//    signalé comme "à déterminer", jamais inventé.
+function upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff){
+  const info = upParseInfoCodes(emp.info);
+  const grade = upResolveGradeCode(emp.grade);
+
+  if(info.benevole) return { status:"excluded", reason:"Bénévole (BNVL) — exempté de quota, jamais de proposition d'UP.", info, grade };
+  if(!grade) return { status:"excluded", reason:`Grade non reconnu ("${emp.grade||"?"}") — vérifier le libellé dans le tableau complet.`, info, grade };
+  if(UP_EXEMPT.has(grade)) return { status:"excluded", reason:"Grade hors quota de réanimations (haut gradé) — hors du périmètre de ce simulateur.", info, grade };
+
+  if(emp.reaStatus==="ambiguous") return { status:"ambiguous", reason:"Correspondance ambiguë entre le tableau complet et le tableau des réanimations (plusieurs comptes différents pour un nom qui se normalise pareil) — vérification manuelle nécessaire.", info, grade };
+  if(emp.reaStatus==="missing") return { status:"missing_data", reason:"Statistiques de réanimations introuvables pour cette personne dans le tableau collé — absent du tableau de réanimations, pas supposé à 0.", info, grade };
+
+  const quota = info.staff ? quotaStaff : quotaStandard;
+  const quotaMet = emp.reaCount >= quota;
+  if(!quotaMet) return { status:"not_eligible", reason:`Quota non atteint cette semaine (${emp.reaCount}/${quota} réa).`, info, grade, quota };
+
+  if(info.A>0) return { status:"blocked", reason:`Quota atteint (${emp.reaCount}/${quota}) mais avertissement comportemental actif (A${info.A}) — proposition bloquée, à traiter manuellement.`, info, grade, quota };
+
+  if(grade==="STG"){
+    return { status:"eligible", targetGrade:"A", info, grade, quota };
+  }
+
+  if(info.S>=1){
+    const targetGrade = UP_NEXT_SINGLE[grade] || null;
+    return { status:"eligible", targetGrade, ambiguousSpecialty: grade==="M", info, grade, quota };
+  }
+
+  return { status:"first_success", reason:`Quota atteint pour la première fois cette semaine (${emp.reaCount}/${quota}) — un S1 sera posé ; il faudra une seconde semaine réussie pour devenir éligible à une promotion.`, info, grade, quota };
+}
+
+function upBuildMessage(emp, ev, refDate){
+  const gradeLabel = GRADE_LABEL[ev.grade] || emp.grade || "?";
+  let headline;
+  if(ev.ambiguousSpecialty){
+    headline = `${emp.name} est éligible à une spécialisation (Médecin Formateur / Médecin Psychologue / Médecin Légiste Pompier) — spécialité à déterminer, jamais choisie automatiquement.`;
+  } else {
+    const targetLabel = GRADE_LABEL[ev.targetGrade] || ev.targetGrade || "grade supérieur";
+    headline = `${emp.name} est éligible à une promotion au grade de ${targetLabel}.`;
+  }
+  const sen = upComputeSeniority(upParseDateUp(emp.dateUp), refDate);
+  const dateUpText = (emp.dateUp && !/À\s*COMPL[ÉE]TER/i.test(emp.dateUp)) ? emp.dateUp : "date inconnue (À COMPLÉTER)";
+  const parts = [
+    gradeLabel,
+    `${emp.reaCount} réa`,
+    `quota atteint (${emp.reaCount}/${ev.quota})`,
+  ];
+  if(ev.info.S>=1) parts.push("S1 déjà présent");
+  parts.push(`dans ce grade depuis le ${dateUpText} (${upFormatSeniority(sen)})`);
+  if(["MF","MP","MLP","RF","RP","RL"].includes(ev.grade)){
+    parts.push("activités spécifiques du pôle (tests psy / PPA / formations / consultations) : indisponibles depuis ces deux tableaux — à vérifier dans le Suivi d'activité avant de valider");
+  }
+  if(emp.absences && !/^vide$/i.test(emp.absences)) parts.push(`absences signalées : ${emp.absences}`);
+  return { headline, detail: parts.join(" — ") };
+}
+
+// ── État local (jamais sauvegardé — ni localStorage, ni cloud). La
+// clé est l'ID du tableau complet (ou le nom normalisé si absent). ──
+let upSimState = { employees: [], decisions: {}, refDate: null, weekLabel: "" };
+
+function upSimAnalyze(){
+  const completText = document.getElementById("upSimCompletText").value;
+  const reaText = document.getElementById("upSimReaText").value;
+  const statusEl = document.getElementById("upSimStatus");
+  if(!completText.trim() || !reaText.trim()){
+    statusEl.textContent = "⚠ Colle les deux tableaux avant d'analyser.";
+    statusEl.style.color = "var(--amber)";
+    return;
+  }
+  const week = upParseWeekHeader(completText);
+  const refDate = week && week.end ? week.end : new Date();
+  const completEmployees = upParseCompletTable(completText);
+  if(!completEmployees.length){
+    statusEl.textContent = "⚠ Aucune fiche employé reconnue dans le tableau complet — vérifie le format collé (Nom (ID: ...), Grade :, etc.).";
+    statusEl.style.color = "var(--red)";
+    document.getElementById("upSimResults").innerHTML = "";
+    return;
+  }
+  const reaEntries = upParseReaTable(reaText);
+  const { results, reaOnlyCount } = upCrossReference(completEmployees, reaEntries);
+
+  const cfg = (typeof payRulesConfigCache!=="undefined" && payRulesConfigCache) ? payRulesConfigCache : null;
+  const quotaStandard = (cfg && typeof cfg.quotaStandard==="number") ? cfg.quotaStandard : UP_QUOTA_STANDARD_DEFAULT;
+  const quotaStaff = (cfg && typeof cfg.quotaStaff==="number") ? cfg.quotaStaff : UP_QUOTA_STAFF_DEFAULT;
+
+  const evaluated = results.map(emp=>({ emp, ev: upEvaluateEligibility(emp, refDate, quotaStandard, quotaStaff) }));
+
+  upSimState = { employees: evaluated, decisions: {}, refDate, weekLabel: week ? `${week.startRaw} - ${week.endRaw}` : "" };
+
+  const quotaNote = cfg
+    ? `Quotas utilisés : ${quotaStandard} standard / ${quotaStaff} staff (réglages en vigueur).`
+    : `⚠ Réglages de paie pas encore chargés — quotas par défaut utilisés (${UP_QUOTA_STANDARD_DEFAULT} standard / ${UP_QUOTA_STAFF_DEFAULT} staff). Ouvre une fois l'onglet « ⚙️ Réglages des paies » si tes quotas réels sont différents, puis relance l'analyse.`;
+  statusEl.textContent = `✓ ${completEmployees.length} fiche(s) lue(s) dans le tableau complet, ${reaEntries.length} ligne(s) de réanimations, ${reaOnlyCount} nom(s) présents uniquement dans le tableau réa (ignorés — pas de fiche correspondante). ${quotaNote}`;
+  statusEl.style.color = cfg ? "var(--text-dim)" : "var(--amber)";
+  upSimRender();
+}
+
+function upSimKey(emp){ return emp.id || upNormalizeName(emp.name); }
+
+function upSimRender(){
+  const box = document.getElementById("upSimResults");
+  if(!upSimState.employees.length){ box.innerHTML = ""; return; }
+
+  const eligible = upSimState.employees.filter(x=>x.ev.status==="eligible");
+  const blocked = upSimState.employees.filter(x=>x.ev.status==="blocked");
+  const missing = upSimState.employees.filter(x=>x.ev.status==="missing_data" || x.ev.status==="ambiguous");
+  const firstSuccess = upSimState.employees.filter(x=>x.ev.status==="first_success");
+
+  let html = "";
+
+  if(!eligible.length){
+    html += `<div class="empty-msg">Aucun UP éligible détecté pour cette semaine.</div>`;
+  } else {
+    html += eligible.map(({emp,ev})=>{
+      const key = upSimKey(emp);
+      const decision = upSimState.decisions[key];
+      const msg = upBuildMessage(emp, ev, upSimState.refDate);
+      let decisionHtml;
+      if(decision==="yes"){
+        decisionHtml = `<div style="color:var(--green);font-size:0.8rem;font-weight:600;margin-top:8px;">✓ Promotion acceptée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
+      } else if(decision==="no"){
+        decisionHtml = `<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-top:8px;">✕ Promotion refusée — simulation uniquement, rien n'a été modifié en vrai.</div>`;
+      } else {
+        decisionHtml = `<div style="display:flex;gap:8px;margin-top:10px;">
+          <button type="button" class="btn-primary btn-small" data-upsim-yes="${esc(key)}">✓ Oui</button>
+          <button type="button" class="btn-ghost btn-small" data-upsim-no="${esc(key)}">Non</button>
+        </div>`;
+      }
+      return `<div class="card" style="margin-bottom:10px;">
+        <div style="font-weight:700;">${esc(msg.headline)}</div>
+        <div style="font-size:0.78rem;color:var(--text-dim);margin-top:4px;">(${esc(msg.detail)})</div>
+        ${decisionHtml}
+      </div>`;
+    }).join("");
+  }
+
+  if(firstSuccess.length){
+    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">ℹ️ ${firstSuccess.length} personne(s) à surveiller — quota réussi une 1ʳᵉ fois cette semaine (pas encore éligibles)</summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        ${firstSuccess.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--text-dim);">${esc(emp.name)} (${esc(GRADE_LABEL[ev.grade]||emp.grade)}) — ${esc(ev.reason)}</div>`).join("")}
+      </div></details>`;
+  }
+
+  if(blocked.length){
+    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">⚠️ ${blocked.length} personne(s) bloquée(s) par un avertissement actif</summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        ${blocked.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--amber);">${esc(emp.name)} (${esc(GRADE_LABEL[ev.grade]||emp.grade)}) — ${esc(ev.reason)}</div>`).join("")}
+      </div></details>`;
+  }
+
+  if(missing.length){
+    html += `<details style="margin-top:12px;"><summary class="btn-ghost btn-small" style="display:inline-block;">❓ ${missing.length} personne(s) avec des données manquantes ou ambiguës</summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        ${missing.map(({emp,ev})=>`<div style="font-size:0.8rem;color:var(--text-dim);">${esc(emp.name)}${emp.grade?` (${esc(emp.grade)})`:""} — ${esc(ev.reason)}</div>`).join("")}
+      </div></details>`;
+  }
+
+  box.innerHTML = html;
+}
+
+document.getElementById("btnUpSimAnalyze").addEventListener("click", upSimAnalyze);
+document.getElementById("btnUpSimClear").addEventListener("click", ()=>{
+  document.getElementById("upSimCompletText").value = "";
+  document.getElementById("upSimReaText").value = "";
+  document.getElementById("upSimStatus").textContent = "";
+  document.getElementById("upSimResults").innerHTML = "";
+  upSimState = { employees: [], decisions: {}, refDate: null, weekLabel: "" };
+});
+document.getElementById("upSimResults").addEventListener("click", (e)=>{
+  const yesBtn = e.target.closest("[data-upsim-yes]");
+  const noBtn = e.target.closest("[data-upsim-no]");
+  if(yesBtn){ upSimState.decisions[yesBtn.dataset.upsimYes] = "yes"; upSimRender(); }
+  else if(noBtn){ upSimState.decisions[noBtn.dataset.upsimNo] = "no"; upSimRender(); }
+});
+
+
 
 // ═══════════════════════════ SIGNALEMENT ANONYME ═══════════════════════════
 // Réutilise splitEmsLine()/cleanEmsName() déjà définies plus haut pour le
@@ -3377,6 +3818,7 @@ const PERMISSION_LABEL = {
   reset_activite_streak: "Réinitialiser une série d'inactivité (Formateur/Psy)",
   reopen_roster_week: "Réouvrir une semaine Formateur/Psychologue clôturée",
   manage_troll: "🎭 Mode troll (créer et déclencher des blagues) — décoché par défaut",
+  use_up_simulator: "🚀 Accéder au Simulateur d'UP",
 };
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
@@ -4117,7 +4559,7 @@ function populateForceLogoutSelect(){
 // repli générique aurait affiché le mauvais niveau par défaut pour
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
-const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu
+const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"], "use_up_simulator": ["MC", "ADD", "CD", "D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu — use_up_simulator ajouté le 13/10
 function hasCap(name){
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
@@ -4136,6 +4578,7 @@ function applyCapsUi(){
     try{ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }catch(e){}
   }
   document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
+  document.getElementById("tabUpSimBtn").style.display = hasCap("use_up_simulator") ? "" : "none";
   document.getElementById("forceLogoutCard").style.display = hasCap("force_logout") ? "" : "none";
   document.getElementById("forceLogoutPillboxCard").style.display = hasCap("force_logout") ? "" : "none";
   populateForceLogoutSelect();

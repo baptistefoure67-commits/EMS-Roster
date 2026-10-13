@@ -42,6 +42,10 @@ const DEFAULT_PERMISSIONS = {
     // pour TOUS les grades par défaut (DG compris, voir plus bas). Le
     // Concepteur l'a toujours. Cochée par grade ou individuellement = accès.
     manage_troll: false,
+    // (13/10) Simulateur d'UP : simulation pure (ne modifie jamais le
+    // Roster/Pillbox/tableau EMS) — ouvert à partir de MC, comme
+    // view_roster, jamais resserré plus haut dans les blocs suivants.
+    use_up_simulator: true,
     view_roster: true,
     manage_roster: false,
     manage_ppa: true,
