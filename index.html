@@ -273,7 +273,6 @@
       <button type="button" class="btn-ghost btn-small" id="btnSaveAll" title="Sauvegarde la sélection Formation Opération et le suivi d'activité Formateur/Psychologue">💾 Sauvegarder</button>
       <span id="saveAllStatus" style="font-size:0.74rem;color:var(--text-dim);"></span>
       <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
-      <button type="button" class="btn-ghost btn-small" id="btnOpenRoleSimulator" style="display:none;border-color:#c58b35;color:#f3bd65;">🧪 Simulation de rôle</button>
       <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
         Se déconnecter
       </button>
@@ -293,6 +292,7 @@
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
     <button type="button" class="tab-btn" id="tabReglagesPaieBtn" style="display:none;">⚙️ Réglages des paies</button>
     <button type="button" class="tab-btn" id="tabTrollBtn" style="display:none;">🎭 Mode troll</button>
+    <button type="button" class="tab-btn" id="tabSimRoleBtn" style="display:none;">🧪 Simulation de rôle</button>
   </div>
 
   <div id="rosterView">
@@ -704,6 +704,50 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     <div class="card">
       <div class="special-title">📋 Blagues enregistrées</div>
       <div id="trollList" class="sub">Chargement…</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SIMULATION DE RÔLE (13/10) — réservée au Concepteur (OWNER)
+       UNIQUEMENT, jamais au DG même si celui-ci a par ailleurs toutes
+       les permissions fonctionnelles. Pur aperçu en LECTURE SEULE des
+       droits réels d'un grade ou d'une personne précise — aucune
+       écriture ici, sauf le seul bouton explicitement prévu pour
+       accorder/retirer l'accès réel au Terminal Paie (Pillbox) pour
+       UNE personne précise, qui réutilise l'endpoint d'exceptions
+       individuelles déjà existant (manage-individual-permissions.js),
+       jamais une logique de permissions dupliquée en double ici. -->
+  <div id="simRoleView" style="display:none;">
+    <div class="card">
+      <div class="special-title">🧪 Simulation de rôle</div>
+      <div class="special-sub" style="margin-bottom:12px;">
+        Aperçu en lecture seule, réservé au Concepteur. Ça ne modifie ni ton grade réel, ni le grade de qui que ce soit,
+        ni les permissions en base — sauf l'action « accès réel au Terminal Paie » ci-dessous, clairement signalée, qui
+        est la seule vraie écriture possible depuis cet écran.
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+        <div>
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Mode</div>
+          <select id="simRoleMode" style="min-width:200px;">
+            <option value="grade">Simuler un grade</option>
+            <option value="person">Simuler une personne</option>
+          </select>
+        </div>
+        <div id="simRoleGradeWrap">
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Grade simulé</div>
+          <select id="simRoleGradeSelect" style="min-width:220px;"></select>
+        </div>
+        <div id="simRolePersonWrap" style="display:none;">
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Personne simulée</div>
+          <select id="simRolePersonSelect" style="min-width:260px;"></select>
+        </div>
+        <button type="button" class="btn-ghost btn-small" id="btnSimRoleRefresh">↻ Actualiser</button>
+      </div>
+
+      <div id="simRoleBanner" style="font-size:0.85rem;font-weight:700;padding:10px 14px;background:var(--bg-0);border:1px solid var(--border-soft);border-radius:8px;margin-bottom:14px;"></div>
+
+      <div id="simRoleResults"></div>
     </div>
   </div>
 
@@ -3004,7 +3048,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 });
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll","SimRole"];
 function switchTab(active){
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
@@ -3021,6 +3065,7 @@ function switchTab(active){
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
   if(active==="Troll"){ trollRenderTab(); }
+  if(active==="SimRole"){ simRoleInit(); }
   if(active==="Logs") loadLogs();
   if(active==="Permissions"){ loadPermissionsTable(); renderIndividualPermissionsCard(); renderPermissionRequestsCard(); }
   if(active==="ReglagesPaie"){ loadPayRulesConfig(); renderPayRulesHistory(); }
@@ -3580,6 +3625,176 @@ function renderIndividualPermTableForSelected(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// SIMULATION DE RÔLE (13/10) — réservée au Concepteur (OWNER). Pur
+// aperçu en lecture seule : réutilise EXACTEMENT les mêmes caches et la
+// même résolution grade/exception que la carte "Exceptions
+// individuelles" juste au-dessus (individualPermsCache,
+// effectiveByGradeCache, individualAllPermsCache) — jamais une seconde
+// copie de la logique de permissions. La seule écriture réelle
+// possible depuis cet écran passe par l'endpoint déjà existant
+// manage-individual-permissions.js (action "set", permissionName
+// "use_pillbox_terminal"), jamais une route ou une règle inventée ici.
+// ═══════════════════════════════════════════════════════════════════
+const SIM_ROLE_ADMIN_GRADES = ["MC","ADD","CD","D","DG"]; // seuls grades qui ont une vraie table de permissions
+const SIM_ROLE_JUNIOR_GRADES = ["STG","A","INF","M","MF","MP","MLP","RF","RP","RL"]; // hors hiérarchie : accès possible UNIQUEMENT par exception individuelle
+
+function simRolePopulateGradeSelect(){
+  const sel = document.getElementById("simRoleGradeSelect");
+  const current = sel.value;
+  const opt = g => `<option value="${esc(g)}">${esc(GRADE_LABEL[g]||g)}</option>`;
+  sel.innerHTML = `<optgroup label="Grades avec accès au Roster">${SIM_ROLE_ADMIN_GRADES.map(opt).join("")}</optgroup>`
+    + `<optgroup label="Grades sans accès (hors hiérarchie de permissions)">${SIM_ROLE_JUNIOR_GRADES.map(opt).join("")}</optgroup>`;
+  if(current && [...SIM_ROLE_ADMIN_GRADES, ...SIM_ROLE_JUNIOR_GRADES].includes(current)) sel.value = current;
+}
+
+function simRolePopulatePersonSelect(){
+  const sel = document.getElementById("simRolePersonSelect");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">— Choisir une personne —</option>` +
+    employees.filter(e=>!e.licencie)
+      .sort((a,b)=> GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || a.name.localeCompare(b.name))
+      .map(e=>`<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(GRADE_LABEL[e.grade]||e.grade)})</option>`).join("");
+  if(current) sel.value = current;
+}
+
+async function simRoleRefreshData(){
+  const status = document.getElementById("btnSimRoleRefresh");
+  if(status) status.disabled = true;
+  try{
+    const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
+    const data = await res.json().catch(()=>({}));
+    if(res.ok){
+      individualPermsCache = data.individualPermissions || {};
+      effectiveByGradeCache = data.effectiveByGrade || null;
+      if(Array.isArray(data.allPermissions)) individualAllPermsCache = data.allPermissions;
+    }
+  }catch(err){ /* les caches existants (s'il y en a) restent affichés */ }
+  finally{ if(status) status.disabled = false; }
+}
+
+// Même règle de résolution que renderIndividualPermTableForSelected()
+// ci-dessus (DG > D > CD, sinon repli sur le grade) — jamais dupliquée
+// avec une autre logique.
+function simRoleResolvePerm(perm, grade, discordId){
+  if(discordId){
+    const personEntry = (individualPermsCache && individualPermsCache[discordId]) || {};
+    const layers = personEntry[perm] || {};
+    for(const l of ["DG","D","CD"]){
+      if(layers[l]===true || layers[l]===false) return { value: layers[l], source: `exception individuelle propre à cette personne (couche ${l})` };
+    }
+  }
+  if(effectiveByGradeCache && effectiveByGradeCache[grade]){
+    return { value: !!effectiveByGradeCache[grade][perm], source: `grade ${GRADE_LABEL[grade]||grade}` };
+  }
+  return { value: false, source: "ce grade n'a pas de table de permissions (hors hiérarchie MC→DG)" };
+}
+
+function simRoleCurrentSelection(){
+  const mode = document.getElementById("simRoleMode").value;
+  if(mode==="person"){
+    const discordId = document.getElementById("simRolePersonSelect").value;
+    const emp = employees.find(e=>e.discordId===discordId);
+    return { mode, discordId: discordId||null, emp: emp||null, grade: emp ? emp.grade : null };
+  }
+  return { mode, discordId: null, emp: null, grade: document.getElementById("simRoleGradeSelect").value };
+}
+
+function simRoleRender(){
+  const banner = document.getElementById("simRoleBanner");
+  const box = document.getElementById("simRoleResults");
+  const { discordId, emp, grade } = simRoleCurrentSelection();
+
+  const simLabel = emp ? `${emp.name} (${esc(GRADE_LABEL[emp.grade]||emp.grade)})` : (GRADE_LABEL[grade]||grade||"—");
+  banner.innerHTML = `👑 Baptiste Fore — OWNER — Concepteur <span style="color:var(--text-faint);font-weight:400;">· simulation :</span> ${esc(simLabel)}`;
+
+  if(!grade){ box.innerHTML = `<div class="empty-msg">Choisis une personne à simuler.</div>`; return; }
+
+  const isJunior = SIM_ROLE_JUNIOR_GRADES.includes(grade);
+  let html = "";
+
+  if(isJunior && !discordId){
+    html = `<div class="empty-msg">Le grade « ${esc(GRADE_LABEL[grade]||grade)} » n'a pas de table de permissions (seuls MC et au-dessus en ont une) — il n'a donc, par défaut, strictement AUCUN accès au Roster ni à Pillbox. Le seul accès possible pour ce grade est une exception individuelle accordée à une personne précise : passe en mode « Simuler une personne » et choisis une personne réelle de ce grade pour vérifier.</div>`;
+    box.innerHTML = html;
+    return;
+  }
+
+  const payRes = simRoleResolvePerm("use_pillbox_terminal", grade, discordId);
+  html += `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;margin-bottom:14px;background:${payRes.value?'rgba(74,222,128,0.12)':'rgba(248,113,113,0.12)'};border:1px solid ${payRes.value?'var(--green)':'var(--red)'};">
+    <span style="font-size:1.1rem;">${payRes.value?'✅':'🚫'}</span>
+    <div><div style="font-weight:700;">Accès au Terminal Paie (Pillbox) : ${payRes.value?'Autorisé':'Refusé'}</div><div style="font-size:0.75rem;color:var(--text-dim);">Source : ${esc(payRes.source)}</div></div>
+  </div>`;
+
+  if(discordId && emp){
+    html += `<div style="margin-bottom:14px;">
+      <button type="button" class="btn-small ${payRes.value?'btn-danger':'btn-primary'}" id="btnSimRoleTogglePillbox">${payRes.value?"🚫 Retirer l'accès réel au Terminal Paie":"✅ Autoriser l'accès réel au Terminal Paie"}</button>
+      <span style="font-size:0.74rem;color:var(--text-faint);margin-left:8px;">Seule vraie écriture possible depuis cet écran — s'applique uniquement à ${esc(emp.name)}, jamais à tout le grade ${esc(GRADE_LABEL[grade]||grade)}.</span>
+    </div>`;
+  }
+
+  const keys = (individualAllPermsCache || Object.keys(PERMISSION_LABEL)).filter(p=>p!=="use_pillbox_terminal");
+  html += `<div class="special-list">` + keys.map(perm=>{
+    const r = simRoleResolvePerm(perm, grade, discordId);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
+      <span style="flex:1;">${esc(PERMISSION_LABEL[perm]||perm)}</span>
+      <span style="font-weight:700;color:${r.value?'var(--green)':'var(--text-faint)'};">${r.value?'✅ Autorisé':'— Refusé'}</span>
+    </div>`;
+  }).join("") + `</div>`;
+
+  box.innerHTML = html;
+
+  const toggleBtn = document.getElementById("btnSimRoleTogglePillbox");
+  if(toggleBtn) toggleBtn.addEventListener("click", ()=>simRoleToggleRealPillboxAccess(discordId, emp));
+}
+
+async function simRoleToggleRealPillboxAccess(discordId, emp){
+  if(!discordId || !emp) return;
+  const current = simRoleResolvePerm("use_pillbox_terminal", emp.grade, discordId).value;
+  const newValue = !current;
+  const msg = newValue
+    ? `Autoriser RÉELLEMENT ${emp.name} (${GRADE_LABEL[emp.grade]||emp.grade}) à utiliser le Terminal Paie (Pillbox) ?\n\nSon grade et le reste de ses permissions ne changent pas.`
+    : `Retirer RÉELLEMENT l'accès au Terminal Paie (Pillbox) de ${emp.name} (${GRADE_LABEL[emp.grade]||emp.grade}) ?`;
+  if(!confirm(msg)) return;
+  const btn = document.getElementById("btnSimRoleTogglePillbox");
+  if(btn) btn.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"set", targetDiscordId: discordId, permissionName:"use_pillbox_terminal", value: newValue }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    individualPermsCache = individualPermsCache || {};
+    individualPermsCache[discordId] = data.person || individualPermsCache[discordId] || {};
+    toast(newValue ? `✓ Accès Terminal Paie accordé à ${emp.name}` : `✓ Accès Terminal Paie retiré à ${emp.name}`);
+    simRoleRender();
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+    if(btn) btn.disabled = false;
+  }
+}
+
+async function simRoleInit(){
+  simRolePopulateGradeSelect();
+  simRolePopulatePersonSelect();
+  await simRoleRefreshData();
+  simRoleRender();
+}
+
+document.getElementById("simRoleMode").addEventListener("change", (e)=>{
+  const isPerson = e.target.value === "person";
+  document.getElementById("simRoleGradeWrap").style.display = isPerson ? "none" : "";
+  document.getElementById("simRolePersonWrap").style.display = isPerson ? "" : "none";
+  simRoleRender();
+});
+document.getElementById("simRoleGradeSelect").addEventListener("change", simRoleRender);
+document.getElementById("simRolePersonSelect").addEventListener("change", simRoleRender);
+document.getElementById("btnSimRoleRefresh").addEventListener("click", async ()=>{
+  simRolePopulatePersonSelect();
+  await simRoleRefreshData();
+  simRoleRender();
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // DEMANDES DE PERMISSIONS (09/09) — ADD crée, CD+ traite.
 // ═══════════════════════════════════════════════════════════════════
 async function renderPermissionRequestsCard(){
@@ -4126,15 +4341,7 @@ function populateForceLogoutSelect(){
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
 const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu
-// Simulation OWNER locale : n'altère jamais le grade ni les jetons réels.
-let rosterRoleSimulation = null;
 function hasCap(name){
-  if(rosterRoleSimulation && rosterRoleSimulation.enabled){
-    if(Object.prototype.hasOwnProperty.call(rosterRoleSimulation.overrides || {}, name)) return !!rosterRoleSimulation.overrides[name];
-    const juniorSimLevels = ["STG","A","INF","M","MP","ML","MF","RP","RF","RL"];
-    if(juniorSimLevels.includes(rosterRoleSimulation.level) && ["use_pillbox_terminal","manage_troll","manage_permissions","manage_individual_permissions","manage_pay_rules"].includes(name)) return false;
-    return (CAP_DEFAULT_LEVELS[name] || []).includes(rosterRoleSimulation.level);
-  }
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
 }
@@ -4144,7 +4351,7 @@ function applyCapsUi(){
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
   const trollBtn = document.getElementById("tabTrollBtn");
-  if(trollBtn) trollBtn.style.display = hasCap("manage_troll") ? "" : "none";
+  if(trollBtn) trollBtn.style.display = (userCaps && userCaps.isTrollAdmin === true) ? "" : "none";
   try{ renderGradeLabelsEditor(); }catch(e){}
   if(userCaps){ try{ renderAll(); }catch(e){} }
   const permView = document.getElementById("permissionsView");
@@ -4153,6 +4360,11 @@ function applyCapsUi(){
   }
   document.getElementById("tabReglagesPaieBtn").style.display = hasCap("manage_pay_rules") ? "" : "none";
   document.getElementById("forceLogoutCard").style.display = hasCap("force_logout") ? "" : "none";
+  // (13/10) Réservé au Concepteur STRICTEMENT — jamais via hasCap()/la
+  // matrice de permissions (même un DG, qui a par ailleurs "tout",
+  // n'y a pas accès), donc une vérification directe de l'identité
+  // réelle plutôt que des capacités.
+  document.getElementById("tabSimRoleBtn").style.display = (currentUserLevel==="OWNER") ? "" : "none";
   document.getElementById("forceLogoutPillboxCard").style.display = hasCap("force_logout") ? "" : "none";
   populateForceLogoutSelect();
 }
@@ -4914,63 +5126,6 @@ async function restoreSessionFromStorage(){
 // au lieu d'attendre qu'elle soit confirmée (vraie course, voir
 // finishRosterInit() plus haut, maintenant appelée depuis les deux
 // chemins d'authentification eux-mêmes).
-
-// Simulation de rôle réservée à OWNER : panneau modal compact, profil local et temporaire.
-(function initRosterRoleSimulator(){
- const KEY='rosterRoleSimulation_v1';
- const caps=Object.keys(PERMISSION_LABEL).sort((a,b)=>String(PERMISSION_LABEL[a]).localeCompare(String(PERMISSION_LABEL[b]),'fr'));
- const levels=['STG','A','INF','M','MP','ML','MF','RP','RF','RL','MC','ADD','CD','D','DG'];
- const juniorLevels=new Set(['STG','A','INF','M','MP','ML','MF','RP','RF','RL']);
- const defaultPayUrl='https://paie-pillbox-terminal-ems.netlify.app/';
- function load(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}}
- function save(){try{localStorage.setItem(KEY,JSON.stringify(rosterRoleSimulation))}catch(e){}}
- function inherited(cap,level){
-   if(cap==='use_pillbox_terminal') return !juniorLevels.has(level);
-   if(cap==='manage_troll') return false; // non-Owner : jamais accordé par défaut
-   return (CAP_DEFAULT_LEVELS[cap]||[]).includes(level);
- }
- function effective(cap,sim){return Object.prototype.hasOwnProperty.call(sim.overrides||{},cap)?!!sim.overrides[cap]:inherited(cap,sim.level)}
- function render(){
-   const button=document.getElementById('btnOpenRoleSimulator');
-   if(!button) return;
-   const isOwner=currentUserLevel==='OWNER'; button.style.display=isOwner?'':'none';
-   if(!isOwner){document.getElementById('roleSimulationModal')?.remove();return;}
-   let modal=document.getElementById('roleSimulationModal');
-   if(!modal){
-     modal=document.createElement('div');modal.id='roleSimulationModal';
-     modal.style.cssText='display:none;position:fixed;inset:0;z-index:100000;background:rgba(2,8,23,.72);padding:18px;align-items:center;justify-content:center;';
-     modal.innerHTML=`<section role="dialog" aria-modal="true" aria-labelledby="roleSimTitle" style="width:min(760px,100%);max-height:88vh;overflow:auto;background:var(--panel,#111827);color:var(--text,#f8fafc);border:1px solid #c58b35;border-radius:14px;box-shadow:0 24px 80px #0009;padding:18px">
-       <div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between"><div><h2 id="roleSimTitle" style="margin:0 0 5px;font-size:1.15rem">🧪 Simulation de rôle</h2><div class="sub">Aperçu local réservé à Owner. Aucun grade réel ni droit serveur n’est modifié.</div></div><button id="simClose" type="button" class="btn-ghost btn-small" aria-label="Fermer">✕</button></div>
-       <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:16px"><label style="flex:1;min-width:150px">Grade simulé<select id="simRoleLevel" style="display:block;width:100%;margin-top:5px;padding:9px;border-radius:8px">${levels.map(l=>`<option value="${l}">${l}</option>`).join('')}</select></label><label style="display:flex;align-items:center;gap:8px;padding:9px 0"><input id="simRoleEnabled" type="checkbox"> Activer la simulation</label></div>
-       <div style="margin-top:12px;padding:11px;border-radius:9px;background:rgba(197,139,53,.12);border:1px solid rgba(197,139,53,.45)"><strong>Accès au Terminal Paie</strong><div class="sub" style="margin:4px 0 8px">Les grades STG, A, INF, M, MP, ML, MF, RP, RF et RL n’y ont pas accès par défaut. Coche l’accès ci-dessous pour l’accorder uniquement au profil simulé.</div><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="simPayAccess"> Autoriser l’accès au Terminal Paie pour ce profil</label></div>
-       <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:650">Permissions individuelles</summary><div id="simPermissionList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:7px;margin-top:10px;max-height:260px;overflow:auto"></div><div class="sub" style="margin-top:8px">Chaque case est une exception individuelle au grade simulé. Décoche une permission pour la retirer, même si le grade l’obtient normalement.</div></details>
-       <label style="display:block;margin-top:14px">URL du Terminal Paie<input id="simPayUrl" type="url" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:9px;border-radius:8px" placeholder="https://…"></label>
-       <div id="simPayHint" class="sub" style="margin-top:7px">L’ouverture transmet le grade et les permissions simulés à l’outil de paie. Cela ne remplace pas les contrôles serveur.</div>
-       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px"><button id="simRoleReset" type="button" class="btn-ghost">Réinitialiser</button><button id="simOpenPay" type="button" class="btn-primary">Ouvrir le Terminal Paie ↗</button><button id="simApplyClose" type="button" class="btn-primary">Appliquer et fermer</button></div>
-     </section>`;
-     document.body.appendChild(modal);
-     modal.addEventListener('click',e=>{if(e.target===modal)modal.style.display='none'});
-     modal.querySelector('#simClose').onclick=()=>modal.style.display='none';
-     modal.querySelector('#simApplyClose').onclick=()=>{persistFromForm();modal.style.display='none';applyCapsUi()};
-     modal.querySelector('#simRoleLevel').onchange=()=>{persistFromForm(false);renderFields()};
-     modal.querySelector('#simRoleEnabled').onchange=()=>{persistFromForm(false)};
-     modal.querySelector('#simPayAccess').onchange=e=>{ensure().overrides.use_pillbox_terminal=e.target.checked;save();renderFields()};
-     modal.querySelector('#simRoleReset').onclick=()=>{rosterRoleSimulation={enabled:false,level:'MC',overrides:{},payUrl:defaultPayUrl};save();renderFields()};
-     modal.querySelector('#simOpenPay').onclick=()=>{persistFromForm();const sim=rosterRoleSimulation;const url=(sim.payUrl||defaultPayUrl).trim();try{const u=new URL(url);u.searchParams.set('role_sim','1');u.searchParams.set('sim_level',sim.level);u.searchParams.set('sim_overrides',JSON.stringify(sim.overrides||{}));u.searchParams.set('sim_enabled',sim.enabled?'1':'0');window.open(u.toString(),'_blank','noopener,noreferrer');modal.querySelector('#simPayHint').textContent='Le Terminal Paie s’ouvre dans un nouvel onglet avec ce profil de simulation.'}catch(e){modal.querySelector('#simPayHint').textContent='URL invalide : utilise une adresse complète commençant par https://'}};
-     modal.querySelector('#simPayUrl').onchange=()=>persistFromForm(false);
-   }
-   button.onclick=()=>{renderFields();modal.style.display='flex'};
-   renderFields();
- }
- function ensure(){if(!rosterRoleSimulation)rosterRoleSimulation={enabled:false,level:'MC',overrides:{},payUrl:defaultPayUrl};rosterRoleSimulation.overrides=rosterRoleSimulation.overrides||{};return rosterRoleSimulation}
- function persistFromForm(apply=true){const sim=ensure(),modal=document.getElementById('roleSimulationModal');if(!modal)return;sim.level=modal.querySelector('#simRoleLevel').value;sim.enabled=modal.querySelector('#simRoleEnabled').checked;sim.payUrl=modal.querySelector('#simPayUrl').value.trim()||defaultPayUrl;sim.overrides.use_pillbox_terminal=modal.querySelector('#simPayAccess').checked;save();if(apply)applyCapsUi()}
- function renderFields(){const modal=document.getElementById('roleSimulationModal');if(!modal)return;const sim=ensure();modal.querySelector('#simRoleLevel').value=sim.level;modal.querySelector('#simRoleEnabled').checked=!!sim.enabled;modal.querySelector('#simPayUrl').value=sim.payUrl||defaultPayUrl;modal.querySelector('#simPayAccess').checked=effective('use_pillbox_terminal',sim);const list=modal.querySelector('#simPermissionList');list.innerHTML=caps.map(cap=>{const checked=effective(cap,sim);return `<label style="display:flex;gap:8px;align-items:flex-start;padding:7px;border:1px solid var(--border,#334155);border-radius:7px"><input type="checkbox" data-sim-cap="${cap}" ${checked?'checked':''}><span>${String(PERMISSION_LABEL[cap]||cap).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span></label>`}).join('');list.querySelectorAll('[data-sim-cap]').forEach(cb=>cb.onchange=()=>{const cap=cb.dataset.simCap;ensure().overrides[cap]=cb.checked;if(cap==='use_pillbox_terminal')modal.querySelector('#simPayAccess').checked=cb.checked;save()});}
- rosterRoleSimulation=load()||{enabled:false,level:'MC',overrides:{},payUrl:defaultPayUrl};
- const nativeFetch=window.fetch.bind(window);
- window.fetch=function(input,init){const url=typeof input==='string'?input:(input&&input.url)||'';const method=String((init&&init.method)||(input&&input.method)||'GET').toUpperCase();if(rosterRoleSimulation?.enabled&&method!=='GET'&&method!=='HEAD'&&(url.includes('/.netlify/functions/')||url.includes('firebaseio.com')))return Promise.reject(new Error('Action bloquée : la simulation de rôle est en lecture seule.'));return nativeFetch(input,init)};
- const watch=setInterval(()=>{if(currentUserLevel==='OWNER'){clearInterval(watch);render()}},500);
- window.addEventListener('storage',e=>{if(e.key===KEY){rosterRoleSimulation=load();render();applyCapsUi()}});
-})();
 </script>
 </body>
 </html>
