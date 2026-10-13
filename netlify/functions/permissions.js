@@ -70,6 +70,7 @@ const DEFAULT_PERMISSIONS = {
     review_permission_requests: false,
   },
   ADD: {
+    manage_troll: false, // accès Mode troll refusé par défaut ; exception explicite requise.
     view_roster: true,
     manage_roster: true,
     manage_ppa: true,
@@ -97,6 +98,7 @@ const DEFAULT_PERMISSIONS = {
     manage_absences: true, // peut synchroniser les absences détectées et basculer Prise en compte OUI/NON (03/10)
   },
   CD: {
+    manage_troll: false, // accès Mode troll refusé par défaut ; exception explicite requise.
     // hérite de tout ADD, plus les droits de gestion avancée
     modify_role_label: true,
     manage_permissions: false,
@@ -110,6 +112,7 @@ const DEFAULT_PERMISSIONS = {
     force_logout: true,
   },
   D: {
+    manage_troll: false, // accès Mode troll refusé par défaut ; exception explicite requise.
     // hérite de tout CD, plus la gestion des permissions elle-même
     manage_permissions: true,
     // (10/10 — audit permissions) Resserrés depuis CD vers D — gestion
