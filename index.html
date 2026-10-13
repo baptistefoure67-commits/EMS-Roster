@@ -4125,7 +4125,13 @@ function populateForceLogoutSelect(){
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
 const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu
+// Simulation OWNER locale : n'altère jamais le grade ni les jetons réels.
+let rosterRoleSimulation = null;
 function hasCap(name){
+  if(rosterRoleSimulation && rosterRoleSimulation.enabled){
+    if(Object.prototype.hasOwnProperty.call(rosterRoleSimulation.overrides || {}, name)) return !!rosterRoleSimulation.overrides[name];
+    return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(rosterRoleSimulation.level);
+  }
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
 }
@@ -4905,6 +4911,42 @@ async function restoreSessionFromStorage(){
 // au lieu d'attendre qu'elle soit confirmée (vraie course, voir
 // finishRosterInit() plus haut, maintenant appelée depuis les deux
 // chemins d'authentification eux-mêmes).
+
+// Barre de simulation centralisée (OWNER uniquement). Les droits simulés sont locaux et temporaires.
+(function initRosterRoleSimulator(){
+ const KEY='rosterRoleSimulation_v1';
+ const caps=Object.keys(CAP_DEFAULT_LEVELS).sort();
+ const levels=['STG','A','INF','M','MF','MP','MLP','RF','RP','RL','MC','ADD','CD','D','DG'];
+ function load(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}}
+ function save(){try{localStorage.setItem(KEY,JSON.stringify(rosterRoleSimulation))}catch(e){}}
+ function render(){
+   if(currentUserLevel!=='OWNER') return;
+   let root=document.getElementById('rosterRoleSimulator');
+   if(!root){root=document.createElement('section');root.id='rosterRoleSimulator';root.style.cssText='position:sticky;top:0;z-index:9999;background:#101c30;border:1px solid #c58b35;border-radius:12px;padding:12px;margin:8px 0;color:#e6edf7;box-shadow:0 6px 20px #0005;font:13px system-ui';
+    const anchor=document.querySelector('header')||document.body.firstElementChild||document.body; anchor.parentNode.insertBefore(root,anchor.nextSibling); }
+   const sim=rosterRoleSimulation||{enabled:false,level:'MC',overrides:{},payUrl:''};
+   root.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><strong style="color:#f3bd65">🧪 SIMULATION DE RÔLE</strong><label>Grade <select id="simRoleLevel" style="padding:6px;border-radius:6px">${levels.map(l=>`<option ${l===sim.level?'selected':''} value="${l}">${l}</option>`).join('')}</select></label><label style="display:flex;gap:5px;align-items:center"><input id="simRoleEnabled" type="checkbox" ${sim.enabled?'checked':''}> Activer la simulation</label><button id="simRoleReset" type="button" style="padding:6px 9px">Réinitialiser</button></div><div style="margin-top:8px;color:#bac7d9">Les droits réels Owner restent inchangés. Les cases ci-dessous forcent les permissions d’affichage du Roster.</div><details style="margin-top:8px"><summary style="cursor:pointer">Permissions individuelles (${Object.keys(sim.overrides||{}).length} personnalisées)</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin-top:8px;max-height:220px;overflow:auto">${caps.map(c=>`<label style="display:flex;gap:7px;align-items:center"><input type="checkbox" data-sim-cap="${c}" ${Object.prototype.hasOwnProperty.call(sim.overrides||{},c)?(sim.overrides[c]?'checked':''):(CAP_DEFAULT_LEVELS[c]||['D','DG','OWNER']).includes(sim.level)?'checked':''}>${c.replaceAll('_',' ')}</label>`).join('')}</div><div style="color:#bac7d9;margin-top:6px">Une case modifiée devient une exception individuelle au grade sélectionné.</div></details><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="simPayUrl" type="url" placeholder="URL déployée du Terminal Paie" value="${String(sim.payUrl||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" style="flex:1;min-width:230px;padding:7px;border-radius:6px"><button id="simOpenPay" type="button" style="padding:7px 10px">Ouvrir le Terminal Paie avec ce profil ↗</button></div><div id="simPayHint" style="margin-top:5px;color:#bac7d9">Le profil est transmis au Terminal Paie par l’URL. La simulation n’accorde aucun droit serveur.</div>`;
+   root.querySelector('#simRoleLevel').onchange=e=>{rosterRoleSimulation.level=e.target.value;save();render();applyCapsUi()};
+   root.querySelector('#simRoleEnabled').onchange=e=>{rosterRoleSimulation.enabled=e.target.checked;save();render();applyCapsUi()};
+   root.querySelector('#simRoleReset').onclick=()=>{rosterRoleSimulation={enabled:false,level:'MC',overrides:{},payUrl:sim.payUrl||''};save();render();applyCapsUi()};
+   root.querySelectorAll('[data-sim-cap]').forEach(cb=>cb.onchange=()=>{const cap=cb.dataset.simCap;rosterRoleSimulation.overrides=rosterRoleSimulation.overrides||{};rosterRoleSimulation.overrides[cap]=cb.checked;save();root.querySelector('summary').textContent=`Permissions individuelles (${Object.keys(rosterRoleSimulation.overrides).length} personnalisées)`;if(rosterRoleSimulation.enabled)applyCapsUi()});
+   root.querySelector('#simPayUrl').onchange=e=>{rosterRoleSimulation.payUrl=e.target.value.trim();save()};
+   root.querySelector('#simOpenPay').onclick=()=>{const url=(root.querySelector('#simPayUrl').value||'').trim();rosterRoleSimulation.payUrl=url;save();if(!url){root.querySelector('#simPayHint').textContent='Ajoute d’abord l’URL de ton Terminal Paie déployé.';return}try{const u=new URL(url);u.searchParams.set('role_sim','1');u.searchParams.set('sim_level',rosterRoleSimulation.enabled?rosterRoleSimulation.level:'OWNER');u.searchParams.set('sim_overrides',encodeURIComponent(JSON.stringify(rosterRoleSimulation.enabled?rosterRoleSimulation.overrides:{})));u.searchParams.set('sim_enabled',rosterRoleSimulation.enabled?'1':'0');window.open(u.toString(),'_blank','noopener')}catch(e){root.querySelector('#simPayHint').textContent='URL invalide : colle l’adresse complète commençant par https://'}};
+ }
+ rosterRoleSimulation=load()||{enabled:false,level:'MC',overrides:{},payUrl:''};
+ // Sécurité anti-écriture : en simulation, bloque les requêtes mutantes vers les fonctions Netlify et Firebase.
+ const nativeFetch=window.fetch.bind(window);
+ window.fetch=function(input,init){
+   const url=typeof input==='string'?input:(input&&input.url)||'';
+   const method=String((init&&init.method)||(input&&input.method)||'GET').toUpperCase();
+   if(rosterRoleSimulation&&rosterRoleSimulation.enabled&&method!=='GET'&&method!=='HEAD'&&(url.includes('/.netlify/functions/')||url.includes('firebaseio.com'))){
+     return Promise.reject(new Error('Action bloquée : simulation de rôle active (lecture seule).'));
+   }
+   return nativeFetch(input,init);
+ };
+ const watch=setInterval(()=>{if(currentUserLevel==='OWNER'){clearInterval(watch);render()}},500);
+ window.addEventListener('storage',e=>{if(e.key===KEY){rosterRoleSimulation=load();render();applyCapsUi()}});
+})();
 </script>
 </body>
 </html>
