@@ -44,6 +44,7 @@ const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebaseda
 const ACTIVITE_URL = `${BASE}/activiteSuivi.json`;
 const ROSTER_URL = `${BASE}/rosterEmsData.json`;
 const LAST_CLOSURE_URL = `${BASE}/rosterActiviteLastClosure.json`;
+const ABSENCES_URL = `${BASE}/rosterAbsences.json`;
 const closureUrl = (weekKey) => `${BASE}/rosterActiviteClosures/${weekKey}.json`;
 
 const SCOPES = {
@@ -145,14 +146,16 @@ async function closeActiviteWeekServer({ idToken, weekKey, weekEndMs, absentIds,
 
   try {
     // 2) Données nécessaires
-    const [rosterRes, lastRes] = await Promise.all([
+    const [rosterRes, lastRes, absencesRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${LAST_CLOSURE_URL}?auth=${idToken}`),
+      fetch(`${ABSENCES_URL}?auth=${idToken}`),
     ]);
     if (!rosterRes.ok) throw new Error(`lecture du Roster ${rosterRes.status}`);
     const roster = await rosterRes.json().catch(()=>null);
     const employees = (roster && Array.isArray(roster.employees)) ? roster.employees : [];
     const lastClosure = lastRes.ok ? ((await lastRes.json().catch(()=>null)) || {}) : {};
+    const officialAbsences = absencesRes.ok ? ((await absencesRes.json().catch(()=>null)) || {}) : {};
 
     // Pôle déjà clôturé à la main dans le Roster depuis le début du
     // dernier jour de la semaine → on ne le re-clôture pas.
@@ -161,7 +164,35 @@ async function closeActiviteWeekServer({ idToken, weekKey, weekEndMs, absentIds,
 
     const idSet = new Set((absentIds||[]).map(x=>String(x)));
     const nameSet = new Set((absentNames||[]).map(x=>String(x).trim().toLowerCase()));
-    const isAbsent = e => (e.idUnique && idSet.has(String(e.idUnique))) || nameSet.has(String(e.name||"").trim().toLowerCase());
+    // (13/10, section 8 du cahier des charges V2) "absent cette semaine"
+    // venait UNIQUEMENT de Pillbox (texte brut de la colonne Absences du
+    // tableau EMS collé cette semaine-là — même source que l'exemption
+    // de quota, jamais le registre officiel des absences). Ça restait
+    // vrai pour l'exemption de quota (hors périmètre ici, pas touché),
+    // mais le cahier des charges demande que ce soit le registre
+    // OFFICIEL (rosterAbsences, Prise en compte = OUI) qui mette en
+    // pause une série — ajouté ici en UNION avec le signal de Pillbox
+    // (jamais en remplacement : aucune des deux sources n'est retirée,
+    // donc aucune régression possible sur ce qui marchait déjà).
+    const weekEndDate = typeof weekEndMs === "number" ? new Date(weekEndMs) : new Date(now);
+    const recentCutoff = new Date(weekEndDate.getTime() - 7*86400000);
+    const officiallyAbsentIds = new Set();
+    const officiallyAbsentNames = new Set();
+    Object.values(officialAbsences||{}).forEach(a=>{
+      if(!a || a.priseEnCompte !== true) return;
+      const start = new Date(`${a.startIso}T00:00:00`);
+      const end = new Date(`${a.endIso}T00:00:00`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
+      const ongoing = start <= weekEndDate && weekEndDate <= end;
+      const justEnded = end < weekEndDate && end >= recentCutoff;
+      if (!ongoing && !justEnded) return;
+      const m = /^id:(.+)$/.exec(a.employeeKey||"");
+      if (m) officiallyAbsentIds.add(m[1]);
+      else if (a.name) officiallyAbsentNames.add(String(a.name).trim().toLowerCase());
+    });
+    const isAbsent = e => (e.idUnique && (idSet.has(String(e.idUnique)) || officiallyAbsentIds.has(String(e.idUnique))))
+      || nameSet.has(String(e.name||"").trim().toLowerCase())
+      || officiallyAbsentNames.has(String(e.name||"").trim().toLowerCase());
 
     // 3) Écriture principale, conditionnelle (jusqu'à 3 essais si quelqu'un
     //    a sauvegardé l'activité au même instant)

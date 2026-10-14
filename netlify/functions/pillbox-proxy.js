@@ -17,8 +17,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { computeAbsenceSignalements, pruneExpiredAbsences } = require("./absences-actions");
+const { computeAbsenceSignalements, computeStgAbsenceSignalements, computeLongAbsenceSignalements, attachAlertDecisions, pruneExpiredAbsences } = require("./absences-actions");
 const { verify } = require("./session-token");
+const { can, loadPermissionContext } = require("./permissions");
 const { closeActiviteWeekServer } = require("./activite-close");
 const { logAction } = require("./logs");
 
@@ -26,6 +27,11 @@ const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fire
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 const ABSENCES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsences.json";
+const ABSENCE_ALERT_DECISIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsenceAlertDecisions.json";
+// (13/10, section 6) NOUVEAU CHEMIN FIREBASE — nécessite ses propres
+// règles de validation (voir le rapport final) avant de fonctionner
+// réellement en production.
+const LIVE_UP_DECISIONS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxLiveUpDecisions";
 const PAY_RULES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfig.json";
 
 // Valeurs par défaut — copie EXACTE de celles de pay-rules-actions.js
@@ -140,14 +146,80 @@ exports.handler = async function (event) {
         });
         return json(r.status, r.body, corsHeaders);
       }
+      if (body.action === "setLiveUpDecision") {
+        // (13/10, section 6) Modifier en direct le choix de UP d'un
+        // employé pendant qu'une paie est en cours de traitement.
+        // Utilisé À LA FOIS par la session active elle-même (qui
+        // mirrore ses propres clics) ET par le panneau "Modification
+        // OWNER" — dernier horodatage gagnant des deux côtés, jamais de
+        // verrou qui bloquerait l'un pour l'autre.
+        const { weekKey, employeeKey, value } = body;
+        if (!weekKey || !/^[0-9a-zA-Z_-]+$/.test(weekKey) || !employeeKey || typeof employeeKey !== "string") {
+          return json(400, { error: "Paramètres invalides (weekKey/employeeKey attendus)." }, corsHeaders);
+        }
+        if (value !== true && value !== false && value !== null) {
+          return json(400, { error: "Valeur invalide (true/false/null attendu)." }, corsHeaders);
+        }
+        // Seule une vraie modification EN DIRECT (donc par quelqu'un
+        // d'autre que celui qui traite la paie, typiquement OWNER/
+        // délégué) a besoin d'une permission spéciale ; la session qui
+        // traite sa propre semaine mirrore ses propres clics sans
+        // permission supplémentaire (elle avait déjà le droit de
+        // décider ce choix en premier lieu). On distingue via un flag
+        // explicite envoyé par le client plutôt que de deviner.
+        if (body.isAdminEdit) {
+          const permCtx2 = await loadPermissionContext(idToken).catch(()=>({custom:null, individual:null}));
+          const allowed = session.level === "OWNER" || can(session.level, "owner_delegate", permCtx2.custom, session.discordId, permCtx2.individual);
+          if (!allowed) return json(403, { error: `Permission refusée (${session.level}) — réservé à OWNER ou à une délégation explicite.` }, corsHeaders);
+        }
+        const url = `${LIVE_UP_DECISIONS_BASE}/${weekKey}/${encodeURIComponent(employeeKey)}.json?auth=${idToken}`;
+        const entry = { value, updatedAt: Date.now(), updatedByDiscordId: session.discordId, updatedByName: session.name, isAdminEdit: !!body.isAdminEdit };
+        const putRes = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) });
+        if (!putRes.ok) { const t = await putRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${putRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+        if (body.isAdminEdit) {
+          await logAction({
+            action: "modification_owner_up", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+            details: `UP de ${employeeKey} (semaine ${weekKey}) modifié en direct -> ${value===null?"effacé":(value?"Oui":"Non")}`,
+            idToken,
+          }).catch(()=>{});
+        }
+        return json(200, { ok: true }, corsHeaders);
+      }
+      if (body.action === "setAbsenceAlertDecision") {
+        // (13/10, sections 2.6/2.8) Décision OUI/NON sur une alerte STG
+        // (2 absences/2 semaines) ou absence longue (>67j), posée
+        // depuis Pillbox au moment de la préparation des paies — même
+        // permission que pour gérer les absences côté Roster, jamais
+        // un simple appel public.
+        if (!can(session.level, "manage_absences", null, session.discordId, null)) {
+          return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` }, corsHeaders);
+        }
+        const { alertKey, decision } = body;
+        if (!alertKey || (decision !== "oui" && decision !== "non")) {
+          return json(400, { error: "Paramètres invalides (alertKey/decision attendus)." }, corsHeaders);
+        }
+        const curRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
+        const current = curRes.ok ? ((await curRes.json()) || {}) : {};
+        current[alertKey] = { decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name };
+        const saveRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current),
+        });
+        if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+        await logAction({
+          action: "absence_alerte_decidee", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          details: `${alertKey} -> ${decision} (depuis Pillbox)`, idToken,
+        }).catch(()=>{});
+        return json(200, { ok: true }, corsHeaders);
+      }
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, absencesRes, payRulesRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, absencesRes, payRulesRes, alertDecisionsRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
       fetch(PAY_RULES_URL), // lecture publique, comme rosterGradeLabels — pas besoin du jeton
+      fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
     ]);
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
@@ -156,6 +228,7 @@ exports.handler = async function (event) {
     // (absences-actions.js GET) — pour que Pillbox ne voie jamais une
     // entrée WDV ou expirée (3 semaines) que le Roster aurait déjà purgée.
     if(absences) absences = await pruneExpiredAbsences(absences, idToken);
+    const alertDecisions = alertDecisionsRes.ok ? ((await alertDecisionsRes.json()) || {}) : {};
     const storedPayRules = payRulesRes.ok ? await payRulesRes.json() : null;
     // Fusionne sur les valeurs par défaut — si rien n'a encore été
     // configuré (payRulesConfig vide ou absente), Pillbox reçoit les
@@ -195,10 +268,35 @@ exports.handler = async function (event) {
     // absences-actions.js) — jamais recalculée en double avec une
     // logique qui pourrait dériver de l'originale.
     const absenceSignalements = computeAbsenceSignalements(absences || {});
+    // (13/10, sections 2.6/2.8) Mêmes règles exactes que le Roster,
+    // jamais recalculées différemment — décisions déjà prises
+    // rattachées ici pour que Pillbox n'ait jamais à redemander une
+    // question déjà répondue tant que le jeu d'absences ne change pas.
+    const stgAbsenceSignalements = attachAlertDecisions(computeStgAbsenceSignalements(absences || {}), "stg2sem", alertDecisions);
+    const longAbsenceSignalements = attachAlertDecisions(computeLongAbsenceSignalements(absences || {}), "long67j", alertDecisions);
+
+    // (13/10, section 6/7) Le bouton "Modification OWNER" (et tout
+    // futur affichage conditionnel équivalent) se fie à CE calcul
+    // serveur, jamais à une simple variable côté navigateur — recalculé
+    // à chaque appel, donc une révocation prend effet immédiatement.
+    const permCtx = await loadPermissionContext(idToken).catch(()=>({custom:null, individual:null}));
+    const isOwnerOrDelegate = can(session.level, "owner_delegate", permCtx.custom, session.discordId, permCtx.individual) || session.level === "OWNER";
+
+    // (13/10, section 6) Décisions UP en direct pour la semaine en cours
+    // — lues à chaque appel (polling côté Pillbox, ~3s) pour que la
+    // session active ET le panneau "Modification OWNER" restent
+    // synchronisés sans avoir à se faire confiance l'un l'autre en
+    // dehors de Firebase.
+    const liveWeekKey = (event.queryStringParameters && event.queryStringParameters.liveWeekKey) || null;
+    let liveUpDecisions = {};
+    if (liveWeekKey && /^[0-9a-zA-Z_-]+$/.test(liveWeekKey)) {
+      const liveRes = await fetch(`${LIVE_UP_DECISIONS_BASE}/${liveWeekKey}.json?auth=${idToken}`);
+      liveUpDecisions = liveRes.ok ? ((await liveRes.json()) || {}) : {};
+    }
 
     return json(200, {
       roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
-      absenceSignalements, payRules,
+      absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions,
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);

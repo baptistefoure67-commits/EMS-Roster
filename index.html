@@ -273,6 +273,7 @@
       <button type="button" class="btn-ghost btn-small" id="btnSaveAll" title="Sauvegarde la sélection Formation Opération et le suivi d'activité Formateur/Psychologue">💾 Sauvegarder</button>
       <span id="saveAllStatus" style="font-size:0.74rem;color:var(--text-dim);"></span>
       <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
+      <a href="https://paie-pillbox-terminal-ems.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:inline-flex;align-items:center;text-decoration:none;">💊 Outil de paie Pillbox</a>
       <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
         Se déconnecter
       </button>
@@ -2335,11 +2336,59 @@ function parseWeekAbsences(text){
 // jamais l'un sans l'autre, comme pour hasFormationOperation côté
 // Pillbox (bug corrigé le 07/09 : la correspondance par ID seul ratait
 // silencieusement beaucoup de monde).
-function isAbsentThisWeek(e){
-  return weekAbsences.some(a=>
-    (e.idUnique && a.idUnique && String(a.idUnique)===String(e.idUnique)) ||
-    (a.name && e.name && a.name.trim().toLowerCase()===e.name.trim().toLowerCase())
-  );
+// (13/10, section 8 du cahier des charges V2) Avant : basé sur le texte
+// brut de la colonne "Absences" du dernier tableau EMS collé
+// (weekAbsences) — un signal "du jour", jamais le registre OFFICIEL des
+// absences (rosterAbsences/absencesCache, le seul que Prise en compte
+// ADD+ valide réellement). Les deux systèmes sont volontairement
+// distincts (planning hebdomadaire vs registre officiel) — ce n'est
+// donc QUE le registre officiel qui doit mettre en pause une série.
+// Renvoie l'absence officielle concernée (avec ses vraies dates), ou
+// null si personne n'est officiellement absent en ce moment pour cette
+// personne — jamais un simple booléen, pour permettre l'affichage des
+// dates exactes (section 8.3).
+// "Couvre la semaine en cours" = l'absence est en cours aujourd'hui, ou
+// vient de se terminer il y a 7 jours ou moins (laisse le temps à la
+// clôture hebdomadaire de la voir une dernière fois avant que le
+// nettoyage automatique de absences-actions.js ne la retire).
+function officialAbsenceFor(e){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const recentCutoff = new Date(now.getTime() - 7*86400000);
+  let best = null;
+  Object.values(absencesCache||{}).forEach(a=>{
+    if(!a || a.priseEnCompte !== true) return;
+    const matches = (e.idUnique && a.employeeKey===`id:${e.idUnique}`) ||
+      (a.name && e.name && a.name.trim().toLowerCase()===e.name.trim().toLowerCase());
+    if(!matches) return;
+    const start = new Date(`${a.startIso}T00:00:00`);
+    const end = new Date(`${a.endIso}T00:00:00`);
+    if(isNaN(start.getTime()) || isNaN(end.getTime())) return;
+    const ongoing = start <= now && now <= end;
+    const justEnded = end < now && end >= recentCutoff;
+    if(ongoing || justEnded){
+      // Si plusieurs absences qualifient (rare), garde la plus récente.
+      if(!best || end > new Date(`${best.endIso}T00:00:00`)) best = a;
+    }
+  });
+  return best;
+}
+function isAbsentThisWeek(e){ return !!officialAbsenceFor(e); }
+
+// (13/10, section 8.3) Remplace l'ancien message générique "absent(e)
+// cette semaine — série mise en pause" par les dates réelles de
+// l'absence officielle, avec la mention "absence en cours" si la date
+// de fin stockée n'est pas encore dépassée aujourd'hui.
+function formatAbsencePauseLabel(a){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const fmt = iso => {
+    const d = new Date(`${iso}T00:00:00`);
+    return isNaN(d.getTime()) ? (iso||"date inconnue") : `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+  };
+  const end = new Date(`${a.endIso}T00:00:00`);
+  const ongoing = !isNaN(end.getTime()) && end >= now;
+  return ongoing
+    ? `Absent(e) depuis le ${fmt(a.startIso)} (absence en cours) — série d'activité mise en pause.`
+    : `Absent(e) du ${fmt(a.startIso)} au ${fmt(a.endIso)} — série d'activité mise en pause.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2636,7 +2685,8 @@ function renderActiviteTab(type){
   list.innerHTML = concerned.map(e=>{
     const key = activiteKeyFor(e);
     const rec = activiteData[key] || {};
-    const isAbsent = isAbsentThisWeek(e);
+    const absenceInfo = officialAbsenceFor(e);
+    const isAbsent = !!absenceInfo;
     const inputs = fields.map(([f,label])=>`
       <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;">${esc(label)}
         <input type="number" min="0" data-activite-field="${f}" data-activite-key="${esc(key)}" value="${rec[f]||0}" style="width:64px;">
@@ -2657,7 +2707,7 @@ function renderActiviteTab(type){
       : (isExcused ? `<span style="font-size:0.72rem;color:var(--text-dim);">actif, n'a pas pu (${excusedLabel})</span>` : "");
     return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);">
       <div>
-        <div><b>${esc(e.name)}</b> <span style="font-size:0.72rem;color:var(--text-dim);">(${esc(GRADE_LABEL[e.grade]||e.grade)})</span>${isAbsent?` <span style="font-size:0.7rem;color:var(--amber);font-weight:700;">absent(e) cette semaine — série mise en pause</span>`:""}${streakBadge}</div>
+        <div><b>${esc(e.name)}</b> <span style="font-size:0.72rem;color:var(--text-dim);">(${esc(GRADE_LABEL[e.grade]||e.grade)})</span>${isAbsent?` <span style="font-size:0.7rem;color:var(--amber);font-weight:700;">${esc(formatAbsencePauseLabel(absenceInfo))}</span>`:""}${streakBadge}</div>
         ${excusedCtl ? `<div style="margin-top:3px;">${excusedCtl}</div>` : ""}
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;">${inputs}</div>
@@ -3016,8 +3066,8 @@ function switchTab(active){
     const submitBtn = document.getElementById("signalementSubmitBtn");
     if(submitBtn) submitBtn.textContent = !hasCap("create_signalement") ? "Proposer un signalement" : "Envoyer anonymement"; // (12/10) selon le droit réel, plus le grade
   }
-  if(active==="Formateur"){ renderActiviteTab("formateur"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
-  if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
+  if(active==="Formateur"){ renderActiviteTab("formateur"); loadAbsencesFromCloud().then(()=>renderActiviteTab("formateur")); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
+  if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadAbsencesFromCloud().then(()=>renderActiviteTab("psychologue")); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
   if(active==="Troll"){ trollRenderTab(); }
   if(active==="Logs") loadLogs();
@@ -3339,12 +3389,37 @@ async function loadLogs(){
         </div>
         ${e.oldValue||e.newValue ? `<div style="font-size:0.76rem;color:var(--text-faint);margin-top:2px;">${e.oldValue?`Avant : ${esc(e.oldValue)}`:""}${e.oldValue&&e.newValue?" — ":""}${e.newValue?`Après : ${esc(e.newValue)}`:""}</div>` : ""}
         ${e.details ? `<div style="font-size:0.76rem;color:var(--text-faint);margin-top:2px;">${esc(e.details)}</div>` : ""}
+        ${hasCap("delete_logs") ? `<button type="button" class="btn-ghost btn-small" style="margin-top:6px;color:var(--red);border-color:rgba(248,113,113,0.4);" data-action="deleteLog" data-key="${esc(e.key)}">🗑️ Supprimer cette entrée</button>` : ""}
       </div>
     `).join("");
   }catch(err){
     list.textContent = `Impossible de charger les journaux (${err.message}).`;
   }
 }
+document.getElementById("logsList").addEventListener("click", async (ev)=>{
+  const btn = ev.target.closest('[data-action="deleteLog"]');
+  if(!btn) return;
+  // (13/10, section 5) Suppression réservée à OWNER par défaut, ou à
+  // une exception individuelle explicite — revérifié côté serveur à
+  // chaque appel (voir get-logs.js), jamais une simple protection
+  // d'affichage. Le serveur refuse aussi toute tentative de supprimer
+  // sa propre trace, même pour OWNER.
+  if(!confirm("Supprimer définitivement cette entrée de log ? Cette action est elle-même tracée.")) return;
+  btn.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/get-logs", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, logKey: btn.dataset.key }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    toast("✓ Entrée supprimée.");
+    loadLogs();
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+    btn.disabled = false;
+  }
+});
 document.getElementById("logsRefreshBtn").addEventListener("click", loadLogs);
 document.getElementById("logsFilterBtn").addEventListener("click", loadLogs);
 
@@ -3366,6 +3441,8 @@ const PERMISSION_LABEL = {
   send_pillbox_psychologie: "Envoyer Psychologie vers Pillbox",
   send_pillbox_all: "Envoyer TOUT vers Pillbox",
   view_logs: "Consulter les logs",
+  delete_logs: "🗑️ Supprimer une entrée de log (réservé OWNER par défaut)",
+  owner_delegate: "👑 Droits OWNER délégués (équivaut à TOUT — Roster et Pillbox — jamais affiché comme OWNER, grade EMS conservé)",
   view_member_history: "Consulter l'historique d'un membre",
   modify_role_label: "Modifier les libellés de rôle",
   manage_advanced_settings: "Paramètres avancés",
@@ -3851,13 +3928,34 @@ function renderPayRulesForm(){
       <!-- (11/10, demandé) Infirmiers — même principe que l'Ambulancier
            (proposition, jamais automatique), mais DÉSACTIVÉ par défaut
            tant que la case n'est pas cochée : sans ça, les Infirmiers
-           continuent de suivre uniquement le cumul Q+A, comme avant. -->
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+           continuent de suivre uniquement le cumul Q+A, comme avant.
+           (13/10, section 4.3) Regroupé dans la MÊME case que STG/A
+           (plus de séparateur visuel entre les deux) — la case
+           "Activation" des Infirmiers reste inchangée, juste au même
+           endroit visuellement. -->
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;">
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">
           <input type="checkbox" id="payRuleInfEnabled" ${c.infProposalEnabled?"checked":""}> Activer une proposition pour les Infirmiers
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Infirmier — proposition à Q <input type="number" min="1" step="1" id="payRuleInfProposal" value="${c.infProposalThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveInf">Enregistrer</button>
+      </div>
+      <!-- (13/10, section 4.4) Même mécanisme de proposition, généralisé
+           à n'importe quel grade au-delà de STG/A/INF — vide par défaut,
+           donc aucun changement tant que rien n'est coché ici. -->
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+        <div>
+          <div style="font-size:0.78rem;color:var(--text-dim);font-weight:600;margin-bottom:6px;">Grades concernés (proposition Q, comme STG/A/INF)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:360px;">
+            ${["M","MF","MP","MLP","RF","RP","RL"].map(g=>`
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.78rem;">
+                <input type="checkbox" data-extraq-grade="${g}" ${(c.extraQProposalGrades||[]).includes(g)?"checked":""}> ${g}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Proposition à Q <input type="number" min="1" step="1" id="payRuleExtraQThreshold" value="${c.extraQProposalThreshold}" style="width:80px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveExtraQ">Enregistrer</button>
       </div>
     </div>
 
@@ -3934,6 +4032,14 @@ function renderPayRulesForm(){
     await savePayRuleField("infProposalEnabled", enabled, e.target);
     await savePayRuleField("infProposalThreshold", threshold, e.target);
   });
+  document.getElementById("btnSaveExtraQ").addEventListener("click", async (e)=>{
+    const grades = ["M","MF","MP","MLP","RF","RP","RL"].filter(g=>document.querySelector(`[data-extraq-grade="${g}"]`).checked);
+    const threshold = +document.getElementById("payRuleExtraQThreshold").value;
+    if(!(threshold>=1)){ toast("Seuil invalide"); return; }
+    e.target.disabled = true;
+    await savePayRuleField("extraQProposalGrades", grades, e.target);
+    await savePayRuleField("extraQProposalThreshold", threshold, e.target);
+  });
   document.getElementById("btnSaveSalaries").addEventListener("click", (e)=>{
     const value = {};
     let invalid = false;
@@ -3956,7 +4062,7 @@ async function renderPayRulesHistory(){
     const all = res.ok ? (await res.json()) : {};
     const entries = Object.values(all||{}).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     if(!entries.length){ box.textContent = "Aucune modification enregistrée pour l'instant."; return; }
-    const fieldLabel = { reaRate:"Tarif réa", bonusByRank:"Bonus de classement", ppaWeeklyCap:"Plafond PPA", ppaEligibleGrades:"Grades PPA", fixedSalaryByGrade:"Salaires fixes", quotaStandard:"Quota standard", quotaStaff:"Quota staff", exemptGrades:"Grades exemptés", nearMissGrades:"Grades (presque atteint)", nearMissThreshold:"Seuil presque atteint", stgProposalThreshold:"STG proposition", stgAutoThreshold:"STG automatique", aProposalThreshold:"A proposition", qaCumulThreshold:"Cumul Q+A", infProposalEnabled:"INF proposition (activé)", infProposalThreshold:"INF proposition (seuil)" };
+    const fieldLabel = { reaRate:"Tarif réa", bonusByRank:"Bonus de classement", ppaWeeklyCap:"Plafond PPA", ppaEligibleGrades:"Grades PPA", fixedSalaryByGrade:"Salaires fixes", quotaStandard:"Quota standard", quotaStaff:"Quota staff", exemptGrades:"Grades exemptés", nearMissGrades:"Grades (presque atteint)", nearMissThreshold:"Seuil presque atteint", stgProposalThreshold:"STG proposition", stgAutoThreshold:"STG automatique", aProposalThreshold:"A proposition", qaCumulThreshold:"Cumul Q+A", infProposalEnabled:"INF proposition (activé)", infProposalThreshold:"INF proposition (seuil)", extraQProposalGrades:"Proposition Q — grades concernés", extraQProposalThreshold:"Proposition Q — seuil" };
     box.innerHTML = entries.slice(0,100).map(e=>`
       <div style="padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
         <div><b>${esc(fieldLabel[e.field]||e.field)}</b> — ${new Date(e.createdAt).toLocaleString("fr-FR")}</div>
@@ -4124,7 +4230,7 @@ function populateForceLogoutSelect(){
 // repli générique aurait affiché le mauvais niveau par défaut pour
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
-const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu
+const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"], "delete_logs": ["OWNER"], "owner_delegate": ["OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu — delete_logs/owner_delegate ajoutés le 13/10
 function hasCap(name){
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);

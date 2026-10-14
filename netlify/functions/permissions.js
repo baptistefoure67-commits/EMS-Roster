@@ -42,6 +42,21 @@ const DEFAULT_PERMISSIONS = {
     // pour TOUS les grades par défaut (DG compris, voir plus bas). Le
     // Concepteur l'a toujours. Cochée par grade ou individuellement = accès.
     manage_troll: false,
+    // (13/10, section 5) Suppression de logs : réservée à OWNER par
+    // défaut, jamais liée au grade ni au Mode troll — seule une
+    // exception individuelle (voir manage-individual-permissions.js)
+    // peut l'accorder à quelqu'un de précis. Jamais resserrée plus haut
+    // dans les blocs suivants : reste false pour tout le monde sauf
+    // DG/OWNER (base) tant qu'aucune exception individuelle n'existe.
+    delete_logs: false,
+    // (13/10, section 7) Droits OWNER délégués : équivalent fonctionnel
+    // complet à OWNER dans les DEUX applications (Roster et Pillbox),
+    // jamais lié à un grade — uniquement accordé individuellement
+    // (jamais à "tout un grade"). Celui qui le reçoit garde son grade
+    // EMS normal affiché (jamais affiché comme OWNER/Concepteur) : ce
+    // n'est qu'un droit d'administration, pas une identité. Toujours
+    // false par défaut, y compris pour DG (voir le bloc DG ci-dessous).
+    owner_delegate: false,
     view_roster: true,
     manage_roster: false,
     manage_ppa: true,
@@ -138,6 +153,8 @@ const DEFAULT_PERMISSIONS = {
   },
   DG: {
     manage_troll: false, // (12/10) sinon le DG l'aurait d'office (il reçoit « tout à vrai » ci-dessous)
+    delete_logs: false, // (13/10, section 5) même raison : réservé à OWNER par défaut, sauf exception individuelle
+    owner_delegate: false, // (13/10, section 7) jamais par grade, même pour DG — uniquement par exception individuelle
     // Toutes les permissions FONCTIONNELLES de OWNER (calculé plus bas,
     // comme OWNER) — mais reste dans le tableau normal, donc reste
     // soumis aux exceptions individuelles, contrairement à OWNER.
@@ -199,6 +216,14 @@ function can(level, permissionName, customPermissions, discordId, individualOver
   if(discordId && individualOverrides){
     const decision = resolveIndividualDecision(discordId, permissionName, individualOverrides);
     if(decision !== null) return decision; // une exception existe et tranche, quel que soit le grade
+    // (13/10, section 7) Droits OWNER délégués : accordé INDIVIDUELLEMENT
+    // (jamais par grade), équivaut à OWNER pour tout le reste — mais ne
+    // se grant jamais lui-même en cascade, et une exception explicite
+    // sur LA permission demandée (ci-dessus) passe toujours avant.
+    if(permissionName !== "owner_delegate"){
+      const delegateDecision = resolveIndividualDecision(discordId, "owner_delegate", individualOverrides);
+      if(delegateDecision === true) return true;
+    }
   }
   const table = buildEffectivePermissions(customPermissions);
   return !!(table[level] && table[level][permissionName]);

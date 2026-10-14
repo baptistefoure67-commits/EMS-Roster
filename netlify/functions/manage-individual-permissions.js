@@ -105,6 +105,12 @@ exports.handler = async function (event) {
   if (!isBatch && (typeof permissionName !== "string" || !ALL_PERMISSION_KEYS.includes(permissionName))) {
     return json(400, { error: `Permission inconnue : "${permissionName}".` }, corsHeaders);
   }
+  // (13/10, section 7) owner_delegate est le seul droit qui équivaut à
+  // TOUT le reste — ni un D ni un DG (même avec manage_individual_permissions)
+  // ne peut l'accorder ou le retirer : seul le Concepteur (OWNER) réel.
+  if (!isBatch && permissionName === "owner_delegate" && session.level !== "OWNER") {
+    return json(403, { error: "Seul le Concepteur (OWNER) peut accorder ou retirer les droits OWNER délégués." }, corsHeaders);
+  }
 
   // Couche d'écriture = niveau réel de l'auteur (jamais choisie par le
   // client). OWNER écrit à la couche DG. (12/10) Un MC/ADD à qui on a

@@ -68,6 +68,14 @@ const DEFAULT_CONFIG = {
   // Infirmiers restent soumis uniquement au cumul Q+A, inchangé.
   infProposalEnabled: false,
   infProposalThreshold: 3,
+  // (13/10, section 4.4) Même principe que les Infirmiers, mais
+  // généralisé à n'importe quel grade au-delà de STG/A/INF (M, MF, MP,
+  // MLP, RF, RP, RL) — liste VIDE par défaut, donc aucun changement de
+  // comportement tant que personne n'a explicitement coché un grade
+  // dans le Roster (ces grades restent sur la règle de cumul Q+A,
+  // exactement comme avant ce point du cahier des charges).
+  extraQProposalGrades: [],
+  extraQProposalThreshold: 3,
   qaCumulThreshold: 3,
   updatedAt: null,
   updatedBy: null,
@@ -177,6 +185,15 @@ exports.handler = async function (event) {
       current[field] = value;
     } else if (field === "infProposalEnabled") {
       if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." });
+      current[field] = value;
+    } else if (field === "extraQProposalGrades") {
+      // (13/10, section 4.4) Jamais STG/A/INF (mécanisme dédié déjà en
+      // place) ni MC et au-dessus (hors quota de réanimations).
+      const allowed = VALID_GRADES.filter(g => !["STG","A","INF","MC","ADD","CD","D","DG"].includes(g));
+      if (!Array.isArray(value) || !value.every(g => allowed.includes(g))) return json(400, { error: "Liste de grades invalide pour la proposition Q généralisée." });
+      current[field] = [...new Set(value)];
+    } else if (field === "extraQProposalThreshold") {
+      if (typeof value !== "number" || !(value >= 1) || value > 20) return json(400, { error: "Seuil invalide." });
       current[field] = value;
     } else if (field === "quotaStandard" || field === "quotaStaff" || field === "nearMissThreshold") {
       if (typeof value !== "number" || !(value >= 0) || value > 1000) return json(400, { error: "Valeur de quota invalide." });

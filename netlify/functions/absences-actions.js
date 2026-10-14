@@ -30,6 +30,12 @@ const { logAction } = require("./logs");
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const ABSENCES_URL = `${BASE}/rosterAbsences.json`;
 const INDIVIDUAL_URL = `${BASE}/rosterIndividualPermissions.json`;
+// (13/10) NOUVEAU CHEMIN FIREBASE — nécessite l'ajout de ses propres
+// règles de validation dans la console Firebase (voir le rapport final
+// livré avec les ZIP) avant que l'écriture ne fonctionne réellement en
+// production ; lecture/écriture tentées ici en supposant des règles du
+// type ".read": "auth != null", ".write": "auth != null".
+const ABSENCE_ALERT_DECISIONS_URL = `${BASE}/rosterAbsenceAlertDecisions.json`;
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
@@ -50,12 +56,21 @@ function absenceKey(employeeKey, startIso, endIso){
   return `${employeeKey}__${startIso}__${endIso}`;
 }
 
-// Détection du signalement (section 8) : 3 absences PRISES EN COMPTE
-// (priseEnCompte=true) dont la date de FIN tombe dans les 30 derniers
-// jours glissants par rapport à refDate (par défaut maintenant) — pas
-// un mois civil (section 8, avertissement explicite). Groupe par
-// employeeKey ; une absence très longue (14j, 20j...) ne compte
-// toujours que pour UNE (section 19) puisqu'elle n'a qu'une seule clé.
+// (13/10) Grades MC et au-dessus : leurs absences restent enregistrées
+// (historique, affichage) mais ne doivent JAMAIS déclencher une des
+// règles de signalement automatique ci-dessous (cahier des charges
+// V2, section 2.3). Un seul point de vérité, réutilisé par toutes les
+// fonctions de calcul de cette section.
+const MC_AND_ABOVE = new Set(["MC","ADD","CD","D","DG"]);
+
+// Détection du signalement générique (section 8 d'origine, inchangée) :
+// 3 absences PRISES EN COMPTE (priseEnCompte=true) dont la date de FIN
+// tombe dans les 30 derniers jours glissants par rapport à refDate (pas
+// un mois civil). Groupe par employeeKey ; une absence très longue
+// (14j, 20j...) ne compte toujours que pour UNE puisqu'elle n'a qu'une
+// seule clé. S'applique de A jusqu'à MC exclu (section 2.3 : MC et
+// au-dessus exemptés) — les STG suivent leur propre règle séparée
+// (computeStgAbsenceSignalements), jamais celle-ci à la fois.
 // Exporté pour être réutilisé tel quel par pillbox-proxy.js, sans
 // dupliquer cette règle ailleurs.
 function computeAbsenceSignalements(absencesObj, refDate){
@@ -64,12 +79,105 @@ function computeAbsenceSignalements(absencesObj, refDate){
   const byEmployee = {};
   Object.entries(absencesObj || {}).forEach(([id, a]) => {
     if (!a || a.priseEnCompte !== true) return;
+    if (a.grade === "STG" || MC_AND_ABOVE.has(a.grade)) return;
     const end = new Date(a.endIso);
     if (isNaN(end.getTime()) || end < windowStart || end > ref) return;
     const key = a.employeeKey;
     (byEmployee[key] = byEmployee[key] || { employeeKey: key, name: a.name, grade: a.grade, absences: [] }).absences.push({ id, startIso: a.startIso, endIso: a.endIso, durationDays: a.durationDays });
   });
   return Object.values(byEmployee).filter(e => e.absences.length >= 3);
+}
+
+// (13/10, section 2.6) Règle spéciale STG : DEUX absences DISTINCTES
+// (donc deux entrées séparées, jamais une seule absence continue —
+// voir absenceKey : une absence continue n'a qu'une clé, donc ne peut
+// jamais en fournir deux) dont la période combinée (du début de la
+// plus ancienne à la fin de la plus récente) tient dans 14 jours.
+// Jamais appliqué à un autre grade que STG. Une seule proposition par
+// personne, basée sur la paire la PLUS RÉCENTE trouvée.
+const STG_WINDOW_DAYS = 14;
+function computeStgAbsenceSignalements(absencesObj, refDate){
+  const ref = refDate || new Date();
+  const byEmployee = {};
+  Object.entries(absencesObj || {}).forEach(([id, a]) => {
+    if (!a || a.priseEnCompte !== true || a.grade !== "STG") return;
+    const start = new Date(a.startIso), end = new Date(a.endIso);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end > ref) return;
+    (byEmployee[a.employeeKey] = byEmployee[a.employeeKey] || { employeeKey: a.employeeKey, name: a.name, grade: a.grade, list: [] })
+      .list.push({ id, startIso: a.startIso, endIso: a.endIso, start, end });
+  });
+  const result = [];
+  Object.values(byEmployee).forEach(emp => {
+    if (emp.list.length < 2) return;
+    emp.list.sort((x,y)=> x.start - y.start);
+    // Cherche la paire la plus récente (en partant de la fin) dont
+    // l'étendue totale (début de la plus ancienne -> fin de la plus
+    // récente des deux) tient dans STG_WINDOW_DAYS jours.
+    for (let i = emp.list.length - 1; i > 0; i--) {
+      for (let j = i - 1; j >= 0; j--) {
+        const spanDays = (emp.list[i].end - emp.list[j].start) / 86400000;
+        if (spanDays <= STG_WINDOW_DAYS) {
+          result.push({
+            employeeKey: emp.employeeKey, name: emp.name, grade: emp.grade,
+            absences: [
+              { id: emp.list[j].id, startIso: emp.list[j].startIso, endIso: emp.list[j].endIso },
+              { id: emp.list[i].id, startIso: emp.list[i].startIso, endIso: emp.list[i].endIso },
+            ],
+          });
+          return; // une seule proposition par personne
+        }
+      }
+    }
+  });
+  return result;
+}
+
+// (13/10, section 2.8) Absence unique dépassant 2 mois et 7 jours (67
+// jours pleins). Jamais une absence MC+ (section 2.3). Une seule
+// entrée par absence qualifiante (pas de regroupement par personne —
+// section 2.8 traite chaque absence longue indépendamment).
+const LONG_ABSENCE_DAYS = 67;
+function computeLongAbsenceSignalements(absencesObj, refDate){
+  const ref = refDate || new Date();
+  const result = [];
+  Object.entries(absencesObj || {}).forEach(([id, a]) => {
+    if (!a || a.priseEnCompte !== true || MC_AND_ABOVE.has(a.grade)) return;
+    const start = new Date(a.startIso);
+    if (isNaN(start.getTime())) return;
+    const end = new Date(a.endIso);
+    const effectiveEnd = (!isNaN(end.getTime()) && end < ref) ? end : ref; // absence toujours en cours -> compte jusqu'à aujourd'hui
+    const days = Math.floor((effectiveEnd - start) / 86400000);
+    if (days > LONG_ABSENCE_DAYS) {
+      result.push({ employeeKey: a.employeeKey, name: a.name, grade: a.grade, absences: [{ id, startIso: a.startIso, endIso: a.endIso }], days, ongoing: effectiveEnd === ref && (isNaN(end.getTime()) || end >= ref) });
+    }
+  });
+  return result;
+}
+
+// (13/10) Clé stable d'un GROUPE de signalement (STG ou absence
+// longue), construite à partir du type de règle + des IDs d'absences
+// IMPLIQUÉS, triés. Tant que le même jeu d'absences déclenche le même
+// groupe, la clé ne change pas -> la décision déjà posée reste valable
+// (section 2.6 : "éviter que la même question réapparaisse ... sans
+// nouvel événement"). Une absence en plus/en moins dans le groupe
+// change la clé -> redemande, correctement, une nouvelle décision.
+function absenceAlertKey(type, absences){
+  const ids = (absences||[]).map(a=>a.id).sort().join("+");
+  return `${type}:${ids}`;
+}
+
+// (13/10) Résout, pour chaque groupe calculé, la décision déjà prise
+// précédemment (si le jeu d'absences est EXACTEMENT le même) à partir
+// de la table persistée rosterAbsenceAlertDecisions. Un groupe dont le
+// jeu d'absences a changé (nouvelle absence ajoutée au groupe, etc.)
+// n'a pas de décision correspondante -> redemandé normalement.
+function attachAlertDecisions(groups, type, decisionsStore){
+  const store = decisionsStore || {};
+  return groups.map(g => {
+    const key = absenceAlertKey(type, g.absences);
+    const stored = store[key];
+    return { ...g, alertKey: key, decision: stored ? stored.decision : null };
+  });
 }
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
@@ -130,7 +238,17 @@ exports.handler = async function (event) {
       const res = await fetch(`${ABSENCES_URL}?auth=${idToken}`);
       let all = res.ok ? (await res.json()) : {};
       all = await pruneExpiredAbsences(all || {}, idToken);
-      return json(200, { absences: all || {}, signalements: computeAbsenceSignalements(all) });
+      let decisions = {};
+      try{
+        const decRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
+        decisions = decRes.ok ? ((await decRes.json()) || {}) : {};
+      }catch(e){ /* absence de décisions persistées -> tout redemandé, jamais bloquant */ }
+      return json(200, {
+        absences: all || {},
+        signalements: computeAbsenceSignalements(all),
+        stgSignalements: attachAlertDecisions(computeStgAbsenceSignalements(all), "stg2sem", decisions),
+        longAbsenceSignalements: attachAlertDecisions(computeLongAbsenceSignalements(all), "long67j", decisions),
+      });
     } catch (err) {
       return json(500, { error: `Erreur inattendue : ${err.message}` });
     }
@@ -168,6 +286,11 @@ exports.handler = async function (event) {
       let added = 0;
       qualifyingAbsences.forEach(a => {
         if (!a || !a.employeeKey || !a.startIso || !a.endIso || !a.name) return;
+        // (13/10, section 2.4) Un WDV n'est de toute façon qu'un
+        // licenciement en cours de traitement — jamais une vraie
+        // absence à suivre. Avant : seulement nettoyé après coup (voir
+        // findExpiredAbsenceIds) ; maintenant, jamais écrit du tout.
+        if (a.grade === "WDV") return;
         const key = absenceKey(a.employeeKey, a.startIso, a.endIso);
         // N'ajoute QUE si inconnue — ne touche JAMAIS une entrée déjà
         // là (section 7 : jamais revenir sur une décision Prise en
@@ -247,6 +370,32 @@ exports.handler = async function (event) {
       return json(200, { ok: true });
     }
 
+    if (action === "setAlertDecision") {
+      // (13/10) Décision OUI/NON sur un groupe STG (2 absences/2
+      // semaines) ou absence longue (>67j) — persistée pour ne plus
+      // redemander tant que le jeu d'absences concerné ne change pas
+      // (section 2.6/2.8). Jamais de licenciement/action appliqué ICI
+      // automatiquement : juste la mémorisation de la réponse.
+      const { alertKey, decision } = body;
+      if (!alertKey || (decision !== "oui" && decision !== "non")) {
+        return json(400, { error: "Paramètres invalides (alertKey/decision attendus)." });
+      }
+      const curRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
+      const current = curRes.ok ? ((await curRes.json()) || {}) : {};
+      current[alertKey] = { decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name };
+      const saveRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current),
+      });
+      if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
+      await logAction({
+        action: "absence_alerte_decidee",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        details: `${alertKey} -> ${decision}`,
+        idToken,
+      }).catch(()=>{});
+      return json(200, { ok: true });
+    }
+
     return json(400, { error: `Action inconnue : "${action}".` });
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
@@ -258,5 +407,10 @@ function json(statusCode, obj) {
 }
 
 module.exports.computeAbsenceSignalements = computeAbsenceSignalements;
+module.exports.computeStgAbsenceSignalements = computeStgAbsenceSignalements;
+module.exports.computeLongAbsenceSignalements = computeLongAbsenceSignalements;
+module.exports.attachAlertDecisions = attachAlertDecisions;
+module.exports.absenceAlertKey = absenceAlertKey;
 module.exports.absenceKey = absenceKey;
 module.exports.pruneExpiredAbsences = pruneExpiredAbsences;
+module.exports.MC_AND_ABOVE = MC_AND_ABOVE;
