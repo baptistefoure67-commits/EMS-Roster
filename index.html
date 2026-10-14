@@ -2386,8 +2386,10 @@ function formatAbsencePauseLabel(a){
   };
   const end = new Date(`${a.endIso}T00:00:00`);
   const ongoing = !isNaN(end.getTime()) && end >= now;
+  // (14/10, demandé) Même en cours, la date de fin ENREGISTRÉE (retour
+  // prévu) est affichée en plus de la date de début — jamais omise.
   return ongoing
-    ? `Absent(e) depuis le ${fmt(a.startIso)} (absence en cours) — série d'activité mise en pause.`
+    ? `Absent(e) depuis le ${fmt(a.startIso)}, retour prévu le ${fmt(a.endIso)} (absence en cours) — série d'activité mise en pause.`
     : `Absent(e) du ${fmt(a.startIso)} au ${fmt(a.endIso)} — série d'activité mise en pause.`;
 }
 
@@ -2740,12 +2742,22 @@ document.addEventListener("change", async (ev)=>{
   renderActiviteTab(scope);
 });
 
+// (14/10) Corrige un vrai bug de perte de données : changer d'onglet
+// Formateur<->Psychologue déclenchait un rechargement automatique et
+// SILENCIEUX depuis le cloud (loadActiviteFromCloud(true)), qui
+// écrasait purement et simplement activiteData — y compris une
+// saisie qui venait d'être tapée mais pas encore cliquée sur
+// "💾 Sauvegarder". activiteDirty retient qu'une saisie locale n'a pas
+// encore été envoyée, pour que ce rechargement automatique ne
+// l'efface plus jamais sans prévenir.
+let activiteDirty = false;
 document.addEventListener("input", (e)=>{
   const t = e.target.closest("[data-activite-field]");
   if(!t) return;
   const key = t.dataset.activiteKey, field = t.dataset.activiteField;
   activiteData[key] = activiteData[key] || {};
   activiteData[key][field] = Math.max(0, parseInt(t.value,10)||0);
+  activiteDirty = true;
   saveActiviteData();
 });
 
@@ -2995,6 +3007,15 @@ async function checkPillboxWeekFinishedSignal(){
 }
 
 async function loadActiviteFromCloud(silent){
+  // (14/10) Un rechargement AUTOMATIQUE (silent=true, déclenché par un
+  // simple changement d'onglet) ne doit jamais écraser une saisie pas
+  // encore sauvegardée. Un rechargement EXPLICITE (bouton "↻", silent
+  // falsy) reste possible mais prévient d'abord, puisque c'est une
+  // action volontaire de la personne.
+  if(activiteDirty){
+    if(silent) return;
+    if(!confirm("Des modifications non sauvegardées existent (saisie en cours). Les recharger depuis le cloud maintenant va les écraser définitivement. Continuer ?")) return;
+  }
   try{
     const res = await fetch(ACTIVITE_CLOUD_URL);
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -3039,6 +3060,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
   }catch(err){ failed.push(`Sélection (${err.message})`); }
   try{
     await saveActiviteToCloud("all");
+    activiteDirty = false; // (14/10) tout envoyé — un rechargement auto peut à nouveau se faire sans risque
     done.push("Activité");
   }catch(err){ failed.push(`Activité (${err.message})`); }
   btn.disabled = false; btn.textContent = original;
@@ -3919,9 +3941,9 @@ function renderPayRulesForm(){
       <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">⚠️ Q et licenciements</div>
       <div class="special-sub" style="margin-bottom:8px;">Stagiaire : proposition à partir du seuil bas, licenciement automatique à partir du seuil haut (sans confirmation). Ambulancier : proposition au seuil indiqué, jamais automatique directement. Les autres grades suivent la règle de cumul Q+A.</div>
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — proposition dès Q <input type="number" min="1" step="1" id="payRuleStgProposal" value="${c.stgProposalThreshold}" style="width:80px;"></label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — automatique dès Q <input type="number" min="1" step="1" id="payRuleStgAuto" value="${c.stgAutoThreshold}" style="width:80px;"></label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Ambulancier — proposition à Q <input type="number" min="1" step="1" id="payRuleAProposal" value="${c.aProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — proposition dès Q <input type="number" min="1" max="3" step="1" id="payRuleStgProposal" value="${c.stgProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">STG — automatique dès Q <input type="number" min="1" max="3" step="1" id="payRuleStgAuto" value="${c.stgAutoThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Ambulancier — proposition à Q <input type="number" min="1" max="3" step="1" id="payRuleAProposal" value="${c.aProposalThreshold}" style="width:80px;"></label>
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Cumul Q+A &gt; <input type="number" min="1" max="3" step="1" id="payRuleQaCumul" value="${c.qaCumulThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveQLicen">Enregistrer</button>
       </div>
@@ -3937,7 +3959,7 @@ function renderPayRulesForm(){
         <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">
           <input type="checkbox" id="payRuleInfEnabled" ${c.infProposalEnabled?"checked":""}> Activer une proposition pour les Infirmiers
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Infirmier — proposition à Q <input type="number" min="1" step="1" id="payRuleInfProposal" value="${c.infProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Infirmier — proposition à Q <input type="number" min="1" max="3" step="1" id="payRuleInfProposal" value="${c.infProposalThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveInf">Enregistrer</button>
       </div>
       <!-- (13/10, section 4.4) Même mécanisme de proposition, généralisé
@@ -3954,7 +3976,7 @@ function renderPayRulesForm(){
             `).join("")}
           </div>
         </div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Proposition à Q <input type="number" min="1" step="1" id="payRuleExtraQThreshold" value="${c.extraQProposalThreshold}" style="width:80px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Proposition à Q <input type="number" min="1" max="3" step="1" id="payRuleExtraQThreshold" value="${c.extraQProposalThreshold}" style="width:80px;"></label>
         <button type="button" class="btn-primary btn-small" id="btnSaveExtraQ">Enregistrer</button>
       </div>
     </div>
@@ -4016,7 +4038,7 @@ function renderPayRulesForm(){
     const stgAuto = +document.getElementById("payRuleStgAuto").value;
     const aProposal = +document.getElementById("payRuleAProposal").value;
     const qaCumul = +document.getElementById("payRuleQaCumul").value;
-    if([stgProposal,stgAuto,aProposal,qaCumul].some(v=>!(v>=1))){ toast("Seuil invalide"); return; }
+    if([stgProposal,stgAuto,aProposal,qaCumul].some(v=>!(v>=1) || v>3)){ toast("Seuil invalide (max 3)"); return; }
     if(qaCumul>3){ toast("Le cumul Q+A ne peut pas dépasser 3"); return; }
     e.target.disabled = true;
     await savePayRuleField("stgProposalThreshold", stgProposal, e.target);
@@ -4027,7 +4049,7 @@ function renderPayRulesForm(){
   document.getElementById("btnSaveInf").addEventListener("click", async (e)=>{
     const enabled = document.getElementById("payRuleInfEnabled").checked;
     const threshold = +document.getElementById("payRuleInfProposal").value;
-    if(!(threshold>=1)){ toast("Seuil invalide"); return; }
+    if(!(threshold>=1) || threshold>3){ toast("Seuil invalide (max 3)"); return; }
     e.target.disabled = true;
     await savePayRuleField("infProposalEnabled", enabled, e.target);
     await savePayRuleField("infProposalThreshold", threshold, e.target);
@@ -4035,7 +4057,7 @@ function renderPayRulesForm(){
   document.getElementById("btnSaveExtraQ").addEventListener("click", async (e)=>{
     const grades = ["M","MF","MP","MLP","RF","RP","RL"].filter(g=>document.querySelector(`[data-extraq-grade="${g}"]`).checked);
     const threshold = +document.getElementById("payRuleExtraQThreshold").value;
-    if(!(threshold>=1)){ toast("Seuil invalide"); return; }
+    if(!(threshold>=1) || threshold>3){ toast("Seuil invalide (max 3)"); return; }
     e.target.disabled = true;
     await savePayRuleField("extraQProposalGrades", grades, e.target);
     await savePayRuleField("extraQProposalThreshold", threshold, e.target);
@@ -4240,8 +4262,12 @@ const PERMISSIONS_TAB_CAPS = ["manage_permissions","manage_individual_permission
 function applyCapsUi(){
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
+  // (14/10) Le Mode troll n'apparaît plus JAMAIS comme bouton dans la
+  // barre d'onglets — accessible uniquement via le raccourci secret
+  // CTRL+ALT+T (voir plus bas), qui vérifie lui-même manage_troll avant
+  // d'ouvrir l'onglet. Le bouton reste caché dans tous les cas.
   const trollBtn = document.getElementById("tabTrollBtn");
-  if(trollBtn) trollBtn.style.display = (userCaps && userCaps.isTrollAdmin === true) ? "" : "none";
+  if(trollBtn) trollBtn.style.display = "none";
   try{ renderGradeLabelsEditor(); }catch(e){}
   if(userCaps){ try{ renderAll(); }catch(e){} }
   const permView = document.getElementById("permissionsView");
@@ -5011,6 +5037,20 @@ async function restoreSessionFromStorage(){
 // au lieu d'attendre qu'elle soit confirmée (vraie course, voir
 // finishRosterInit() plus haut, maintenant appelée depuis les deux
 // chemins d'authentification eux-mêmes).
+
+// (14/10) MODE TROLL — plus aucun bouton visible dans la barre
+// d'onglets : seul CTRL+ALT+T ouvre l'onglet, et seulement si la
+// permission manage_troll est réellement accordée (revérifiée ici côté
+// client pour l'affichage, mais chaque action du Mode troll reste de
+// toute façon revérifiée côté serveur, comme avant — ce raccourci ne
+// change rien à la sécurité réelle, juste à la découvrabilité).
+document.addEventListener("keydown", (e)=>{
+  if(e.ctrlKey && e.altKey && (e.key==="t" || e.key==="T" || e.code==="KeyT")){
+    if(!hasCap("manage_troll")) return; // silencieux — ne révèle même pas que le raccourci existe
+    e.preventDefault();
+    switchTab("Troll");
+  }
+});
 </script>
 </body>
 </html>
