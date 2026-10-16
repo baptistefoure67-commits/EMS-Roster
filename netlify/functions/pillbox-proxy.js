@@ -158,20 +158,29 @@ exports.handler = async function (event) {
         return json(r.status, r.body, corsHeaders);
       }
       if (body.action === "pushLiveUpSession") {
-        // (14/10) N'importe quelle session connectée peut annoncer ce
-        // qu'elle est en train de traiter — ce n'est qu'une information
-        // d'affichage (aucune donnée sensible, aucune écriture réelle
-        // sur une paie), donc aucune permission spéciale requise au-delà
-        // d'être connecté. Écrase systématiquement l'entrée précédente
-        // de CETTE semaine (idempotent, dernière analyse qui gagne).
+        // (14/10, généralisé le 15/10) N'importe quelle session connectée
+        // peut annoncer ce qu'elle est en train de traiter — ce n'est
+        // qu'une information d'affichage (aucune donnée sensible, aucune
+        // écriture réelle sur une paie), donc aucune permission spéciale
+        // requise au-delà d'être connecté. Écrase systématiquement
+        // l'entrée précédente de CETTE semaine (idempotent, dernière
+        // analyse qui gagne). Couvre TOUTES les catégories de l'étape 7
+        // (pas seulement les promotions) — IMPORTANT : ces noms de champs
+        // (category/sentence/details) doivent rester synchronisés avec
+        // ceux envoyés par Pillbox (buildAllPendingEntries) ET avec les
+        // règles Firebase de pillboxLiveUpSessions.entries.$index — un
+        // nom de champ différent d'un seul côté fait échouer l'écriture
+        // en silence (c'est exactement le bug du 16/10 : Pillbox avait
+        // été mis à jour, pas ce fichier).
         const { weekKey, entries } = body;
         if (!weekKey || !/^[0-9a-zA-Z_-]+$/.test(weekKey) || !Array.isArray(entries)) {
           return json(400, { error: "Paramètres invalides (weekKey/entries attendus)." }, corsHeaders);
         }
-        const cleanEntries = entries.slice(0, 100).map(e => ({
+        const cleanEntries = entries.slice(0, 200).map(e => ({
+          category: String(e.category||"").slice(0,80),
           employeeKey: String(e.employeeKey||"").slice(0,120),
-          upSentence: String(e.upSentence||"").slice(0,400),
-          upDetails: String(e.upDetails||"").slice(0,600),
+          sentence: String(e.sentence||"").slice(0,400),
+          details: String(e.details||"").slice(0,600),
         })).filter(e => e.employeeKey);
         const payload = { operatorDiscordId: session.discordId, operatorName: session.name, updatedAt: Date.now(), entries: cleanEntries };
         const putRes = await fetch(`${LIVE_UP_SESSIONS_URL.replace(".json", `/${weekKey}.json`)}?auth=${idToken}`, {
@@ -181,12 +190,14 @@ exports.handler = async function (event) {
         return json(200, { ok: true }, corsHeaders);
       }
       if (body.action === "setLiveUpDecision") {
-        // (13/10, section 6) Modifier en direct le choix de UP d'un
-        // employé pendant qu'une paie est en cours de traitement.
-        // Utilisé À LA FOIS par la session active elle-même (qui
-        // mirrore ses propres clics) ET par le panneau "Modification
-        // OWNER" — dernier horodatage gagnant des deux côtés, jamais de
-        // verrou qui bloquerait l'un pour l'autre.
+        // (13/10, repensé le 15/10) Publie UNIQUEMENT le choix que la
+        // session qui traite réellement la paie vient elle-même de
+        // faire — pour que "📡 Paye active" (OWNER, lecture seule)
+        // puisse l'afficher en direct. Il n'existe plus aucun moyen,
+        // depuis cette action, d'écrire la décision de quelqu'un
+        // d'autre : l'ancien mode "Modification OWNER" a été retiré à
+        // la demande, pour éviter qu'une personne pense s'être trompée
+        // ou que l'outil bugue à cause d'un changement fait ailleurs.
         const { weekKey, employeeKey, value } = body;
         if (!weekKey || !/^[0-9a-zA-Z_-]+$/.test(weekKey) || !employeeKey || typeof employeeKey !== "string") {
           return json(400, { error: "Paramètres invalides (weekKey/employeeKey attendus)." }, corsHeaders);
@@ -194,29 +205,10 @@ exports.handler = async function (event) {
         if (value !== true && value !== false && value !== null) {
           return json(400, { error: "Valeur invalide (true/false/null attendu)." }, corsHeaders);
         }
-        // Seule une vraie modification EN DIRECT (donc par quelqu'un
-        // d'autre que celui qui traite la paie, typiquement OWNER/
-        // délégué) a besoin d'une permission spéciale ; la session qui
-        // traite sa propre semaine mirrore ses propres clics sans
-        // permission supplémentaire (elle avait déjà le droit de
-        // décider ce choix en premier lieu). On distingue via un flag
-        // explicite envoyé par le client plutôt que de deviner.
-        if (body.isAdminEdit) {
-          const permCtx2 = await loadPermissionContext(idToken).catch(()=>({custom:null, individual:null}));
-          const allowed = session.level === "OWNER" || can(session.level, "owner_delegate", permCtx2.custom, session.discordId, permCtx2.individual);
-          if (!allowed) return json(403, { error: `Permission refusée (${session.level}) — réservé à OWNER ou à une délégation explicite.` }, corsHeaders);
-        }
         const url = `${LIVE_UP_DECISIONS_BASE}/${weekKey}/${encodeURIComponent(employeeKey)}.json?auth=${idToken}`;
-        const entry = { value, updatedAt: Date.now(), updatedByDiscordId: session.discordId, updatedByName: session.name, isAdminEdit: !!body.isAdminEdit };
+        const entry = { value, updatedAt: Date.now(), updatedByDiscordId: session.discordId, updatedByName: session.name };
         const putRes = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) });
         if (!putRes.ok) { const t = await putRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${putRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
-        if (body.isAdminEdit) {
-          await logAction({
-            action: "modification_owner_up", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-            details: `UP de ${employeeKey} (semaine ${weekKey}) modifié en direct -> ${value===null?"effacé":(value?"Oui":"Non")}`,
-            idToken,
-          }).catch(()=>{});
-        }
         return json(200, { ok: true }, corsHeaders);
       }
       if (body.action === "setAbsenceAlertDecision") {
