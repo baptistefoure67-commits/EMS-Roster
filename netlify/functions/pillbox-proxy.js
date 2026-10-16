@@ -181,6 +181,7 @@ exports.handler = async function (event) {
           employeeKey: String(e.employeeKey||"").slice(0,120),
           sentence: String(e.sentence||"").slice(0,400),
           details: String(e.details||"").slice(0,600),
+          decided: e.decided === true ? true : (e.decided === false ? false : null),
         })).filter(e => e.employeeKey);
         const payload = { operatorDiscordId: session.discordId, operatorName: session.name, updatedAt: Date.now(), entries: cleanEntries };
         const putRes = await fetch(`${LIVE_UP_SESSIONS_URL.replace(".json", `/${weekKey}.json`)}?auth=${idToken}`, {
