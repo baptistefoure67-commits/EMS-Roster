@@ -1,0 +1,8 @@
+{
+  "name": "Pillbox Terminal Paie",
+  "short_name": "Pillbox",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#150000",
+  "theme_color": "#150000"
+}

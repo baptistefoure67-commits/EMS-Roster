@@ -181,7 +181,10 @@ exports.handler = async function (event) {
       if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le cumul Q+A ne peut pas dépasser 3." });
       current[field] = value;
     } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "infProposalThreshold") {
-      if (typeof value !== "number" || !(value >= 1) || value > 20) return json(400, { error: "Seuil invalide." });
+      // (14/10, demandé) Plafonné à 3, comme le cumul Q+A — ce sont
+      // tous des compteurs de quotas manqués avant une proposition de
+      // licenciement, jamais plus de 3 quel que soit le grade.
+      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le seuil ne peut pas dépasser 3." });
       current[field] = value;
     } else if (field === "infProposalEnabled") {
       if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." });
@@ -193,7 +196,7 @@ exports.handler = async function (event) {
       if (!Array.isArray(value) || !value.every(g => allowed.includes(g))) return json(400, { error: "Liste de grades invalide pour la proposition Q généralisée." });
       current[field] = [...new Set(value)];
     } else if (field === "extraQProposalThreshold") {
-      if (typeof value !== "number" || !(value >= 1) || value > 20) return json(400, { error: "Seuil invalide." });
+      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le seuil ne peut pas dépasser 3." });
       current[field] = value;
     } else if (field === "quotaStandard" || field === "quotaStaff" || field === "nearMissThreshold") {
       if (typeof value !== "number" || !(value >= 0) || value > 1000) return json(400, { error: "Valeur de quota invalide." });

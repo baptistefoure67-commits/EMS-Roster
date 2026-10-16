@@ -35,21 +35,34 @@ function sign(payloadObj, secret) {
 // valide (signature ET expiration), sinon null. JAMAIS de confiance
 // aveugle : recalcule la signature soi-même et compare en temps
 // constant, plutôt que de juste "faire confiance" au contenu envoyé.
-function verify(token, secret) {
-  if (!token || typeof token !== "string" || !token.includes(".")) return null;
-  const [payload, sig] = token.split(".");
+function verifyDetailed(token, secret) {
+  if (!token || typeof token !== "string") return { payload: null, reason: "missing_token" };
+  const parts = token.split(".");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return { payload: null, reason: "malformed_token" };
+  if (!secret || typeof secret !== "string") return { payload: null, reason: "missing_server_secret" };
+
+  const [payload, sig] = parts;
   const expectedSig = base64url(crypto.createHmac("sha256", secret).update(payload).digest());
   const sigBuf = Buffer.from(sig);
   const expBuf = Buffer.from(expectedSig);
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return { payload: null, reason: "invalid_signature" };
+  }
+
   let data;
   try {
     data = JSON.parse(base64urlDecode(payload));
   } catch (e) {
-    return null;
+    return { payload: null, reason: "invalid_payload" };
   }
-  if (!data.exp || Date.now() > data.exp) return null; // expiré
-  return data;
+  if (!data || !Number.isFinite(data.exp)) return { payload: null, reason: "missing_expiration" };
+  if (Date.now() > data.exp) return { payload: null, reason: "expired_token" };
+  if (!data.discordId || !data.level) return { payload: null, reason: "incomplete_session" };
+  return { payload: data, reason: null };
 }
 
-module.exports = { sign, verify, TOKEN_LIFETIME_MS };
+function verify(token, secret) {
+  return verifyDetailed(token, secret).payload;
+}
+
+module.exports = { sign, verify, verifyDetailed, TOKEN_LIFETIME_MS };

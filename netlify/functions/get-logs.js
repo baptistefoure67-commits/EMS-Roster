@@ -40,10 +40,12 @@ exports.handler = async function (event) {
       const entry = await entryRes.json();
       if (!entry) return json(404, { error: "Cette entrée n'existe plus (déjà supprimée ?)." });
 
-      // Jamais effacer discrètement ses PROPRES traces d'administration
-      // — y compris pour OWNER : la raison d'être de cette règle est
-      // l'intégrité de l'audit, pas un simple niveau de permission.
-      if (entry.authorDiscordId && entry.authorDiscordId === session.discordId) {
+      // (14/10, précisé) Jamais effacer discrètement ses PROPRES traces
+      // d'administration — SAUF pour OWNER, qui garde l'autorité finale
+      // sur l'intégralité du journal. La protection vise à empêcher
+      // quelqu'un à qui delete_logs a été délégué individuellement de
+      // masquer ses propres actions, pas à limiter OWNER lui-même.
+      if (session.level !== "OWNER" && entry.authorDiscordId && entry.authorDiscordId === session.discordId) {
         return json(403, { error: "Impossible de supprimer une entrée dont tu es toi-même l'auteur (intégrité de l'audit)." });
       }
 

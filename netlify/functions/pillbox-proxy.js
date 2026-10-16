@@ -18,7 +18,7 @@
 
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { computeAbsenceSignalements, computeStgAbsenceSignalements, computeLongAbsenceSignalements, attachAlertDecisions, pruneExpiredAbsences } = require("./absences-actions");
-const { verify } = require("./session-token");
+const { verifyDetailed } = require("./session-token");
 const { can, loadPermissionContext } = require("./permissions");
 const { closeActiviteWeekServer } = require("./activite-close");
 const { logAction } = require("./logs");
@@ -32,6 +32,11 @@ const ABSENCE_ALERT_DECISIONS_URL = "https://paie-terminal-pillbox-default-rtdb.
 // règles de validation (voir le rapport final) avant de fonctionner
 // réellement en production.
 const LIVE_UP_DECISIONS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxLiveUpDecisions";
+// (14/10) Annonce, par la session qui traite réellement la paie, la
+// liste des UP en attente et qui est en train de travailler — pour que
+// "Modification OWNER" la découvre SANS que l'OWNER n'ait à connaître
+// la semaine ni l'employé à l'avance.
+const LIVE_UP_SESSIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxLiveUpSessions.json";
 const PAY_RULES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfig.json";
 
 // Valeurs par défaut — copie EXACTE de celles de pay-rules-actions.js
@@ -104,9 +109,15 @@ exports.handler = async function (event) {
   // appels côté Pillbox tombent déjà silencieusement sur leurs valeurs
   // par défaut dans ce cas, comportement inchangé).
   const sessionToken = (event.headers && (event.headers["x-pillbox-session"] || event.headers["X-Pillbox-Session"])) || "";
-  const session = verify(sessionToken, SESSION_SECRET);
+  const verification = verifyDetailed(sessionToken, SESSION_SECRET);
+  const session = verification.payload;
   if (!session) {
-    return json(401, { error: "Session Discord invalide ou expirée — reconnecte-toi." }, corsHeaders);
+    // Diagnostic sûr : ne journalise jamais le jeton ni le secret.
+    console.warn(`[pillbox-proxy] session refusée: ${verification.reason}; tokenLength=${sessionToken.length}`);
+    return json(401, {
+      error: "Session Discord invalide ou expirée — reconnecte-toi.",
+      code: verification.reason
+    }, corsHeaders);
   }
 
   try {
@@ -145,6 +156,29 @@ exports.handler = async function (event) {
           logAction,
         });
         return json(r.status, r.body, corsHeaders);
+      }
+      if (body.action === "pushLiveUpSession") {
+        // (14/10) N'importe quelle session connectée peut annoncer ce
+        // qu'elle est en train de traiter — ce n'est qu'une information
+        // d'affichage (aucune donnée sensible, aucune écriture réelle
+        // sur une paie), donc aucune permission spéciale requise au-delà
+        // d'être connecté. Écrase systématiquement l'entrée précédente
+        // de CETTE semaine (idempotent, dernière analyse qui gagne).
+        const { weekKey, entries } = body;
+        if (!weekKey || !/^[0-9a-zA-Z_-]+$/.test(weekKey) || !Array.isArray(entries)) {
+          return json(400, { error: "Paramètres invalides (weekKey/entries attendus)." }, corsHeaders);
+        }
+        const cleanEntries = entries.slice(0, 100).map(e => ({
+          employeeKey: String(e.employeeKey||"").slice(0,120),
+          upSentence: String(e.upSentence||"").slice(0,400),
+          upDetails: String(e.upDetails||"").slice(0,600),
+        })).filter(e => e.employeeKey);
+        const payload = { operatorDiscordId: session.discordId, operatorName: session.name, updatedAt: Date.now(), entries: cleanEntries };
+        const putRes = await fetch(`${LIVE_UP_SESSIONS_URL.replace(".json", `/${weekKey}.json`)}?auth=${idToken}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (!putRes.ok) { const t = await putRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${putRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+        return json(200, { ok: true }, corsHeaders);
       }
       if (body.action === "setLiveUpDecision") {
         // (13/10, section 6) Modifier en direct le choix de UP d'un
@@ -293,10 +327,18 @@ exports.handler = async function (event) {
       const liveRes = await fetch(`${LIVE_UP_DECISIONS_BASE}/${liveWeekKey}.json?auth=${idToken}`);
       liveUpDecisions = liveRes.ok ? ((await liveRes.json()) || {}) : {};
     }
+    // (14/10) Toujours incluse (coût négligeable) : seule façon pour le
+    // panneau "Modification OWNER" de savoir, sans rien demander à
+    // l'avance, qui traite quelle semaine en ce moment.
+    let liveUpSessions = {};
+    if (event.queryStringParameters && event.queryStringParameters.wantLiveSessions === "1") {
+      const sessRes = await fetch(`${LIVE_UP_SESSIONS_URL}?auth=${idToken}`);
+      liveUpSessions = sessRes.ok ? ((await sessRes.json()) || {}) : {};
+    }
 
     return json(200, {
       roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
-      absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions,
+      absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
