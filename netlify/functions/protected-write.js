@@ -121,6 +121,30 @@ exports.handler = async function (event) {
       return json(400, { error: `Action inconnue : "${action}".` });
     }
 
+    // (16/10) Diagnostic avant écriture : Firebase valide TOUT le tableau
+    // employees à chaque sauvegarde, pas seulement la personne qu'on
+    // modifie — une seule fiche avec un champ manquant/vide ailleurs
+    // dans le roster (ex: ID Discord resté vide depuis un ancien import)
+    // suffit à faire échouer N'IMPORTE QUELLE modification, même sans
+    // rapport avec elle. Firebase ne dit jamais QUI a posé problème
+    // ("permission denied" générique) — on le vérifie donc nous-mêmes
+    // AVANT d'écrire, pour donner une erreur exploitable plutôt qu'un
+    // simple 502 impossible à diagnostiquer à distance.
+    const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
+    const badEmployees = [];
+    employees.forEach((e, i) => {
+      const problems = [];
+      if (typeof e.name !== "string" || !e.name.trim() || e.name.length >= 100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
+      if (typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length >= 30) problems.push("ID Discord vide ou invalide");
+      if (typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
+      if (problems.length) badEmployees.push(`${e.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
+    });
+    if (badEmployees.length) {
+      return json(422, {
+        error: `Impossible d'enregistrer : ${badEmployees.length} fiche(s) du roster ont un champ invalide qui bloque TOUTE sauvegarde (pas seulement celle-ci) — corrige-les d'abord : ${badEmployees.slice(0, 5).join(" ; ")}${badEmployees.length > 5 ? ` ; (+${badEmployees.length - 5} autre(s))` : ""}`,
+      });
+    }
+
     const savedAt = Date.now();
     const saveRes = await fetch(authedRosterUrl, {
       method: "PUT",
