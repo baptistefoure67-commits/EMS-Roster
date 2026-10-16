@@ -183,6 +183,29 @@ exports.handler = async function (event) {
           details: String(e.details||"").slice(0,600),
           decided: e.decided === true ? true : (e.decided === false ? false : null),
         })).filter(e => e.employeeKey);
+
+        // 16/10 — restauration des décisions déjà enregistrées :
+        // si le navigateur qui republie la session ne connaît pas encore
+        // le choix d'un employé, ne pas remplacer ce choix par "en attente".
+        // Les décisions booléennes sauvegardées sont conservées; un choix
+        // explicite local (true/false) reste prioritaire.
+        try {
+          const decisionsRes = await fetch(`${LIVE_UP_DECISIONS_BASE}/${weekKey}.json?auth=${idToken}`);
+          if (decisionsRes.ok) {
+            const savedDecisions = await decisionsRes.json() || {};
+            for (const entry of cleanEntries) {
+              if (entry.decided === null) {
+                const saved = savedDecisions[entry.employeeKey];
+                if (saved && (saved.value === true || saved.value === false)) {
+                  entry.decided = saved.value;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Une lecture historique indisponible ne doit pas bloquer la session.
+        }
+
         const payload = { operatorDiscordId: session.discordId, operatorName: session.name, updatedAt: Date.now(), entries: cleanEntries };
         const putRes = await fetch(`${LIVE_UP_SESSIONS_URL.replace(".json", `/${weekKey}.json`)}?auth=${idToken}`, {
           method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
