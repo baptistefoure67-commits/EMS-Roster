@@ -75,7 +75,7 @@ exports.handler = async function (event) {
 
     if (action === "editEmployee") {
       const { id, name, discordId, grade, role } = payload || {};
-      const idx = employees.findIndex((e) => e.id === id);
+      const idx = employees.findIndex((e) => String(e.id) === String(id));
       if (idx === -1) return json(404, { error: "Employé introuvable." });
       const before = { ...employees[idx] };
       // (11/10 — audit) Changement de grade réservé D+ — un vrai
@@ -101,7 +101,7 @@ exports.handler = async function (event) {
       }).catch(()=>{});
     } else if (action === "licencier") {
       const { id } = payload || {};
-      const target = employees.find((e) => e.id === id);
+      const target = employees.find((e) => String(e.id) === String(id));
       if (!target) return json(404, { error: "Employé introuvable." });
       // (11/10 — audit) Un ADD/CD ne peut pas licencier quelqu'un d'un
       // grade administratif égal ou supérieur au sien (MC/ADD/CD/D/DG) —
@@ -109,7 +109,7 @@ exports.handler = async function (event) {
       if (!isDPlus(session.level) && rankOf(target.grade) !== -1 && rankOf(target.grade) >= rankOf(session.level)) {
         return json(403, { error: `Permission refusée (${session.level}) — tu ne peux pas licencier quelqu'un d'un grade égal ou supérieur au tien.` });
       }
-      employees = employees.filter((e) => e.id !== id);
+      employees = employees.filter((e) => String(e.id) !== String(id));
       await logAction({
         action: "licenciement",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
