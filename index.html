@@ -355,6 +355,7 @@
   </div>
 
   <div id="duplicatesWarning" style="display:none;"></div>
+  <div id="invalidEmployeesWarning" style="display:none;"></div>
   <div id="gradeSections"></div>
 
   <div class="card licencies-section" id="licenciesCard">
@@ -905,9 +906,33 @@ function saveState(){
   if(_saveStateTimer) clearTimeout(_saveStateTimer);
   _saveStateTimer = setTimeout(pushStateToCloudNow, 1200);
 }
+// (16/10) Avant d'écrire : Firebase valide TOUT le tableau employees à
+// chaque sauvegarde (pas seulement la fiche qu'on vient de modifier) —
+// une seule fiche avec un champ manquant/vide (souvent un vieil import
+// sans ID Discord renseigné) fait échouer TOUTE sauvegarde suivante,
+// en silence, sans que rien ne le signale. Vérifié ici nous-mêmes pour
+// donner une vraie erreur visible plutôt qu'un échec muet.
+function findInvalidEmployees(){
+  const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
+  const bad = [];
+  employees.forEach((e,i)=>{
+    const problems = [];
+    if(typeof e.name !== "string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
+    if(typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
+    if(typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
+    if(problems.length) bad.push({ name: e.name || `(sans nom, position ${i})`, problems });
+  });
+  return bad;
+}
 async function pushStateToCloudNow(){
   _saveStateTimer = null;
   if(!currentFirebaseIdToken) return;
+  const invalid = findInvalidEmployees();
+  if(invalid.length){
+    const detail = invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; ");
+    toast(`✕ Sauvegarde cloud bloquée : ${invalid.length} fiche(s) invalide(s) ailleurs dans le roster — ${detail}${invalid.length>5?` (+${invalid.length-5} autre(s))`:""}. Corrige-les, sinon AUCUNE modification ne sera sauvegardée tant que ça reste comme ça.`);
+    return;
+  }
   try{
     const savedAt = Date.now();
     const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
@@ -915,7 +940,15 @@ async function pushStateToCloudNow(){
       body: JSON.stringify({ employees, savedAt }),
     });
     if(res.ok){ rosterLastUpdatedAt = savedAt; renderLastUpdated(); }
-  }catch(e){ console.warn("Sauvegarde cloud impossible :", e); }
+    else{
+      const t = await res.text().catch(()=> "");
+      toast(`✕ Sauvegarde cloud refusée (${res.status}) — rien n'a été enregistré. ${t.slice(0,150)}`);
+      console.warn("Sauvegarde cloud refusée :", res.status, t);
+    }
+  }catch(e){
+    toast(`✕ Sauvegarde cloud impossible (réseau) — rien n'a été enregistré : ${e.message}`);
+    console.warn("Sauvegarde cloud impossible :", e);
+  }
 }
 
 // Sauvegarde automatique en quittant la page (fermeture d'onglet,
@@ -1299,6 +1332,28 @@ function renderDuplicatesWarning(){
   `;
 }
 
+// (16/10) Affiche tout de suite — avant même d'essayer de sauvegarder —
+// les fiches qui bloqueront TOUTE sauvegarde du roster si rien n'est
+// corrigé (nom/ID Discord/grade manquant ou invalide). Sans ça, le
+// blocage n'était découvert qu'au moment d'un "Enregistrer" sans
+// rapport, avec un message qui ne disait pas laquelle était en cause.
+function renderInvalidEmployeesWarning(){
+  const box = document.getElementById("invalidEmployeesWarning");
+  const bad = findInvalidEmployees();
+  if(!bad.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.style.display = "block";
+  box.innerHTML = `
+    <div class="card" style="border-color:var(--red);background:linear-gradient(180deg, rgba(248,113,113,0.10), var(--panel-2));">
+      <div style="font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ ${bad.length} fiche(s) invalide(s) — bloque(nt) TOUTE sauvegarde du roster tant que ce n'est pas corrigé, même pour quelqu'un d'autre :</div>
+      ${bad.map(b=>`
+        <div style="font-size:0.82rem;margin-bottom:4px;">
+          <b>${esc(b.name)}</b> — ${esc(b.problems.join(", "))}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderAll(){
   populateForceLogoutSelect();
   const query = document.getElementById("searchInput").value;
@@ -1310,6 +1365,7 @@ function renderAll(){
   document.getElementById("statActifs").textContent = actifs.length;
   document.getElementById("statLicencies").textContent = licencies.length;
   renderDuplicatesWarning();
+  renderInvalidEmployeesWarning();
 
   // ---- Sections par grade ----
   const container = document.getElementById("gradeSections");
