@@ -1838,7 +1838,7 @@ function attachRowHandlers(){
   document.querySelectorAll("[data-edit]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       const id = btn.getAttribute("data-edit");
-      const e = employees.find(x=>x.id===id);
+      const e = employees.find(x=>String(x.id)===String(id));
       if(!e) return;
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
       slot.innerHTML = editRowHtml(e);
@@ -1880,7 +1880,7 @@ function attachRowHandlers(){
   document.querySelectorAll("[data-licencier]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const id = btn.getAttribute("data-licencier");
-      const e = employees.find(x=>x.id===id);
+      const e = employees.find(x=>String(x.id)===String(id));
       if(!e) return;
       if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
       btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
@@ -1888,7 +1888,7 @@ function attachRowHandlers(){
         // Action sensible : même passage obligé par le serveur que pour
         // "Modifier" (demandé le 07/09).
         await protectedAction("licencier", { id });
-        employees = employees.filter(x=>x.id!==id);
+        employees = employees.filter(x=>String(x.id)!==String(id));
         saveState(); renderAll();
         logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
         toast(`${e.name} licencié et retiré du roster`);
@@ -1902,7 +1902,7 @@ function attachRowHandlers(){
   document.querySelectorAll("[data-reintegrer]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       const id = btn.getAttribute("data-reintegrer");
-      const e = employees.find(x=>x.id===id);
+      const e = employees.find(x=>String(x.id)===String(id));
       if(!e) return;
       e.licencie = false;
       e.licencieDate = null;
