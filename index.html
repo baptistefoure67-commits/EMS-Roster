@@ -233,9 +233,48 @@
     transition:opacity .2s ease, transform .2s ease; z-index:50;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+
+  /* Synchronisation Roster → Pillbox */
+  .sync-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(3,8,18,.78);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);}
+  .sync-overlay[hidden]{display:none!important;}
+  .sync-dialog{width:min(440px,100%);padding:28px 24px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(155deg,var(--panel),var(--panel-2));box-shadow:0 24px 90px rgba(0,0,0,.48);text-align:center;color:var(--text);}
+  .sync-title{font-size:1.05rem;font-weight:750;letter-spacing:.01em;margin-bottom:8px;}
+  .sync-subtitle{font-size:.85rem;color:var(--text-dim);min-height:1.4em;margin-bottom:24px;}
+  .sync-flow{display:flex;align-items:center;justify-content:center;gap:13px;margin:10px 0 24px;}
+  .sync-app-icon{width:56px;height:56px;display:grid;place-items:center;border:1px solid var(--border);border-radius:15px;background:rgba(56,189,248,.08);font-size:1.8rem;}
+  .sync-app-label{font-size:.72rem;color:var(--text-dim);margin-top:5px;}
+  .sync-route{display:flex;align-items:center;gap:5px;color:var(--cyan);font-size:1.3rem;}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);opacity:.35;animation:sync-dot-pulse 1s infinite ease-in-out;}
+  .sync-dot:nth-child(2){animation-delay:.15s}.sync-dot:nth-child(3){animation-delay:.3s}
+  .sync-progress{height:7px;width:100%;overflow:hidden;border-radius:99px;background:rgba(147,163,186,.17);}
+  .sync-progress-bar{height:100%;width:35%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--cyan));animation:sync-progress-run 1.25s ease-in-out infinite;}
+  .sync-overlay[data-state="success"] .sync-progress-bar{width:100%;animation:none;background:var(--green);}
+  .sync-overlay[data-state="partial"] .sync-progress-bar{width:100%;animation:none;background:var(--amber);}
+  .sync-overlay[data-state="error"] .sync-progress-bar{width:100%;animation:none;background:var(--red);}
+  .sync-result{font-size:.95rem;font-weight:750;margin-top:17px;min-height:1.4em;}
+  .sync-overlay[data-state="success"] .sync-result{color:var(--green)}.sync-overlay[data-state="partial"] .sync-result{color:var(--amber)}.sync-overlay[data-state="error"] .sync-result{color:var(--red)}
+  @keyframes sync-dot-pulse{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-4px)}}
+  @keyframes sync-progress-run{0%{transform:translateX(-115%)}100%{transform:translateX(330%)}}
+  @media(prefers-reduced-motion:reduce){.sync-dot,.sync-progress-bar{animation:none!important}.sync-progress-bar{width:45%;transform:none;}}
+
 </style>
 </head>
 <body>
+
+<div id="syncPillboxOverlay" class="sync-overlay" role="dialog" aria-modal="true" aria-labelledby="syncOverlayTitle" aria-describedby="syncOverlaySubtitle" hidden data-state="loading">
+  <div class="sync-dialog">
+    <div id="syncOverlayTitle" class="sync-title">Synchronisation avec Pillbox</div>
+    <div id="syncOverlaySubtitle" class="sync-subtitle" aria-live="polite">Envoi des données en cours…</div>
+    <div class="sync-flow" aria-hidden="true">
+      <div><div class="sync-app-icon">📋</div><div class="sync-app-label">Roster</div></div>
+      <div class="sync-route"><span class="sync-dot"></span><span class="sync-dot"></span><span class="sync-dot"></span><span>→</span></div>
+      <div><div class="sync-app-icon">💊</div><div class="sync-app-label">Pillbox</div></div>
+    </div>
+    <div class="sync-progress" role="progressbar" aria-label="Progression de la synchronisation"><div id="syncPillboxProgressBar" class="sync-progress-bar"></div></div>
+    <div id="syncPillboxOverlayResult" class="sync-result" aria-live="assertive"></div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <header class="top">
@@ -918,7 +957,7 @@ function findInvalidEmployees(){
   employees.forEach((e,i)=>{
     const problems = [];
     if(typeof e.name !== "string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
-    if(e.discordId != null && (typeof e.discordId !== "string" || e.discordId.length>=30)) problems.push("ID Discord invalide");
+    if(typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
     if(typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
     if(problems.length) bad.push({ name: e.name || `(sans nom, position ${i})`, problems });
   });
@@ -927,9 +966,7 @@ function findInvalidEmployees(){
 async function pushStateToCloudNow(){
   _saveStateTimer = null;
   if(!currentFirebaseIdToken) return;
-  // Le OWNER peut corriger ou supprimer une fiche historique invalide ;
-  // les règles Firebase lui accordent le bypass de validation correspondant.
-  const invalid = currentUserLevel === "OWNER" ? [] : findInvalidEmployees();
+  const invalid = findInvalidEmployees();
   if(invalid.length){
     const detail = invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; ");
     toast(`✕ Sauvegarde cloud bloquée : ${invalid.length} fiche(s) invalide(s) ailleurs dans le roster — ${detail}${invalid.length>5?` (+${invalid.length-5} autre(s))`:""}. Corrige-les, sinon AUCUNE modification ne sera sauvegardée tant que ça reste comme ça.`);
@@ -2064,10 +2101,25 @@ function parseDiscordIdsText(text){
 // dédiée (comme avant ce soir), simplement visibles seulement pour
 // ADD+ ici.
 // ═══════════════════════════════════════════════════════════════════
+const SYNC_OVERLAY_MIN_MS = 2000;
+function waitForSyncOverlay(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+function setSyncOverlayResult(state, message){
+  const overlay=document.getElementById("syncPillboxOverlay");
+  overlay.dataset.state=state;
+  document.getElementById("syncOverlaySubtitle").textContent = state==="success" ? "Toutes les étapes ont réussi." : state==="partial" ? "Certaines étapes ont échoué." : "Aucune étape n’a pu être synchronisée.";
+  document.getElementById("syncPillboxOverlayResult").textContent=message;
+}
+
 async function syncWithPillbox(){
   const btn = document.getElementById("btnSyncPillbox");
   const statusEl = document.getElementById("syncPillboxStatus");
   const canAll = hasCap("send_pillbox_all");
+  const syncStartedAt = Date.now();
+  const overlay = document.getElementById("syncPillboxOverlay");
+  overlay.hidden = false;
+  overlay.dataset.state = "loading";
+  document.getElementById("syncOverlaySubtitle").textContent = "Envoi des données en cours…";
+  document.getElementById("syncPillboxOverlayResult").textContent = "";
   btn.disabled = true;
   const original = btn.innerHTML;
   btn.innerHTML = "🔄 Synchronisation en cours…";
@@ -2114,8 +2166,17 @@ async function syncWithPillbox(){
   try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); }
   catch(err){ failed.push(`Psychologie (${err.message})`); }
 
-  btn.disabled = false;
-  btn.innerHTML = original;
+  // L’overlay reste visible au moins 2 secondes, sans ralentir les envois plus longs.
+  await waitForSyncOverlay(Math.max(0, SYNC_OVERLAY_MIN_MS - (Date.now() - syncStartedAt)));
+  let overlayState, overlayMessage;
+  if(!failed.length){
+    overlayState="success"; overlayMessage="Synchronisé avec Pillbox";
+  } else if(done.length){
+    overlayState="partial"; overlayMessage="Synchronisation partielle";
+  } else {
+    overlayState="error"; overlayMessage="Échec de la synchronisation";
+  }
+  setSyncOverlayResult(overlayState, overlayMessage);
   if(statusEl){
     if(!failed.length){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ Synchronisation Pillbox terminée — ${esc(done.join(", "))}.</span>`;
@@ -2125,6 +2186,11 @@ async function syncWithPillbox(){
       statusEl.innerHTML = `<span style="color:var(--red);">❌ La synchronisation a rencontré une erreur : ${esc(failed.join(", "))}.</span>`;
     }
   }
+  // Garde l’état final visible un court instant, puis libère l’interface.
+  await waitForSyncOverlay(1000);
+  overlay.hidden = true;
+  btn.disabled = false;
+  btn.innerHTML = original;
 }
 
 document.getElementById("btnSyncPillbox").addEventListener("click", syncWithPillbox);
@@ -4442,9 +4508,6 @@ const ROSTER_SESSION_STORAGE_KEY = "rosterDiscordSession_v1";
 let rosterSessionEstablishedAt = 0;
 let rosterLiveUpdateInterval = null;
 let rosterKickCheckInterval = null;
-let rosterSessionRenewTimer = null;
-let rosterSessionRenewInFlight = false;
-let rosterFirebaseRefreshTimer = null;
 
 async function rosterCheckKicked(){
   if(!currentSessionToken) return false;
@@ -4455,7 +4518,8 @@ async function rosterCheckKicked(){
     });
     const data = await res.json().catch(()=>({}));
     if(res.ok && data.kickedAt && data.kickedAt > rosterSessionEstablishedAt){
-      stopRosterLiveUpdates();
+      if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
+      if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
       clearSessionFromStorage();
       currentSessionToken = null; currentFirebaseIdToken = null;
       // (10/10, demandé) Retour de bâton silencieux : qui tente de
@@ -4549,7 +4613,6 @@ async function refreshRosterPresence(){
 }
 
 function startRosterLiveUpdates(){
-  startRosterSessionRenewal();
   rosterSendHeartbeat();
   refreshRosterPresence();
   refreshSpecialSelectionFromCloud();
@@ -4580,8 +4643,6 @@ function startRosterLiveUpdates(){
 function stopRosterLiveUpdates(){
   if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
   if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
-  if(rosterSessionRenewTimer){ clearInterval(rosterSessionRenewTimer); rosterSessionRenewTimer = null; }
-  if(rosterFirebaseRefreshTimer){ clearInterval(rosterFirebaseRefreshTimer); rosterFirebaseRefreshTimer = null; }
 }
 
 function saveSessionToStorage(token, session){
@@ -4604,70 +4665,6 @@ function decodeSessionTokenPayload(token){
     return JSON.parse(atob(b64));
   }catch(e){ return null; }
 }
-
-async function renewRosterSessionIfNeeded(){
-  if(!currentSessionToken || rosterSessionRenewInFlight) return false;
-  const payload = decodeSessionTokenPayload(currentSessionToken);
-  if(!payload?.exp || payload.exp - Date.now() > 60*60*1000) return false;
-  rosterSessionRenewInFlight = true;
-  try{
-    const res = await fetch("/.netlify/functions/renew-session", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token:currentSessionToken})
-    });
-    const data = await res.json().catch(()=>({}));
-    if(res.ok && data.token){
-      currentSessionToken = data.token;
-      let storedSession = null;
-      try{ storedSession = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null")?.session || null; }catch(e){}
-      saveSessionToStorage(currentSessionToken, storedSession || {id:"", name:"Session active", level:currentUserLevel, levelLabel:currentUserLevel});
-      // Les écritures REST Firebase n'utilisent pas le SDK auto-renouvelant :
-      // on renouvelle aussi l'ID token Firebase pour éviter les 401 après 1 h.
-      await refreshRosterFirebaseToken();
-      return true;
-    }
-    if(res.status === 401){
-      stopRosterLiveUpdates();
-      if(rosterSessionRenewTimer){ clearInterval(rosterSessionRenewTimer); rosterSessionRenewTimer=null; }
-      if(rosterFirebaseRefreshTimer){ clearInterval(rosterFirebaseRefreshTimer); rosterFirebaseRefreshTimer=null; }
-      clearSessionFromStorage();
-      currentSessionToken = null; currentFirebaseIdToken = null;
-      showGate("Ta session Discord a réellement expiré. Les données déjà enregistrées restent conservées ; reconnecte-toi pour reprendre.");
-    }
-  }catch(e){ /* panne réseau temporaire : on conserve les données et réessaie au prochain cycle */ }
-  finally{ rosterSessionRenewInFlight = false; }
-  return false;
-}
-
-async function refreshRosterFirebaseToken(){
-  if(!currentSessionToken) return false;
-  try{
-    const res = await fetch("/.netlify/functions/refresh-firebase-token", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token:currentSessionToken})
-    });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok || !data.firebaseCustomToken) return false;
-    const idToken = await exchangeFirebaseCustomToken(data.firebaseCustomToken);
-    if(idToken){ currentFirebaseIdToken=idToken; return true; }
-  }catch(e){}
-  return false;
-}
-
-function startRosterSessionRenewal(){
-  if(rosterSessionRenewTimer) clearInterval(rosterSessionRenewTimer);
-  rosterSessionRenewTimer = setInterval(renewRosterSessionIfNeeded, 15*60*1000);
-  if(rosterFirebaseRefreshTimer) clearInterval(rosterFirebaseRefreshTimer);
-  rosterFirebaseRefreshTimer = setInterval(refreshRosterFirebaseToken, 45*60*1000);
-  renewRosterSessionIfNeeded();
-}
-document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState === "visible"){
-    renewRosterSessionIfNeeded();
-    const payload = decodeSessionTokenPayload(currentSessionToken || "");
-    if(payload?.exp && payload.exp - Date.now() < 20*60*1000) refreshRosterFirebaseToken();
-  }
-});
 
 // (10/10 — correctif) Tout le chargement qui dépend du cloud, réuni ici
 // et appelé UNIQUEMENT une fois currentFirebaseIdToken confirmé prêt.
