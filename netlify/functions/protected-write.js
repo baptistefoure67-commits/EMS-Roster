@@ -135,14 +135,11 @@ exports.handler = async function (event) {
     employees.forEach((e, i) => {
       const problems = [];
       if (typeof e.name !== "string" || !e.name.trim() || e.name.length >= 100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
-      if (e.discordId != null && (typeof e.discordId !== "string" || e.discordId.length >= 30)) problems.push("ID Discord invalide");
+      if (typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length >= 30) problems.push("ID Discord vide ou invalide");
       if (typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
       if (problems.length) badEmployees.push(`${e.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
     });
-    // Le OWNER est l'autorité de réparation ultime : il doit pouvoir supprimer
-    // ou corriger une fiche même si une autre fiche historique reste invalide.
-    // Les rôles inférieurs conservent le diagnostic et le refus protecteur.
-    if (badEmployees.length && session.level !== "OWNER") {
+    if (badEmployees.length) {
       return json(422, {
         error: `Impossible d'enregistrer : ${badEmployees.length} fiche(s) du roster ont un champ invalide qui bloque TOUTE sauvegarde (pas seulement celle-ci) — corrige-les d'abord : ${badEmployees.slice(0, 5).join(" ; ")}${badEmployees.length > 5 ? ` ; (+${badEmployees.length - 5} autre(s))` : ""}`,
       });
