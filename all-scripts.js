@@ -1242,11 +1242,11 @@ document.getElementById("btnSpecialCopy").addEventListener("click", ()=>{
 // saveSpecialSelectionToCloud). Le chargement (ancien btnSpecialCloudLoad)
 // n'existe plus : la sélection se synchronise désormais automatiquement
 // depuis le cloud (voir refreshSpecialSelectionFromCloud).
-async function saveSpecialSelectionToCloud(){
+async function saveSpecialSelectionToCloud(signal){
   const selectedEmployees = employees.filter(e=>!e.licencie && specialSelected.has(e.id)).map(e=>({
     id:e.id, name:e.name, discordId:e.discordId, idUnique:e.idUnique||null, grade:e.grade
   }));
-  const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()})});
+  const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()}),...(signal ? {signal} : {})});
   if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return selectedEmployees.length;
 }
@@ -2295,17 +2295,19 @@ document.getElementById("btnActivitePsyReset").addEventListener("click", async (
 // si la permission manque, pas juste caché côté interface). scope:
 // "formateur" | "psychologue" | "all" (réservé ADD+, utilisé par la
 // clôture automatique qui vient de traiter les deux à la fois).
-async function saveActiviteToCloud(scope, closeWeek){
+async function saveActiviteToCloud(scope, closeWeek, requestOptions){
   if(!currentSessionToken){
     toast("Session expirée — reconnecte-toi avec Discord.");
     showGate("Ta session a expiré, reconnecte-toi.");
     return;
   }
   try{
-    const res = await fetch("/.netlify/functions/activite-actions", {
+    const requestInit = {
       method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ token: currentSessionToken, scope: scope || "all", activiteData, activiteStreak, closeWeek: !!closeWeek }),
-    });
+    };
+    if(requestOptions && requestOptions.signal) requestInit.signal = requestOptions.signal;
+    const res = await fetch("/.netlify/functions/activite-actions", requestInit);
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
     toast("✓ Suivi d'activité envoyé vers Pillbox");
@@ -2388,30 +2390,148 @@ async function loadActiviteFromCloud(silent){
 // chaque PC se resynchronise ensuite tout seul (voir
 // refreshSpecialSelectionFromCloud et le rafraîchissement silencieux
 // déjà existant de l'activité), sans bouton "Charger" nulle part.
-document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
-  const btn = e.target;
-  const statusEl = document.getElementById("saveAllStatus");
-  btn.disabled = true; const original = btn.textContent; btn.textContent = "☁️ Sauvegarde…";
-  const done = []; const failed = [];
-  try{
-    const count = await saveSpecialSelectionToCloud();
-    specialSelectionLastSavedAt = Date.now();
-    done.push(`Sélection (${count})`);
-  }catch(err){ failed.push(`Sélection (${err.message})`); }
-  try{
-    await saveActiviteToCloud("all");
-    activiteDirty = false; // (14/10) tout envoyé — un rechargement auto peut à nouveau se faire sans risque
-    done.push("Activité");
-  }catch(err){ failed.push(`Activité (${err.message})`); }
-  btn.disabled = false; btn.textContent = original;
-  const when = new Date().toLocaleString("fr-FR");
-  if(statusEl){
-    statusEl.textContent = failed.length
-      ? `⚠ Partiel (${done.join(", ")||"rien"}) — échec : ${failed.join(", ")}`
-      : `✓ Dernière sauvegarde : ${when}`;
-    statusEl.style.color = failed.length ? "var(--amber)" : "var(--text-dim)";
+// Animation d’interface raccordée aux opérations cloud déjà existantes.
+let rosterSaveInProgress = false;
+let rosterOperationTrigger = null;
+let rosterNavigationDismissTimer = null;
+let rosterNavigationDismissAt = 0;
+function showRosterOperationOverlay(mode, trigger){
+  const overlay = document.getElementById("rosterOperationOverlay");
+  if(!overlay) return null;
+  rosterOperationTrigger = trigger || null;
+  if(rosterNavigationDismissTimer){ clearTimeout(rosterNavigationDismissTimer); rosterNavigationDismissTimer = null; }
+  overlay.dataset.mode = mode;
+  overlay.dataset.state = "loading";
+  document.getElementById("rosterOperationTitle").textContent = mode === "save" ? "Sauvegarde Roster" : "Transition entre applications";
+  document.getElementById("rosterOperationSubtitle").textContent = mode === "save" ? "Sauvegarde en cours…" : "Ouverture du Terminal Paie…";
+  document.getElementById("rosterOperationSymbol").textContent = mode === "save" ? "💾" : "📋";
+  document.getElementById("rosterOperationResult").textContent = "";
+  overlay.hidden = false;
+  const title = document.getElementById("rosterOperationTitle");
+  if(title) title.focus({preventScroll:true});
+  return overlay;
+}
+function hideRosterOperationOverlay(restoreFocus=false){
+  const overlay = document.getElementById("rosterOperationOverlay");
+  if(rosterNavigationDismissTimer){ clearTimeout(rosterNavigationDismissTimer); rosterNavigationDismissTimer = null; }
+  if(overlay) overlay.hidden = true;
+  const trigger = rosterOperationTrigger;
+  rosterOperationTrigger = null;
+  rosterNavigationDismissAt = 0;
+  if(restoreFocus && trigger && trigger.isConnected && !trigger.disabled){
+    try{ trigger.focus({preventScroll:true}); }catch(e){ trigger.focus(); }
   }
-  toast(failed.length ? `⚠ Sauvegarde partielle : ${failed.join(", ")}` : "✓ Sauvegardé");
+}
+document.addEventListener("keydown", event=>{
+  const overlay = document.getElementById("rosterOperationOverlay");
+  if(!overlay || overlay.hidden) return;
+  if(event.key === "Escape"){
+    event.preventDefault(); event.stopPropagation();
+  } else if(event.key === "Tab"){
+    // La modale n’a aucun contrôle : le focus reste sur son titre pendant l’opération.
+    event.preventDefault();
+    document.getElementById("rosterOperationTitle")?.focus({preventScroll:true});
+  }
+});
+document.addEventListener("visibilitychange", ()=>{
+  const overlay = document.getElementById("rosterOperationOverlay");
+  // Ne ferme pas la transition au moment où le nouvel onglet prend le focus;
+  // si le navigateur a suspendu le minuteur, la ferme au retour lorsque sa durée est écoulée.
+  if(overlay && !overlay.hidden && overlay.dataset.mode === "navigation" && document.visibilityState === "visible" && Date.now() >= rosterNavigationDismissAt){
+    hideRosterOperationOverlay(false);
+  }
+});
+
+// Le lien conserve son href, target et rel : le navigateur ouvre Pillbox immédiatement.
+const openPillboxTerminalLink = document.querySelector('a[href="https://paie-pillbox-terminal-ems.netlify.app/"]');
+if(openPillboxTerminalLink){
+  openPillboxTerminalLink.addEventListener("click", ()=>{
+    showRosterOperationOverlay("navigation", openPillboxTerminalLink);
+    // Transition purement visuelle : aucun preventDefault, aucune attente avant la navigation.
+    const navDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 650 : 1250;
+    rosterNavigationDismissAt = Date.now() + navDuration;
+    rosterNavigationDismissTimer = window.setTimeout(()=>hideRosterOperationOverlay(false), navDuration);
+  });
+}
+
+document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
+  if(rosterSaveInProgress) return;
+  const btn = e.currentTarget;
+  if(btn.disabled) return;
+  const statusEl = document.getElementById("saveAllStatus");
+  const original = btn.textContent;
+  const startedAt = Date.now();
+  const overlay = showRosterOperationOverlay("save", btn);
+  const saveAbortController = typeof AbortController !== "undefined" ? new AbortController() : null;
+  let saveTimedOut = false;
+  const saveTimeoutId = window.setTimeout(()=>{
+    saveTimedOut = true;
+    if(saveAbortController) saveAbortController.abort();
+  }, 30000);
+  rosterSaveInProgress = true;
+  btn.disabled = true;
+  btn.textContent = "☁️ Sauvegarde…";
+  if(statusEl) statusEl.textContent = "";
+  const done = []; const failed = [];
+  let finalState = "error";
+  let finalMessage = "Échec de la sauvegarde";
+  try{
+    try{
+      const count = await saveSpecialSelectionToCloud(saveAbortController ? saveAbortController.signal : undefined);
+      specialSelectionLastSavedAt = Date.now();
+      done.push(`Sélection (${count})`);
+    }catch(err){ failed.push("Sélection"); }
+
+    try{
+      // saveActiviteToCloud absorbe ses propres erreurs : son objet de réponse
+      // est utilisé ici pour ne pas confondre un échec avec une sauvegarde réussie.
+      const activityResult = await saveActiviteToCloud("all", undefined, {signal: saveAbortController ? saveAbortController.signal : undefined});
+      if(!activityResult || typeof activityResult !== "object") throw new Error("Réponse de sauvegarde manquante");
+      activiteDirty = false; // L’activité n’est marquée propre qu’après confirmation du serveur.
+      done.push("Activité");
+    }catch(err){ failed.push("Activité"); }
+  }catch(err){
+    failed.push("Opération inattendue");
+  }finally{
+    window.clearTimeout(saveTimeoutId);
+  }
+
+  try{
+    // La sauvegarde réelle est déjà terminée avant cet éventuel complément de durée minimale.
+    await waitForSyncOverlay(Math.max(0, SYNC_OVERLAY_MIN_MS - (Date.now() - startedAt)));
+    if(!failed.length){ finalState = "success"; finalMessage = "Sauvegarde réussie"; }
+    else if(done.length){ finalState = "partial"; finalMessage = "Sauvegarde partielle"; }
+    else { finalState = "error"; finalMessage = "Échec de la sauvegarde"; }
+    if(overlay){
+      overlay.dataset.state = finalState;
+      document.getElementById("rosterOperationSubtitle").textContent = saveTimedOut
+        ? "Le délai d’attente de 30 secondes est dépassé. Vérifie la connexion avant de réessayer."
+        : finalState === "success"
+          ? "Toutes les opérations de sauvegarde sont terminées."
+          : finalState === "partial" ? "Certaines opérations ont échoué." : "Aucune opération de sauvegarde n’a abouti.";
+      document.getElementById("rosterOperationResult").textContent = finalMessage;
+    }
+    const when = new Date().toLocaleString("fr-FR");
+    if(statusEl){
+      statusEl.textContent = finalState === "success"
+        ? `✓ Dernière sauvegarde : ${when}`
+        : finalState === "partial"
+          ? `⚠ Sauvegarde partielle — réussi : ${done.join(", ")}; échec : ${failed.join(", ")}.`
+          : `✕ Échec de la sauvegarde — ${failed.join(", ") || "aucune opération confirmée"}.`;
+      statusEl.style.color = finalState === "success" ? "var(--green)" : finalState === "partial" ? "var(--amber)" : "var(--red)";
+    }
+    toast(finalState === "success" ? "✓ Sauvegarde réussie" : finalState === "partial" ? "⚠ Sauvegarde partielle" : "✕ Échec de la sauvegarde");
+    await waitForSyncOverlay(900);
+  }catch(err){
+    // Le nettoyage de la fenêtre est garanti même si un problème d’interface survient.
+    if(overlay){ overlay.dataset.state = "error"; document.getElementById("rosterOperationResult").textContent = "Échec de la sauvegarde"; }
+    if(statusEl){ statusEl.textContent = "✕ Échec de la sauvegarde."; statusEl.style.color = "var(--red)"; }
+  }finally{
+    hideRosterOperationOverlay(true);
+    btn.disabled = false;
+    btn.textContent = original;
+    rosterSaveInProgress = false;
+  }
 });
 
 
