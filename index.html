@@ -918,7 +918,7 @@ function findInvalidEmployees(){
   employees.forEach((e,i)=>{
     const problems = [];
     if(typeof e.name !== "string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
-    if(typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
+    if(e.discordId != null && (typeof e.discordId !== "string" || e.discordId.length>=30)) problems.push("ID Discord invalide");
     if(typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
     if(problems.length) bad.push({ name: e.name || `(sans nom, position ${i})`, problems });
   });
@@ -927,7 +927,9 @@ function findInvalidEmployees(){
 async function pushStateToCloudNow(){
   _saveStateTimer = null;
   if(!currentFirebaseIdToken) return;
-  const invalid = findInvalidEmployees();
+  // Le OWNER peut corriger ou supprimer une fiche historique invalide ;
+  // les règles Firebase lui accordent le bypass de validation correspondant.
+  const invalid = currentUserLevel === "OWNER" ? [] : findInvalidEmployees();
   if(invalid.length){
     const detail = invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; ");
     toast(`✕ Sauvegarde cloud bloquée : ${invalid.length} fiche(s) invalide(s) ailleurs dans le roster — ${detail}${invalid.length>5?` (+${invalid.length-5} autre(s))`:""}. Corrige-les, sinon AUCUNE modification ne sera sauvegardée tant que ça reste comme ça.`);
@@ -4440,6 +4442,9 @@ const ROSTER_SESSION_STORAGE_KEY = "rosterDiscordSession_v1";
 let rosterSessionEstablishedAt = 0;
 let rosterLiveUpdateInterval = null;
 let rosterKickCheckInterval = null;
+let rosterSessionRenewTimer = null;
+let rosterSessionRenewInFlight = false;
+let rosterFirebaseRefreshTimer = null;
 
 async function rosterCheckKicked(){
   if(!currentSessionToken) return false;
@@ -4450,8 +4455,7 @@ async function rosterCheckKicked(){
     });
     const data = await res.json().catch(()=>({}));
     if(res.ok && data.kickedAt && data.kickedAt > rosterSessionEstablishedAt){
-      if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
-      if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
+      stopRosterLiveUpdates();
       clearSessionFromStorage();
       currentSessionToken = null; currentFirebaseIdToken = null;
       // (10/10, demandé) Retour de bâton silencieux : qui tente de
@@ -4545,6 +4549,7 @@ async function refreshRosterPresence(){
 }
 
 function startRosterLiveUpdates(){
+  startRosterSessionRenewal();
   rosterSendHeartbeat();
   refreshRosterPresence();
   refreshSpecialSelectionFromCloud();
@@ -4575,6 +4580,8 @@ function startRosterLiveUpdates(){
 function stopRosterLiveUpdates(){
   if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
   if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
+  if(rosterSessionRenewTimer){ clearInterval(rosterSessionRenewTimer); rosterSessionRenewTimer = null; }
+  if(rosterFirebaseRefreshTimer){ clearInterval(rosterFirebaseRefreshTimer); rosterFirebaseRefreshTimer = null; }
 }
 
 function saveSessionToStorage(token, session){
@@ -4597,6 +4604,70 @@ function decodeSessionTokenPayload(token){
     return JSON.parse(atob(b64));
   }catch(e){ return null; }
 }
+
+async function renewRosterSessionIfNeeded(){
+  if(!currentSessionToken || rosterSessionRenewInFlight) return false;
+  const payload = decodeSessionTokenPayload(currentSessionToken);
+  if(!payload?.exp || payload.exp - Date.now() > 60*60*1000) return false;
+  rosterSessionRenewInFlight = true;
+  try{
+    const res = await fetch("/.netlify/functions/renew-session", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token:currentSessionToken})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(res.ok && data.token){
+      currentSessionToken = data.token;
+      let storedSession = null;
+      try{ storedSession = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null")?.session || null; }catch(e){}
+      saveSessionToStorage(currentSessionToken, storedSession || {id:"", name:"Session active", level:currentUserLevel, levelLabel:currentUserLevel});
+      // Les écritures REST Firebase n'utilisent pas le SDK auto-renouvelant :
+      // on renouvelle aussi l'ID token Firebase pour éviter les 401 après 1 h.
+      await refreshRosterFirebaseToken();
+      return true;
+    }
+    if(res.status === 401){
+      stopRosterLiveUpdates();
+      if(rosterSessionRenewTimer){ clearInterval(rosterSessionRenewTimer); rosterSessionRenewTimer=null; }
+      if(rosterFirebaseRefreshTimer){ clearInterval(rosterFirebaseRefreshTimer); rosterFirebaseRefreshTimer=null; }
+      clearSessionFromStorage();
+      currentSessionToken = null; currentFirebaseIdToken = null;
+      showGate("Ta session Discord a réellement expiré. Les données déjà enregistrées restent conservées ; reconnecte-toi pour reprendre.");
+    }
+  }catch(e){ /* panne réseau temporaire : on conserve les données et réessaie au prochain cycle */ }
+  finally{ rosterSessionRenewInFlight = false; }
+  return false;
+}
+
+async function refreshRosterFirebaseToken(){
+  if(!currentSessionToken) return false;
+  try{
+    const res = await fetch("/.netlify/functions/refresh-firebase-token", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token:currentSessionToken})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.firebaseCustomToken) return false;
+    const idToken = await exchangeFirebaseCustomToken(data.firebaseCustomToken);
+    if(idToken){ currentFirebaseIdToken=idToken; return true; }
+  }catch(e){}
+  return false;
+}
+
+function startRosterSessionRenewal(){
+  if(rosterSessionRenewTimer) clearInterval(rosterSessionRenewTimer);
+  rosterSessionRenewTimer = setInterval(renewRosterSessionIfNeeded, 15*60*1000);
+  if(rosterFirebaseRefreshTimer) clearInterval(rosterFirebaseRefreshTimer);
+  rosterFirebaseRefreshTimer = setInterval(refreshRosterFirebaseToken, 45*60*1000);
+  renewRosterSessionIfNeeded();
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible"){
+    renewRosterSessionIfNeeded();
+    const payload = decodeSessionTokenPayload(currentSessionToken || "");
+    if(payload?.exp && payload.exp - Date.now() < 20*60*1000) refreshRosterFirebaseToken();
+  }
+});
 
 // (10/10 — correctif) Tout le chargement qui dépend du cloud, réuni ici
 // et appelé UNIQUEMENT une fois currentFirebaseIdToken confirmé prêt.
