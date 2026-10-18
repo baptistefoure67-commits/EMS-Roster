@@ -4599,6 +4599,42 @@ function showApp(session){
   renderGradeLabelsEditor();
   renderLastUpdated();
   renderAll(); // pour que les boutons Modifier/Licencier tiennent compte du niveau, maintenant qu'on le connaît
+  startSessionRenewal();
+}
+
+// (16/10) Renouvelle le jeton de session AVANT qu'il expire, tant que
+// l'onglet reste ouvert — complète netlify/functions/renew-session.js,
+// qui existait déjà côté serveur mais n'était jamais appelé (cause
+// réelle des "permission 401" en plein milieu d'une action comme
+// licencier). Renouvelé toutes les 20 minutes : largement avant les 2h
+// de validité, donc jamais de coupure tant que la page reste ouverte.
+// Un jeton déjà expiré ne peut PAS être renouvelé (le serveur revérifie
+// sa validité) — dans ce cas, redemande une vraie reconnexion Discord,
+// comme avant.
+let sessionRenewalTimer = null;
+function startSessionRenewal(){
+  if(sessionRenewalTimer) clearInterval(sessionRenewalTimer);
+  sessionRenewalTimer = setInterval(renewSessionToken, 20*60*1000);
+}
+function stopSessionRenewal(){
+  if(sessionRenewalTimer){ clearInterval(sessionRenewalTimer); sessionRenewalTimer = null; }
+}
+async function renewSessionToken(){
+  if(!currentSessionToken) return;
+  try{
+    const res = await fetch("/.netlify/functions/renew-session", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken }),
+    });
+    if(!res.ok) return; // jeton déjà expiré ou invalide : on laisse faire, la prochaine action sensible redemandera une vraie reconnexion
+    const data = await res.json().catch(()=>null);
+    if(data && data.token){
+      currentSessionToken = data.token;
+      let stored = null;
+      try{ stored = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null"); }catch(e){}
+      saveSessionToStorage(data.token, stored && stored.session ? stored.session : {});
+    }
+  }catch(e){ /* silencieux — un échec réseau ponctuel ne doit pas interrompre la session */ }
 }
 
 // Point de passage unique pour les actions sensibles — envoie le jeton,
@@ -4616,6 +4652,16 @@ async function protectedAction(action, payload){
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ token: currentSessionToken, action, payload }),
   });
+  // (16/10) Un 401 ici veut toujours dire la même chose : la session a
+  // expiré entre deux actions. Avant, le message exact dépendait de ce
+  // que renvoyait le serveur et pouvait remonter comme un "401" cru et
+  // peu clair — maintenant, toujours le même message explicite + un
+  // vrai écran de reconnexion, quel que soit le contenu de la réponse.
+  if(res.status === 401){
+    toast("Session expirée — reconnecte-toi avec Discord.");
+    showGate("Ta session a expiré, reconnecte-toi.");
+    throw new Error("Session expirée — reconnecte-toi avec Discord.");
+  }
   const data = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
   if(data.savedAt){ rosterLastUpdatedAt = data.savedAt; renderLastUpdated(); }
@@ -4635,6 +4681,11 @@ async function signalementServerAction(action, payload){
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ token: currentSessionToken, action, payload }),
   });
+  if(res.status === 401){
+    toast("Session expirée — reconnecte-toi avec Discord.");
+    showGate("Ta session a expiré, reconnecte-toi.");
+    throw new Error("Session expirée — reconnecte-toi avec Discord.");
+  }
   const data = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
   return data;
@@ -4655,6 +4706,7 @@ function withFirebaseAuth(url){
 // sauvegardée pour que le prochain chargement redemande bien Discord.
 document.getElementById("btnDiscordLogout").addEventListener("click", ()=>{
   stopRosterLiveUpdates();
+  stopSessionRenewal();
   clearSessionFromStorage();
   currentSessionToken = null; currentFirebaseIdToken = null;
   showGate();
