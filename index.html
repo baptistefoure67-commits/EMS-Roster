@@ -290,6 +290,64 @@
   @media(max-width:420px){.operation-dialog{padding:22px 16px;border-radius:15px}.operation-flow{gap:7px}.operation-app{min-width:64px}.operation-app-icon{width:50px;height:50px;font-size:1.55rem}.operation-route{gap:3px;font-size:1rem}.operation-route .operation-dot{width:5px;height:5px}}
   @media(prefers-reduced-motion:reduce){.operation-overlay *, .operation-overlay *::before, .operation-overlay *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.operation-progress-bar{width:45%;transform:none;}}
 
+  /* ═══════════════════════════════════════════════════════════════
+     LIAISON CENTRALE (19/10) — remplace les deux anciens écrans de
+     sauvegarde/synchronisation (trop simplistes) par une seule séquence
+     façon régulation EMS : radar, étapes réelles cochées une à une,
+     ligne de vie. Toujours "passable", toujours désactivable (bouton
+     dédié + prefers-reduced-motion), jamais plus de 5s.
+     ═══════════════════════════════════════════════════════════════ */
+  .liaison-overlay{position:fixed;inset:0;z-index:2147483003;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(1200px 800px at 50% 20%, rgba(37,99,235,.14), rgba(3,8,18,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+  .liaison-overlay[hidden]{display:none!important;}
+  .liaison-dialog{position:relative;width:min(420px,100%);padding:30px 26px 26px;border:1px solid var(--border);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--panel-2));box-shadow:0 30px 100px rgba(0,0,0,.6), 0 0 0 1px rgba(56,189,248,.06) inset;text-align:center;color:var(--text);outline:none;overflow:hidden;}
+  .liaison-dialog::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(transparent, transparent 3px, rgba(56,189,248,.025) 3px, rgba(56,189,248,.025) 4px);pointer-events:none;}
+  .liaison-skip{position:absolute;top:12px;right:12px;z-index:2;background:rgba(147,163,186,.1);border:1px solid var(--border);color:var(--text-dim);font-size:.72rem;font-weight:700;padding:6px 11px;border-radius:99px;cursor:pointer;transition:background .15s ease,color .15s ease;}
+  .liaison-skip:hover{background:rgba(147,163,186,.2);color:var(--text);}
+  .liaison-radar{position:relative;width:104px;height:104px;margin:4px auto 16px;border-radius:50%;background:radial-gradient(circle at 50% 50%, rgba(56,189,248,.14), rgba(56,189,248,.02) 70%);border:1px solid rgba(56,189,248,.3);display:grid;place-items:center;}
+  .liaison-radar-sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg, rgba(56,189,248,.65), transparent 32%);animation:liaison-spin 1.6s linear infinite;}
+  .liaison-radar-ring{position:absolute;border:1.5px solid rgba(56,189,248,.45);border-radius:50%;animation:liaison-ring-pulse 2.2s ease-out infinite;}
+  .liaison-radar-ring.r1{inset:10px;}
+  .liaison-radar-ring.r2{inset:10px;animation-delay:1.1s;}
+  .liaison-radar-core{position:relative;z-index:2;width:50px;height:50px;border-radius:50%;background:var(--panel);border:1px solid rgba(56,189,248,.5);display:grid;place-items:center;font-size:1.5rem;box-shadow:0 0 22px rgba(56,189,248,.35);}
+  .liaison-title{font-size:1.08rem;font-weight:800;letter-spacing:.01em;margin:0 0 6px;}
+  .liaison-subtitle{font-size:.84rem;color:var(--text-dim);line-height:1.5;min-height:1.3em;margin:0 0 16px;font-variant-numeric:tabular-nums;}
+  .liaison-steps{list-style:none;margin:0 0 16px;padding:0;text-align:left;display:flex;flex-direction:column;gap:7px;}
+  .liaison-step{display:flex;align-items:center;gap:9px;font-size:.78rem;color:var(--text-dim);opacity:.5;transition:opacity .25s ease,color .25s ease;}
+  .liaison-step[data-status="active"]{opacity:1;color:var(--text);}
+  .liaison-step[data-status="done"]{opacity:1;color:var(--green);}
+  .liaison-step[data-status="failed"]{opacity:1;color:var(--red);}
+  .liaison-step-dot{flex-shrink:0;width:16px;height:16px;border-radius:50%;border:1.5px solid currentColor;display:grid;place-items:center;font-size:.6rem;position:relative;}
+  .liaison-step[data-status="active"] .liaison-step-dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--cyan);border-top-color:transparent;animation:liaison-spin .7s linear infinite;}
+  .liaison-ekg{width:100%;height:30px;margin:4px 0 4px;overflow:visible;}
+  .liaison-ekg path{fill:none;stroke:var(--cyan);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:420;stroke-dashoffset:420;animation:liaison-ekg-draw 1.7s linear infinite;filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}
+  .liaison-overlay[data-state="success"] .liaison-ekg path{animation:none;stroke-dashoffset:0;stroke:var(--green);filter:drop-shadow(0 0 5px rgba(52,211,153,.6));}
+  .liaison-overlay[data-state="partial"] .liaison-ekg path{animation:none;stroke-dashoffset:0;stroke:var(--amber);}
+  .liaison-overlay[data-state="error"] .liaison-ekg path{animation:none;stroke-dashoffset:0;stroke:var(--red);}
+  .liaison-overlay[data-state="success"] .liaison-radar-sweep,.liaison-overlay[data-state="partial"] .liaison-radar-sweep,.liaison-overlay[data-state="error"] .liaison-radar-sweep{animation:none;background:none;}
+  .liaison-overlay[data-state="success"] .liaison-radar-core{border-color:var(--green);box-shadow:0 0 26px rgba(52,211,153,.55);animation:liaison-lock 0.4s ease-out;}
+  .liaison-overlay[data-state="partial"] .liaison-radar-core{border-color:var(--amber);box-shadow:0 0 26px rgba(251,191,36,.5);}
+  .liaison-overlay[data-state="error"] .liaison-radar-core{border-color:var(--red);box-shadow:0 0 26px rgba(248,113,113,.5);animation:liaison-shake .4s ease-out;}
+  .liaison-overlay[data-state="success"] .liaison-radar-ring,.liaison-overlay[data-state="partial"] .liaison-radar-ring,.liaison-overlay[data-state="error"] .liaison-radar-ring{animation:none;opacity:0;}
+  .liaison-result{font-size:.95rem;font-weight:800;line-height:1.4;margin-top:4px;min-height:1.4em;}
+  .liaison-overlay[data-state="success"] .liaison-result{color:var(--green);}
+  .liaison-overlay[data-state="partial"] .liaison-result{color:var(--amber);}
+  .liaison-overlay[data-state="error"] .liaison-result{color:var(--red);}
+  @keyframes liaison-spin{to{transform:rotate(360deg);}}
+  @keyframes liaison-ring-pulse{0%{transform:scale(.75);opacity:.75;}100%{transform:scale(1.5);opacity:0;}}
+  @keyframes liaison-ekg-draw{0%{stroke-dashoffset:420;}60%{stroke-dashoffset:0;}100%{stroke-dashoffset:-420;}}
+  @keyframes liaison-lock{0%{transform:scale(.8);}60%{transform:scale(1.12);}100%{transform:scale(1);}}
+  @keyframes liaison-shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+  @media(max-width:420px){.liaison-dialog{padding:24px 18px 20px;}.liaison-radar{width:88px;height:88px;}.liaison-radar-core{width:44px;height:44px;font-size:1.3rem;}}
+  @media(prefers-reduced-motion:reduce){.liaison-overlay *,.liaison-overlay *::before,.liaison-overlay *::after{animation:none!important;transition:none!important;}.liaison-ekg path{stroke-dashoffset:0!important;}}
+  body.roster-anims-off .liaison-radar-sweep,body.roster-anims-off .liaison-radar-ring{display:none!important;}
+  body.roster-anims-off .liaison-ekg path{animation:none!important;stroke-dashoffset:0!important;}
+
+  /* Bouton bascule animations — rond, vert, coin haut-gauche, toujours visible. */
+  .anims-toggle{position:fixed;top:14px;left:14px;z-index:2147483004;width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;background:var(--green);color:#06281b;font-size:1.15rem;display:grid;place-items:center;box-shadow:0 6px 20px rgba(52,211,153,.45);transition:transform .15s ease,background .15s ease,box-shadow .15s ease;}
+  .anims-toggle:hover{transform:scale(1.07);}
+  .anims-toggle[aria-pressed="false"]{background:var(--border);color:var(--text-dim);box-shadow:none;}
+  @media(max-width:560px){.anims-toggle{width:38px;height:38px;font-size:1rem;top:10px;left:10px;}}
+
 </style>
 </head>
 <body>
@@ -321,6 +379,27 @@
     </div>
     <div class="operation-progress" role="progressbar" aria-label="Progression de l’opération" aria-valuetext="Opération en cours"><div id="rosterOperationProgressBar" class="operation-progress-bar"></div></div>
     <div id="rosterOperationResult" class="operation-result" aria-live="assertive"></div>
+  </div>
+</div>
+
+<button type="button" id="animsToggleBtn" class="anims-toggle" aria-pressed="true" title="Activer/désactiver les animations de sauvegarde et synchronisation">🎬</button>
+
+<div id="liaisonOverlay" class="liaison-overlay" role="dialog" aria-modal="true" aria-labelledby="liaisonTitle" aria-describedby="liaisonSubtitle" hidden data-state="loading">
+  <div class="liaison-dialog" tabindex="-1">
+    <button type="button" id="liaisonSkipBtn" class="liaison-skip">Passer →</button>
+    <div class="liaison-radar" aria-hidden="true">
+      <div class="liaison-radar-sweep"></div>
+      <div class="liaison-radar-ring r1"></div>
+      <div class="liaison-radar-ring r2"></div>
+      <div class="liaison-radar-core" id="liaisonRadarIcon">💾</div>
+    </div>
+    <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
+    <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
+    <ul id="liaisonSteps" class="liaison-steps" aria-hidden="true"></ul>
+    <svg class="liaison-ekg" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true">
+      <path id="liaisonEkgPath" d="M0,20 L55,20 L70,4 L85,36 L100,20 L300,20" />
+    </svg>
+    <div id="liaisonResult" class="liaison-result" aria-live="assertive"></div>
   </div>
 </div>
 
@@ -2152,23 +2231,108 @@ function parseDiscordIdsText(text){
 // ═══════════════════════════════════════════════════════════════════
 const SYNC_OVERLAY_MIN_MS = 2000;
 function waitForSyncOverlay(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
-function setSyncOverlayResult(state, message){
-  const overlay=document.getElementById("syncPillboxOverlay");
-  overlay.dataset.state=state;
-  document.getElementById("syncOverlaySubtitle").textContent = state==="success" ? "Toutes les étapes ont réussi." : state==="partial" ? "Certaines étapes ont échoué." : "Aucune étape n’a pu être synchronisée.";
-  document.getElementById("syncPillboxOverlayResult").textContent=message;
+
+// ═══════════════════════════════════════════════════════════════════
+// LIAISON CENTRALE (19/10) — écran unique pour la sauvegarde ET la
+// synchronisation Pillbox. Les étapes affichées reflètent les VRAIES
+// étapes en cours (jamais une barre de progression inventée) : chaque
+// essai réel du code appelle setLiaisonStep() au bon moment.
+// ═══════════════════════════════════════════════════════════════════
+let rosterAnimsEnabled = true;
+try{ rosterAnimsEnabled = localStorage.getItem("rosterAnimsEnabled") !== "0"; }catch(e){}
+function applyAnimsToggleUi(){
+  document.body.classList.toggle("roster-anims-off", !rosterAnimsEnabled);
+  const btn = document.getElementById("animsToggleBtn");
+  if(btn){ btn.setAttribute("aria-pressed", String(rosterAnimsEnabled)); btn.textContent = rosterAnimsEnabled ? "🎬" : "⏸️"; }
 }
+function liaisonReduced(){
+  return !rosterAnimsEnabled || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+let liaisonSkipped = false;
+let liaisonTrigger = null;
+const LIAISON_MIN_MS = 2200;
+const LIAISON_MAX_EXTRA_MS = 2800; // au-delà du minimum, jamais plus de 2.8s d'attente artificielle supplémentaire
+
+function showLiaisonOverlay(title, icon, stepLabels, trigger){
+  liaisonSkipped = false;
+  liaisonTrigger = trigger || null;
+  const overlay = document.getElementById("liaisonOverlay");
+  overlay.dataset.state = "loading";
+  document.getElementById("liaisonRadarIcon").textContent = icon;
+  document.getElementById("liaisonTitle").textContent = title;
+  document.getElementById("liaisonSubtitle").textContent = "Établissement de la liaison…";
+  document.getElementById("liaisonResult").textContent = "";
+  document.getElementById("liaisonSteps").innerHTML = stepLabels.map((label,i)=>
+    `<li class="liaison-step" data-status="pending" data-step="${i}"><span class="liaison-step-dot"></span><span>${esc(label)}</span></li>`
+  ).join("");
+  overlay.hidden = false;
+  const dlg = overlay.querySelector(".liaison-dialog");
+  if(dlg) dlg.focus({preventScroll:true});
+  return overlay;
+}
+function setLiaisonStep(index, status, subtitle){
+  const li = document.querySelector(`#liaisonSteps .liaison-step[data-step="${index}"]`);
+  if(li){
+    li.dataset.status = status;
+    const dot = li.querySelector(".liaison-step-dot");
+    if(dot) dot.textContent = status==="done" ? "✓" : status==="failed" ? "✕" : "";
+  }
+  if(subtitle) document.getElementById("liaisonSubtitle").textContent = subtitle;
+}
+function finishLiaisonOverlay(state, message, subtitle){
+  const overlay = document.getElementById("liaisonOverlay");
+  overlay.dataset.state = state;
+  document.getElementById("liaisonSubtitle").textContent = subtitle || (state==="success" ? "Liaison confirmée." : state==="partial" ? "Liaison partiellement établie." : "Échec de la liaison.");
+  document.getElementById("liaisonResult").textContent = message;
+}
+function hideLiaisonOverlay(restoreFocus){
+  const overlay = document.getElementById("liaisonOverlay");
+  overlay.hidden = true;
+  const trigger = liaisonTrigger; liaisonTrigger = null;
+  if(restoreFocus && trigger && trigger.isConnected && !trigger.disabled){
+    try{ trigger.focus({preventScroll:true}); }catch(e){ trigger.focus(); }
+  }
+}
+async function liaisonMinDelay(startedAt, minMs){
+  if(liaisonSkipped || liaisonReduced()) return;
+  const remaining = Math.min(minMs - (Date.now()-startedAt), LIAISON_MAX_EXTRA_MS);
+  if(remaining > 0) await new Promise(r=>setTimeout(r, remaining));
+}
+document.getElementById("liaisonSkipBtn").addEventListener("click", ()=>{
+  liaisonSkipped = true;
+  hideLiaisonOverlay(true);
+});
+document.getElementById("animsToggleBtn").addEventListener("click", ()=>{
+  rosterAnimsEnabled = !rosterAnimsEnabled;
+  try{ localStorage.setItem("rosterAnimsEnabled", rosterAnimsEnabled ? "1" : "0"); }catch(e){}
+  applyAnimsToggleUi();
+  toast(rosterAnimsEnabled ? "🎬 Animations réactivées" : "⏸️ Animations désactivées");
+});
+document.addEventListener("keydown", event=>{
+  const overlay = document.getElementById("liaisonOverlay");
+  if(!overlay || overlay.hidden) return;
+  if(event.key === "Escape"){
+    event.preventDefault(); event.stopPropagation();
+    document.getElementById("liaisonSkipBtn").click();
+  } else if(event.key === "Tab"){
+    event.preventDefault();
+    overlay.querySelector(".liaison-dialog")?.focus({preventScroll:true});
+  }
+});
+applyAnimsToggleUi();
 
 async function syncWithPillbox(){
   const btn = document.getElementById("btnSyncPillbox");
   const statusEl = document.getElementById("syncPillboxStatus");
   const canAll = hasCap("send_pillbox_all");
   const syncStartedAt = Date.now();
-  const overlay = document.getElementById("syncPillboxOverlay");
-  overlay.hidden = false;
-  overlay.dataset.state = "loading";
-  document.getElementById("syncOverlaySubtitle").textContent = "Envoi des données en cours…";
-  document.getElementById("syncPillboxOverlayResult").textContent = "";
+
+  const stepLabels = canAll
+    ? ["Roster", "Formation Opération", "Formation (activité)", "Psychologie (activité)"]
+    : ["Formation (activité)", "Psychologie (activité)"];
+  showLiaisonOverlay("Synchronisation avec Pillbox", "🛰️", stepLabels, btn);
+  let stepIdx = 0;
+
   btn.disabled = true;
   const original = btn.innerHTML;
   btn.innerHTML = "🔄 Synchronisation en cours…";
@@ -2179,6 +2343,7 @@ async function syncWithPillbox(){
 
   // 1) Roster + Formation Opération — réservé ADD+ (comme send_pillbox_all)
   if(canAll){
+    setLiaisonStep(stepIdx, "active", "Envoi du Roster…");
     try{
       const text = buildPlainList();
       const currentRes = await fetch(withFirebaseAuth(CLOUD_DB_URL));
@@ -2194,8 +2359,11 @@ async function syncWithPillbox(){
       });
       if(!res.ok) throw new Error(`${res.status}`);
       done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
-    }catch(err){ failed.push(`Roster (${err.message})`); }
+      setLiaisonStep(stepIdx, "done");
+    }catch(err){ failed.push(`Roster (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
+    stepIdx++;
 
+    setLiaisonStep(stepIdx, "active", "Envoi de la Formation Opération…");
     try{
       const {text, count} = buildFormationSendList();
       if(count){
@@ -2205,18 +2373,25 @@ async function syncWithPillbox(){
         if(!res.ok) throw new Error(`${res.status}`);
         done.push(`Formation Opération (${count})`);
       }
-    }catch(err){ failed.push(`Formation Opération (${err.message})`); }
+      setLiaisonStep(stepIdx, "done");
+    }catch(err){ failed.push(`Formation Opération (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
+    stepIdx++;
   }
 
   // 2) Formateur + Psychologue — MC et au-dessus, via le circuit déjà
   // protégé côté serveur (activite-actions.js, inchangé).
-  try{ await saveActiviteToCloud("formateur"); done.push("Formation"); }
-  catch(err){ failed.push(`Formation (${err.message})`); }
-  try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); }
-  catch(err){ failed.push(`Psychologie (${err.message})`); }
+  setLiaisonStep(stepIdx, "active", "Synchronisation Formation…");
+  try{ await saveActiviteToCloud("formateur"); done.push("Formation"); setLiaisonStep(stepIdx, "done"); }
+  catch(err){ failed.push(`Formation (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
+  stepIdx++;
 
-  // L’overlay reste visible au moins 2 secondes, sans ralentir les envois plus longs.
-  await waitForSyncOverlay(Math.max(0, SYNC_OVERLAY_MIN_MS - (Date.now() - syncStartedAt)));
+  setLiaisonStep(stepIdx, "active", "Synchronisation Psychologie…");
+  try{ await saveActiviteToCloud("psychologue"); done.push("Psychologie"); setLiaisonStep(stepIdx, "done"); }
+  catch(err){ failed.push(`Psychologie (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
+
+  // L’overlay reste visible au moins 2.2 secondes (sauf si passée ou
+  // animations désactivées), sans jamais ralentir un envoi plus long.
+  await liaisonMinDelay(syncStartedAt, LIAISON_MIN_MS);
   let overlayState, overlayMessage;
   if(!failed.length){
     overlayState="success"; overlayMessage="Synchronisé avec Pillbox";
@@ -2225,7 +2400,8 @@ async function syncWithPillbox(){
   } else {
     overlayState="error"; overlayMessage="Échec de la synchronisation";
   }
-  setSyncOverlayResult(overlayState, overlayMessage);
+  finishLiaisonOverlay(overlayState, overlayMessage,
+    overlayState==="success" ? "Toutes les étapes ont réussi." : overlayState==="partial" ? "Certaines étapes ont échoué." : "Aucune étape n’a pu être synchronisée.");
   if(statusEl){
     if(!failed.length){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ Synchronisation Pillbox terminée — ${esc(done.join(", "))}.</span>`;
@@ -2236,8 +2412,8 @@ async function syncWithPillbox(){
     }
   }
   // Garde l’état final visible un court instant, puis libère l’interface.
-  await waitForSyncOverlay(1000);
-  overlay.hidden = true;
+  if(!liaisonSkipped && !liaisonReduced()) await waitForSyncOverlay(1000);
+  hideLiaisonOverlay(true);
   btn.disabled = false;
   btn.innerHTML = original;
 }
@@ -3294,7 +3470,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
   const statusEl = document.getElementById("saveAllStatus");
   const original = btn.textContent;
   const startedAt = Date.now();
-  const overlay = showRosterOperationOverlay("save", btn);
+  showLiaisonOverlay("Sauvegarde Roster", "💾", ["Sélection Formation Opération", "Suivi d'activité"], btn);
   const saveAbortController = typeof AbortController !== "undefined" ? new AbortController() : null;
   let saveTimedOut = false;
   const saveTimeoutId = window.setTimeout(()=>{
@@ -3309,12 +3485,15 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
   let finalState = "error";
   let finalMessage = "Échec de la sauvegarde";
   try{
+    setLiaisonStep(0, "active", "Envoi de la sélection…");
     try{
       const count = await saveSpecialSelectionToCloud(saveAbortController ? saveAbortController.signal : undefined);
       specialSelectionLastSavedAt = Date.now();
       done.push(`Sélection (${count})`);
-    }catch(err){ failed.push("Sélection"); }
+      setLiaisonStep(0, "done");
+    }catch(err){ failed.push("Sélection"); setLiaisonStep(0, "failed"); }
 
+    setLiaisonStep(1, "active", "Écriture du suivi d'activité…");
     try{
       // saveActiviteToCloud absorbe ses propres erreurs : son objet de réponse
       // est utilisé ici pour ne pas confondre un échec avec une sauvegarde réussie.
@@ -3322,7 +3501,8 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
       if(!activityResult || typeof activityResult !== "object") throw new Error("Réponse de sauvegarde manquante");
       activiteDirty = false; // L’activité n’est marquée propre qu’après confirmation du serveur.
       done.push("Activité");
-    }catch(err){ failed.push("Activité"); }
+      setLiaisonStep(1, "done");
+    }catch(err){ failed.push("Activité"); setLiaisonStep(1, "failed"); }
   }catch(err){
     failed.push("Opération inattendue");
   }finally{
@@ -3331,19 +3511,15 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 
   try{
     // La sauvegarde réelle est déjà terminée avant cet éventuel complément de durée minimale.
-    await waitForSyncOverlay(Math.max(0, SYNC_OVERLAY_MIN_MS - (Date.now() - startedAt)));
+    await liaisonMinDelay(startedAt, LIAISON_MIN_MS);
     if(!failed.length){ finalState = "success"; finalMessage = "Sauvegarde réussie"; }
     else if(done.length){ finalState = "partial"; finalMessage = "Sauvegarde partielle"; }
     else { finalState = "error"; finalMessage = "Échec de la sauvegarde"; }
-    if(overlay){
-      overlay.dataset.state = finalState;
-      document.getElementById("rosterOperationSubtitle").textContent = saveTimedOut
-        ? "Le délai d’attente de 30 secondes est dépassé. Vérifie la connexion avant de réessayer."
-        : finalState === "success"
-          ? "Toutes les opérations de sauvegarde sont terminées."
-          : finalState === "partial" ? "Certaines opérations ont échoué." : "Aucune opération de sauvegarde n’a abouti.";
-      document.getElementById("rosterOperationResult").textContent = finalMessage;
-    }
+    finishLiaisonOverlay(finalState, finalMessage, saveTimedOut
+      ? "Le délai d’attente de 30 secondes est dépassé. Vérifie la connexion avant de réessayer."
+      : finalState === "success"
+        ? "Toutes les opérations de sauvegarde sont terminées."
+        : finalState === "partial" ? "Certaines opérations ont échoué." : "Aucune opération de sauvegarde n’a abouti.");
     const when = new Date().toLocaleString("fr-FR");
     if(statusEl){
       statusEl.textContent = finalState === "success"
@@ -3354,13 +3530,13 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
       statusEl.style.color = finalState === "success" ? "var(--green)" : finalState === "partial" ? "var(--amber)" : "var(--red)";
     }
     toast(finalState === "success" ? "✓ Sauvegarde réussie" : finalState === "partial" ? "⚠ Sauvegarde partielle" : "✕ Échec de la sauvegarde");
-    await waitForSyncOverlay(900);
+    if(!liaisonSkipped && !liaisonReduced()) await waitForSyncOverlay(900);
   }catch(err){
     // Le nettoyage de la fenêtre est garanti même si un problème d’interface survient.
-    if(overlay){ overlay.dataset.state = "error"; document.getElementById("rosterOperationResult").textContent = "Échec de la sauvegarde"; }
+    finishLiaisonOverlay("error", "Échec de la sauvegarde");
     if(statusEl){ statusEl.textContent = "✕ Échec de la sauvegarde."; statusEl.style.color = "var(--red)"; }
   }finally{
-    hideRosterOperationOverlay(true);
+    hideLiaisonOverlay(true);
     btn.disabled = false;
     btn.textContent = original;
     rosterSaveInProgress = false;
