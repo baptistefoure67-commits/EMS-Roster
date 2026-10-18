@@ -338,15 +338,52 @@
   @keyframes liaison-lock{0%{transform:scale(.8);}60%{transform:scale(1.12);}100%{transform:scale(1);}}
   @keyframes liaison-shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
   @media(max-width:420px){.liaison-dialog{padding:24px 18px 20px;}.liaison-radar{width:88px;height:88px;}.liaison-radar-core{width:44px;height:44px;font-size:1.3rem;}}
+
+  /* Scène "save" — coffre-fort qui se verrouille, bien différente du
+     radar de la scène "sync" (une écriture locale n'est pas un appel
+     vers une autre application, elle ne doit pas RESSEMBLER à ça). */
+  .liaison-overlay[data-kind="save"] .liaison-radar,.liaison-overlay[data-kind="save"] .liaison-ekg{display:none;}
+  .liaison-overlay:not([data-kind="save"]) .vault-wrap,.liaison-overlay:not([data-kind="save"]) .vault-bars{display:none;}
+  .vault-wrap{position:relative;width:104px;height:104px;margin:4px auto 16px;display:grid;place-items:center;}
+  .vault-dial{position:absolute;inset:6px;border-radius:22px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);}
+  .vault-dial-ticks{position:absolute;inset:0;animation:liaison-spin 3.4s linear infinite;}
+  .vault-dial-ticks span{position:absolute;top:2px;left:50%;width:3px;height:9px;margin-left:-1.5px;border-radius:2px;background:rgba(56,189,248,.55);transform-origin:1.5px 50px;}
+  .vault-dial-ticks span:nth-child(1){transform:rotate(0deg);}
+  .vault-dial-ticks span:nth-child(2){transform:rotate(45deg);}
+  .vault-dial-ticks span:nth-child(3){transform:rotate(90deg);}
+  .vault-dial-ticks span:nth-child(4){transform:rotate(135deg);}
+  .vault-dial-ticks span:nth-child(5){transform:rotate(180deg);}
+  .vault-dial-ticks span:nth-child(6){transform:rotate(225deg);}
+  .vault-dial-ticks span:nth-child(7){transform:rotate(270deg);}
+  .vault-dial-ticks span:nth-child(8){transform:rotate(315deg);}
+  .vault-core{position:relative;z-index:2;width:50px;height:50px;border-radius:14px;background:var(--panel);border:1px solid rgba(56,189,248,.5);display:grid;place-items:center;font-size:1.45rem;box-shadow:0 0 22px rgba(56,189,248,.3);transition:transform .25s ease;}
+  .vault-stamp{position:absolute;right:-2px;bottom:-2px;z-index:3;width:30px;height:30px;border-radius:50%;background:var(--green);color:#06281b;font-size:1rem;font-weight:900;display:grid;place-items:center;opacity:0;transform:scale(0) rotate(-20deg);box-shadow:0 4px 14px rgba(52,211,153,.5);}
+  .liaison-overlay[data-state="success"] .vault-core{transform:scale(1.08);border-color:var(--green);box-shadow:0 0 26px rgba(52,211,153,.5);}
+  .liaison-overlay[data-state="success"] .vault-stamp{animation:liaison-stamp .5s cubic-bezier(.2,1.6,.4,1) forwards;}
+  .liaison-overlay[data-state="partial"] .vault-core{border-color:var(--amber);box-shadow:0 0 26px rgba(251,191,36,.45);}
+  .liaison-overlay[data-state="error"] .vault-core{border-color:var(--red);box-shadow:0 0 26px rgba(248,113,113,.45);animation:liaison-shake .4s ease-out;}
+  .liaison-overlay[data-state="success"] .vault-dial-ticks,.liaison-overlay[data-state="partial"] .vault-dial-ticks,.liaison-overlay[data-state="error"] .vault-dial-ticks{animation:none;}
+  .liaison-overlay[data-state="success"] .vault-dial-ticks span,.liaison-overlay[data-state="partial"] .vault-dial-ticks span{background:var(--green);}
+  .liaison-overlay[data-state="error"] .vault-dial-ticks span{background:var(--red);}
+  .vault-bars{display:flex;align-items:flex-end;justify-content:center;gap:5px;height:30px;margin:4px 0 4px;}
+  .vault-bars span{width:7px;border-radius:3px 3px 0 0;background:var(--cyan);height:35%;animation:vault-bar-bounce .85s ease-in-out infinite;}
+  .vault-bars span:nth-child(1){animation-delay:0s}.vault-bars span:nth-child(2){animation-delay:.08s}.vault-bars span:nth-child(3){animation-delay:.16s}.vault-bars span:nth-child(4){animation-delay:.24s}.vault-bars span:nth-child(5){animation-delay:.32s}.vault-bars span:nth-child(6){animation-delay:.4s}.vault-bars span:nth-child(7){animation-delay:.48s}
+  .liaison-overlay[data-state="success"] .vault-bars span{animation:none;height:88%;background:var(--green);}
+  .liaison-overlay[data-state="partial"] .vault-bars span{animation:none;height:60%;background:var(--amber);}
+  .liaison-overlay[data-state="error"] .vault-bars span{animation:none;height:22%;background:var(--red);}
+  @keyframes vault-bar-bounce{0%,100%{height:30%;}50%{height:90%;}}
+  @keyframes liaison-stamp{0%{opacity:0;transform:scale(0) rotate(-20deg);}60%{opacity:1;transform:scale(1.25) rotate(8deg);}100%{opacity:1;transform:scale(1) rotate(0deg);}}
+  @media(max-width:420px){.vault-wrap{width:88px;height:88px;}.vault-core{width:44px;height:44px;font-size:1.25rem;border-radius:12px;}.vault-dial-ticks span{transform-origin:1.5px 42px;}}
+  body.roster-anims-off .vault-dial-ticks{animation:none!important;}
+  body.roster-anims-off .vault-bars span{animation:none!important;height:40%!important;}
   @media(prefers-reduced-motion:reduce){.liaison-overlay *,.liaison-overlay *::before,.liaison-overlay *::after{animation:none!important;transition:none!important;}.liaison-ekg path{stroke-dashoffset:0!important;}}
   body.roster-anims-off .liaison-radar-sweep,body.roster-anims-off .liaison-radar-ring{display:none!important;}
   body.roster-anims-off .liaison-ekg path{animation:none!important;stroke-dashoffset:0!important;}
 
   /* Bouton bascule animations — rond, vert, coin haut-gauche, toujours visible. */
-  .anims-toggle{position:fixed;top:14px;left:14px;z-index:2147483004;width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;background:var(--green);color:#06281b;font-size:1.15rem;display:grid;place-items:center;box-shadow:0 6px 20px rgba(52,211,153,.45);transition:transform .15s ease,background .15s ease,box-shadow .15s ease;}
-  .anims-toggle:hover{transform:scale(1.07);}
-  .anims-toggle[aria-pressed="false"]{background:var(--border);color:var(--text-dim);box-shadow:none;}
-  @media(max-width:560px){.anims-toggle{width:38px;height:38px;font-size:1rem;top:10px;left:10px;}}
+  .anims-toggle{position:fixed;top:10px;left:10px;z-index:2147483004;width:16px;height:16px;border-radius:50%;border:none;cursor:pointer;background:var(--green);padding:0;box-shadow:0 2px 8px rgba(52,211,153,.5);transition:transform .15s ease,background .15s ease,box-shadow .15s ease;}
+  .anims-toggle:hover{transform:scale(1.25);}
+  .anims-toggle[aria-pressed="false"]{background:var(--border);box-shadow:none;}
 
 </style>
 </head>
@@ -382,16 +419,26 @@
   </div>
 </div>
 
-<button type="button" id="animsToggleBtn" class="anims-toggle" aria-pressed="true" title="Activer/désactiver les animations de sauvegarde et synchronisation">🎬</button>
+<button type="button" id="animsToggleBtn" class="anims-toggle" aria-pressed="true" title="Activer/désactiver les animations de sauvegarde et synchronisation" aria-label="Activer/désactiver les animations"></button>
 
 <div id="liaisonOverlay" class="liaison-overlay" role="dialog" aria-modal="true" aria-labelledby="liaisonTitle" aria-describedby="liaisonSubtitle" hidden data-state="loading">
   <div class="liaison-dialog" tabindex="-1">
     <button type="button" id="liaisonSkipBtn" class="liaison-skip">Passer →</button>
+    <!-- Scène "sync" — radar + ligne de vie (communication entre deux applications) -->
     <div class="liaison-radar" aria-hidden="true">
       <div class="liaison-radar-sweep"></div>
       <div class="liaison-radar-ring r1"></div>
       <div class="liaison-radar-ring r2"></div>
-      <div class="liaison-radar-core" id="liaisonRadarIcon">💾</div>
+      <div class="liaison-radar-core" id="liaisonRadarIcon">🛰️</div>
+    </div>
+    <!-- Scène "save" — coffre-fort (écriture/archivage local, jamais une communication) -->
+    <div class="vault-wrap" aria-hidden="true">
+      <div class="vault-dial"></div>
+      <div class="vault-dial-ticks">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="vault-core" id="vaultLockIcon">🔓</div>
+      <div class="vault-stamp">✓</div>
     </div>
     <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
     <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
@@ -399,6 +446,9 @@
     <svg class="liaison-ekg" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true">
       <path id="liaisonEkgPath" d="M0,20 L55,20 L70,4 L85,36 L100,20 L300,20" />
     </svg>
+    <div class="vault-bars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
     <div id="liaisonResult" class="liaison-result" aria-live="assertive"></div>
   </div>
 </div>
@@ -2243,7 +2293,7 @@ try{ rosterAnimsEnabled = localStorage.getItem("rosterAnimsEnabled") !== "0"; }c
 function applyAnimsToggleUi(){
   document.body.classList.toggle("roster-anims-off", !rosterAnimsEnabled);
   const btn = document.getElementById("animsToggleBtn");
-  if(btn){ btn.setAttribute("aria-pressed", String(rosterAnimsEnabled)); btn.textContent = rosterAnimsEnabled ? "🎬" : "⏸️"; }
+  if(btn) btn.setAttribute("aria-pressed", String(rosterAnimsEnabled));
 }
 function liaisonReduced(){
   return !rosterAnimsEnabled || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -2253,14 +2303,15 @@ let liaisonTrigger = null;
 const LIAISON_MIN_MS = 2200;
 const LIAISON_MAX_EXTRA_MS = 2800; // au-delà du minimum, jamais plus de 2.8s d'attente artificielle supplémentaire
 
-function showLiaisonOverlay(title, icon, stepLabels, trigger){
+function showLiaisonOverlay(kind, title, stepLabels, trigger){
   liaisonSkipped = false;
   liaisonTrigger = trigger || null;
   const overlay = document.getElementById("liaisonOverlay");
   overlay.dataset.state = "loading";
-  document.getElementById("liaisonRadarIcon").textContent = icon;
+  overlay.dataset.kind = kind; // "save" (coffre-fort) ou "sync" (radar)
+  document.getElementById("vaultLockIcon").textContent = "🔓";
   document.getElementById("liaisonTitle").textContent = title;
-  document.getElementById("liaisonSubtitle").textContent = "Établissement de la liaison…";
+  document.getElementById("liaisonSubtitle").textContent = kind === "save" ? "Ouverture du coffre…" : "Établissement de la liaison…";
   document.getElementById("liaisonResult").textContent = "";
   document.getElementById("liaisonSteps").innerHTML = stepLabels.map((label,i)=>
     `<li class="liaison-step" data-status="pending" data-step="${i}"><span class="liaison-step-dot"></span><span>${esc(label)}</span></li>`
@@ -2282,7 +2333,12 @@ function setLiaisonStep(index, status, subtitle){
 function finishLiaisonOverlay(state, message, subtitle){
   const overlay = document.getElementById("liaisonOverlay");
   overlay.dataset.state = state;
-  document.getElementById("liaisonSubtitle").textContent = subtitle || (state==="success" ? "Liaison confirmée." : state==="partial" ? "Liaison partiellement établie." : "Échec de la liaison.");
+  const isSave = overlay.dataset.kind === "save";
+  if(isSave) document.getElementById("vaultLockIcon").textContent = state==="error" ? "🔓" : "🔒";
+  const fallback = isSave
+    ? (state==="success" ? "Coffre verrouillé." : state==="partial" ? "Coffre partiellement verrouillé." : "Le coffre n’a pas pu se verrouiller.")
+    : (state==="success" ? "Liaison confirmée." : state==="partial" ? "Liaison partiellement établie." : "Échec de la liaison.");
+  document.getElementById("liaisonSubtitle").textContent = subtitle || fallback;
   document.getElementById("liaisonResult").textContent = message;
 }
 function hideLiaisonOverlay(restoreFocus){
@@ -2330,7 +2386,7 @@ async function syncWithPillbox(){
   const stepLabels = canAll
     ? ["Roster", "Formation Opération", "Formation (activité)", "Psychologie (activité)"]
     : ["Formation (activité)", "Psychologie (activité)"];
-  showLiaisonOverlay("Synchronisation avec Pillbox", "🛰️", stepLabels, btn);
+  showLiaisonOverlay("sync", "Synchronisation avec Pillbox", stepLabels, btn);
   let stepIdx = 0;
 
   btn.disabled = true;
@@ -3470,7 +3526,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
   const statusEl = document.getElementById("saveAllStatus");
   const original = btn.textContent;
   const startedAt = Date.now();
-  showLiaisonOverlay("Sauvegarde Roster", "💾", ["Sélection Formation Opération", "Suivi d'activité"], btn);
+  showLiaisonOverlay("save", "Sauvegarde Roster", ["Sélection Formation Opération", "Suivi d'activité"], btn);
   const saveAbortController = typeof AbortController !== "undefined" ? new AbortController() : null;
   let saveTimedOut = false;
   const saveTimeoutId = window.setTimeout(()=>{
