@@ -29,6 +29,7 @@ const { logAction } = require("./logs");
 
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const ABSENCES_URL = `${BASE}/rosterAbsences.json`;
+const ROSTER_URL = `${BASE}/rosterEmsData.json`;
 const INDIVIDUAL_URL = `${BASE}/rosterIndividualPermissions.json`;
 // (13/10) NOUVEAU CHEMIN FIREBASE — nécessite l'ajout de ses propres
 // règles de validation dans la console Firebase (voir le rapport final
@@ -195,6 +196,9 @@ function findExpiredAbsenceIds(all){
   const expired = [];
   for(const [id, a] of Object.entries(all || {})){
     if(a.grade === "WDV"){ expired.push(id); continue; }
+    // (19/10, demandé) Nettoie aussi les entrées MC et au-dessus déjà
+    // enregistrées avant ce changement — plus prises en compte du tout.
+    if(MC_AND_ABOVE.has(a.grade)){ expired.push(id); continue; }
     const refIso = (a.durationDays || 0) > 10 ? a.endIso : a.startIso;
     if(!refIso) continue;
     const refMs = new Date(`${refIso}T00:00:00Z`).getTime();
@@ -203,8 +207,28 @@ function findExpiredAbsenceIds(all){
   }
   return expired;
 }
+// (19/10, demandé) Une absence appartenant à quelqu'un de licencié n'a
+// plus aucune raison d'exister — elle disparaît toute seule, à la
+// prochaine lecture, sans action manuelle. La clé employeeKey d'une
+// absence suit exactement activiteKeyFor() côté Roster (id:<idUnique>
+// ou name:<nom normalisé>) — reconstruite ici à l'identique pour
+// retrouver les mêmes clés chez les employés marqués licencie:true.
+function activiteKeyForServer(e){
+  return e.idUnique ? `id:${e.idUnique}` : `name:${String(e.name||"").trim().toLowerCase()}`;
+}
+function findLicencieAbsenceIds(all, employees){
+  const licencieKeys = new Set((employees||[]).filter(e=>e && e.licencie).map(activiteKeyForServer));
+  if(!licencieKeys.size) return [];
+  return Object.entries(all || {}).filter(([,a]) => a && licencieKeys.has(a.employeeKey)).map(([id]) => id);
+}
 async function pruneExpiredAbsences(all, idToken){
-  const expiredIds = findExpiredAbsenceIds(all);
+  let expiredIds = findExpiredAbsenceIds(all);
+  try{
+    const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+    const rosterData = rosterRes.ok ? (await rosterRes.json()) : null;
+    const licencieIds = findLicencieAbsenceIds(all, rosterData && rosterData.employees);
+    if(licencieIds.length) expiredIds = [...new Set([...expiredIds, ...licencieIds])];
+  }catch(e){ /* roster injoignable -- on nettoie quand même les absences expirées normales */ }
   if(!expiredIds.length) return all;
   const patch = {};
   expiredIds.forEach(id => { patch[id] = null; });
@@ -291,6 +315,12 @@ exports.handler = async function (event) {
         // absence à suivre. Avant : seulement nettoyé après coup (voir
         // findExpiredAbsenceIds) ; maintenant, jamais écrit du tout.
         if (a.grade === "WDV") return;
+        // (19/10, demandé) MC et au-dessus : jamais pris en compte ni
+        // comptabilisé comme absence — ni enregistré, ni affiché, ni
+        // compté nulle part (avant : seulement exclus de la
+        // proposition automatique de licenciement, mais visibles dans
+        // la liste de base).
+        if (MC_AND_ABOVE.has(a.grade)) return;
         const key = absenceKey(a.employeeKey, a.startIso, a.endIso);
         // N'ajoute QUE si inconnue — ne touche JAMAIS une entrée déjà
         // là (section 7 : jamais revenir sur une décision Prise en
