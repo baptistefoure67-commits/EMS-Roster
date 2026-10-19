@@ -74,7 +74,7 @@ exports.handler = async function (event) {
     let employees = (rosterData && rosterData.employees) || [];
 
     if (action === "editEmployee") {
-      const { id, name, discordId, grade, role } = payload || {};
+      const { id, name, discordId, grade, role, aliases } = payload || {};
       const idx = employees.findIndex((e) => String(e.id) === String(id));
       if (idx === -1) return json(404, { error: "Employé introuvable." });
       const before = { ...employees[idx] };
@@ -84,13 +84,22 @@ exports.handler = async function (event) {
       if (grade && grade !== before.grade && !isDPlus(session.level)) {
         return json(403, { error: `Permission refusée (${session.level}) — le changement de grade est réservé à D et au-dessus. Corrige le nom ou l'ID Discord si besoin, ou passe par le système de promotion pour le grade.` });
       }
+      // (19/10, demandé) Anciens noms (mariage, wipe, bug de jeu...) —
+      // tableau de chaînes, chacune non vide et raisonnablement courte ;
+      // filtré plutôt que rejeté en bloc pour ne jamais bloquer tout le
+      // reste de la modification à cause d'une seule entrée mal formée.
+      const cleanAliases = Array.isArray(aliases)
+        ? aliases.map(a => String(a||"").trim()).filter(a => a && a.length < 100).slice(0, 10)
+        : employees[idx].aliases;
       employees[idx] = {
         ...employees[idx],
         name: name || employees[idx].name,
         discordId: discordId || employees[idx].discordId,
         grade: grade || employees[idx].grade,
         role: role !== undefined ? role : employees[idx].role,
+        aliases: (cleanAliases && cleanAliases.length) ? cleanAliases : undefined,
       };
+      if (employees[idx].aliases === undefined) delete employees[idx].aliases;
       await logAction({
         action: "modification_employe",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
