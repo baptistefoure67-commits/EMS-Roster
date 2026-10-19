@@ -604,8 +604,9 @@
      dupliqué ailleurs).
      ═══════════════════════════════════════════════════════════════ */
   .mascot-wrap,.scanner-wrap,.stamp-wrap,.jutsu-wrap,.burner-wrap,.drawer-wrap,.printer-wrap,
-  .wifi-wrap,.beam-wrap,.portal-wrap,.cable-wrap,.telex-wrap,.ekgsync-wrap{display:none;}
-  .liaison-overlay[data-variant="save-anime"] .mascot-wrap,.liaison-overlay[data-variant="sync-anime"] .mascot-wrap{display:block;}
+  .wifi-wrap,.beam-wrap,.portal-wrap,.cable-wrap,.telex-wrap,.ekgsync-wrap,.hospital-wrap,.medic-wrap{display:none;}
+  .liaison-overlay[data-variant="sync-anime"] .hospital-wrap{display:block;}
+  .liaison-overlay[data-variant="save-anime"] .medic-wrap{display:block;}
   .mascot-wrap{position:relative;width:100%;height:150px;margin:0 0 4px;}
   .mascot-char{position:absolute;left:50%;bottom:22px;width:84px;height:84px;margin-left:-42px;animation:mascot-in .55s cubic-bezier(.3,1.6,.4,1) both, mascot-bob 1.8s ease-in-out .55s infinite;}
   .mascot-shadow{position:absolute;left:50%;bottom:10px;width:64px;height:12px;margin-left:-32px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.4),transparent 72%);animation:mascot-shadow-pulse 1.8s ease-in-out .55s infinite;}
@@ -668,6 +669,73 @@
   body.roster-anims-off .mascot-char,body.roster-anims-off .mascot-eye,body.roster-anims-off .mascot-mouth,
   body.roster-anims-off .mascot-arm,body.roster-anims-off .mascot-item,body.roster-anims-off .mascot-shadow,
   body.roster-anims-off .mascot-sparkle{animation:none!important;}
+
+  /* ═══ sync-anime : course vers Pillbox Hill Medical Center ═══ */
+  .hospital-wrap{position:relative;width:100%;height:148px;margin:0 0 4px;border-radius:14px;overflow:hidden;}
+  .hospital-sky{position:absolute;inset:0;background:linear-gradient(180deg,#2a3a5c 0%,#466088 55%,#5c7a9e 100%);}
+  .hospital-building{position:absolute;right:6%;top:10px;width:46%;height:112px;background:linear-gradient(100deg,#8a5240,#6e3f30);border-radius:5px 5px 0 0;box-shadow:-6px 0 14px rgba(0,0,0,.25);}
+  .hospital-windows{position:absolute;inset:6px 6px 30px;background-image:repeating-linear-gradient(90deg,rgba(255,210,122,.85) 0 7px,transparent 7px 16px),repeating-linear-gradient(0deg,rgba(255,210,122,.85) 0 9px,transparent 9px 18px);background-blend-mode:multiply;opacity:.9;mask-image:repeating-linear-gradient(90deg,#000 0 7px,transparent 7px 16px),repeating-linear-gradient(0deg,#000 0 9px,transparent 9px 18px);-webkit-mask-image:repeating-linear-gradient(90deg,#000 0 7px,transparent 7px 16px);}
+  .hospital-sign{position:absolute;left:6px;right:6px;bottom:26px;height:17px;background:#101c30;border-radius:3px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:.58rem;font-weight:800;letter-spacing:.03em;color:#fff;animation:hospital-sign-glow 2.4s ease-in-out infinite;}
+  @keyframes hospital-sign-glow{0%,100%{box-shadow:0 0 0 rgba(239,71,111,0);}50%{box-shadow:0 0 10px 1px rgba(239,71,111,.55);}}
+  .hospital-door{position:absolute;left:50%;bottom:0;width:22%;height:26px;margin-left:-11%;background:#182538;border-radius:3px 3px 0 0;}
+  .hospital-burst{position:absolute;left:50%;bottom:20px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;opacity:0;}
+  .hospital-road{position:absolute;left:0;right:0;bottom:0;height:24px;background:#141e30;}
+  .hospital-road::after{content:"";position:absolute;top:50%;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0 10px,transparent 10px 20px);animation:hospital-road-scroll 1s linear infinite;}
+  @keyframes hospital-road-scroll{to{transform:translateX(-30px);}}
+  .runner{position:absolute;bottom:22px;left:2%;width:26px;height:40px;animation:runner-approach 3.4s cubic-bezier(.45,0,.3,1) forwards, runner-idle-knock .8s ease-in-out 3.4s infinite;}
+  @keyframes runner-approach{0%{left:2%;}68%{left:51%;}100%{left:51%;}}
+  .runner-head{position:absolute;top:0;left:50%;width:13px;height:13px;margin-left:-6.5px;border-radius:50%;background:#ffcf9e;}
+  .runner-body{position:absolute;top:12px;left:50%;width:14px;height:16px;margin-left:-7px;border-radius:6px 6px 4px 4px;background:var(--cyan);}
+  .runner-arm{position:absolute;top:13px;left:50%;width:4px;height:12px;margin-left:-2px;border-radius:3px;background:var(--blue);transform-origin:top center;}
+  .runner-arm.back{animation:runner-arm-swing 0.42s ease-in-out infinite;}
+  .runner-arm.front{animation:runner-arm-swing 0.42s ease-in-out .21s infinite reverse;}
+  @keyframes runner-arm-swing{0%,100%{transform:rotate(-45deg);}50%{transform:rotate(45deg);}}
+  .runner-leg{position:absolute;top:26px;left:50%;width:5px;height:13px;margin-left:-2.5px;border-radius:3px;background:#223047;transform-origin:top center;}
+  .runner-leg.back{animation:runner-leg-run .42s ease-in-out infinite;}
+  .runner-leg.front{animation:runner-leg-run .42s ease-in-out .21s infinite reverse;}
+  @keyframes runner-leg-run{0%,100%{transform:rotate(38deg);}50%{transform:rotate(-38deg);}}
+  .runner-item{position:absolute;top:8px;left:-7px;font-size:.78rem;transform:rotate(-12deg);}
+  .runner-bubble{position:absolute;top:-16px;left:50%;margin-left:-6px;width:14px;height:14px;border-radius:50%;background:#fff;color:#0b1424;font-size:.58rem;font-weight:800;display:none;align-items:center;justify-content:center;}
+  .liaison-overlay[data-state!="loading"] .runner{animation:runner-approach 3.4s cubic-bezier(.45,0,.3,1) forwards;}
+  .liaison-overlay[data-state="success"] .runner-arm{animation:runner-cheer .5s ease-out forwards !important;}
+  @keyframes runner-cheer{to{transform:rotate(-150deg);}}
+  .liaison-overlay[data-state="success"] .hospital-burst{animation:hospital-burst-pop .8s ease-out .2s 2;}
+  @keyframes hospital-burst-pop{0%{opacity:.9;transform:scale(.4);box-shadow:0 0 0 0 rgba(239,71,111,.6);}100%{opacity:0;transform:scale(1);box-shadow:0 0 0 18px rgba(239,71,111,0);}}
+  .liaison-overlay[data-state="error"] .runner{animation:runner-approach 2.1s cubic-bezier(.45,0,.3,1) forwards !important;}
+  .liaison-overlay[data-state="error"] .runner-leg,.liaison-overlay[data-state="error"] .runner-arm{animation:none !important;transform:rotate(0deg);}
+  .liaison-overlay[data-state="error"] .runner-bubble{display:flex;}
+  @media(max-width:420px){.hospital-wrap{height:128px;}.runner{bottom:22px;}}
+  body.roster-anims-off .runner{animation:none!important;left:51%;}
+  body.roster-anims-off .runner-leg,body.roster-anims-off .runner-arm,body.roster-anims-off .hospital-road::after{animation:none!important;}
+
+  /* ═══ save-anime : on soigne la base de données ═══ */
+  .medic-wrap{position:relative;width:100%;height:148px;margin:0 0 4px;}
+  .medic-table{position:absolute;left:14%;right:14%;bottom:18px;height:8px;border-radius:4px;background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.25);}
+  .medic-db{position:absolute;left:50%;bottom:26px;width:56px;height:62px;margin-left:-28px;}
+  .medic-db-top{position:absolute;top:0;left:0;right:0;height:16px;border-radius:50%;background:#30415e;border:1px solid rgba(56,189,248,.4);}
+  .medic-db-body{position:absolute;top:8px;left:0;right:0;bottom:0;border-radius:0 0 10px 10px;background:linear-gradient(180deg,#263650,#1a2638);border:1px solid rgba(56,189,248,.35);border-top:none;}
+  .medic-db-face{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:1.1rem;transition:opacity .2s ease;}
+  .medic-bandage{position:absolute;width:52px;height:11px;border-radius:5px;background:repeating-linear-gradient(135deg,#f2f2f2 0 5px,#d8dde3 5px 10px);box-shadow:0 2px 4px rgba(0,0,0,.3);opacity:0;}
+  .medic-bandage.b1{top:18px;left:2px;transform:translateX(-60px) rotate(-30deg);animation:bandage-land .5s ease-out .6s forwards;}
+  .medic-bandage.b2{top:32px;left:2px;transform:translateX(60px) rotate(20deg);animation:bandage-land .5s ease-out 1.6s forwards;}
+  .medic-bandage.b3{top:45px;left:2px;transform:translateX(-60px) rotate(-12deg) ;animation:bandage-land2 .5s ease-out 2.6s forwards;}
+  @keyframes bandage-land{0%{opacity:0;transform:translateX(-60px) rotate(-30deg);}100%{opacity:1;transform:translateX(2px) rotate(-8deg);}}
+  @keyframes bandage-land2{0%{opacity:0;transform:translateX(60px) rotate(20deg);}100%{opacity:1;transform:translateX(2px) rotate(6deg);}}
+  .medic-cross{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);color:#06281b;font-weight:900;display:grid;place-items:center;font-size:.7rem;opacity:0;transform:scale(0);}
+  .liaison-overlay[data-state!="loading"] .medic-db-face{opacity:0;}
+  .liaison-overlay[data-state="success"] .medic-cross{animation:cross-pop .4s cubic-bezier(.3,1.6,.4,1) .2s forwards;}
+  @keyframes cross-pop{to{opacity:1;transform:scale(1);}}
+  .liaison-overlay[data-state="error"] .medic-db-face::after{content:"😵";}
+  .medic-char{position:absolute;left:50%;bottom:18px;width:40px;height:72px;margin-left:16px;}
+  .medic-head{position:relative;width:22px;height:22px;margin:0 auto;border-radius:50%;background:#ffcf9e;}
+  .medic-cap{position:absolute;top:-6px;left:50%;width:16px;height:10px;margin-left:-8px;border-radius:4px 4px 0 0;background:#fff;color:var(--red);font-size:.55rem;font-weight:900;display:grid;place-items:center;}
+  .medic-body2{width:26px;height:30px;margin:2px auto 0;border-radius:8px 8px 4px 4px;background:var(--cyan);}
+  .medic-arm{position:absolute;top:28px;left:1px;width:5px;height:18px;border-radius:3px;background:var(--blue);transform-origin:top center;animation:medic-dab 1.1s ease-in-out infinite;}
+  @keyframes medic-dab{0%,100%{transform:rotate(12deg);}50%{transform:rotate(-35deg);}}
+  .liaison-overlay[data-state!="loading"] .medic-arm{animation:none;transform:rotate(-50deg);}
+  @media(max-width:420px){.medic-wrap{height:132px;}.medic-char{margin-left:8px;}}
+  body.roster-anims-off .medic-bandage{animation:none!important;opacity:1!important;transform:translateX(2px) rotate(-8deg)!important;}
+  body.roster-anims-off .medic-arm{animation:none!important;}
   @media(prefers-reduced-motion:reduce){.liaison-overlay *,.liaison-overlay *::before,.liaison-overlay *::after{animation:none!important;transition:none!important;}.liaison-ekg path{stroke-dashoffset:0!important;}}
   body.roster-anims-off .liaison-radar-sweep,body.roster-anims-off .liaison-radar-ring{display:none!important;}
   body.roster-anims-off .liaison-ekg path{animation:none!important;stroke-dashoffset:0!important;}
@@ -830,23 +898,44 @@
       <svg class="ekgsync-line b" viewBox="0 0 140 30" preserveAspectRatio="none"><path d="M0,15 L40,15 L50,2 L60,28 L70,15 L140,15" /></svg>
     </div>
     <!-- Scène "anime" — mascotte dessinée qui vient annoncer elle-même ce qui se passe -->
-    <div class="mascot-wrap" aria-hidden="true">
-      <div class="mascot-char">
-        <div class="mascot-arm left"></div>
-        <div class="mascot-item" id="mascotItem">💾</div>
-        <div class="mascot-arm right"></div>
-        <div class="mascot-body">
-          <div class="mascot-blush left"></div>
-          <div class="mascot-blush right"></div>
-          <div class="mascot-eye left"><div class="mascot-pupil"></div></div>
-          <div class="mascot-eye right"><div class="mascot-pupil"></div></div>
-          <div class="mascot-mouth"></div>
-        </div>
-        <div class="mascot-sparkle s1">✦</div>
-        <div class="mascot-sparkle s2">✦</div>
-        <div class="mascot-sparkle s3">✦</div>
+    <!-- Scène "sync-anime" — course vers Pillbox Hill Medical Center -->
+    <div class="hospital-wrap" aria-hidden="true">
+      <div class="hospital-sky"></div>
+      <div class="hospital-building">
+        <div class="hospital-windows"></div>
+        <div class="hospital-sign">❤️ <span>PILLBOX HILL</span></div>
+        <div class="hospital-door"></div>
+        <div class="hospital-burst"></div>
       </div>
-      <div class="mascot-shadow"></div>
+      <div class="hospital-road"></div>
+      <div class="runner" id="hospitalRunner">
+        <div class="runner-head"></div>
+        <div class="runner-body"></div>
+        <div class="runner-arm back"></div>
+        <div class="runner-arm front"></div>
+        <div class="runner-leg back"></div>
+        <div class="runner-leg front"></div>
+        <div class="runner-item">📋</div>
+        <div class="runner-bubble">?</div>
+      </div>
+    </div>
+    <!-- Scène "save-anime" — on soigne la base de données -->
+    <div class="medic-wrap" aria-hidden="true">
+      <div class="medic-db">
+        <div class="medic-db-top"></div>
+        <div class="medic-db-body"></div>
+        <div class="medic-db-face">😣</div>
+        <div class="medic-bandage b1"></div>
+        <div class="medic-bandage b2"></div>
+        <div class="medic-bandage b3"></div>
+        <div class="medic-cross">✚</div>
+      </div>
+      <div class="medic-char">
+        <div class="medic-head"><div class="medic-cap">✚</div></div>
+        <div class="medic-body2"></div>
+        <div class="medic-arm"></div>
+      </div>
+      <div class="medic-table"></div>
     </div>
     <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
     <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
@@ -2758,8 +2847,8 @@ function pickLiaisonVariant(kind){
 // réalisme). "counter" précise le type de formatage utilisé par
 // tickLiaisonCounter() ci-dessous.
 const LIAISON_META = {
-  "save-anime":    { subtitle: "Allez, on range tout ça !" },
-  "sync-anime":    { subtitle: "Je file prévenir Pillbox !" },
+  "save-anime":    { subtitle: "On va bien soigner cette base de données…" },
+  "sync-anime":    { subtitle: "En route pour Pillbox Hill !" },
   "save-vault":    { subtitle: "Ouverture du coffre…" },
   "save-recorder": { subtitle: "Lecture de la bande…", counter: "time" },
   "save-scanner":  { subtitle: "Analyse biométrique en cours…", counter: "percent" },
@@ -2806,8 +2895,6 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
   overlay.dataset.kind = kind;
   overlay.dataset.variant = variant;
   document.getElementById("vaultLockIcon").textContent = "🔓";
-  const mascotItemEl = document.getElementById("mascotItem");
-  if(mascotItemEl) mascotItemEl.textContent = variant === "sync-anime" ? "🛰️" : "💾";
   document.getElementById("liaisonTitle").textContent = title;
   document.getElementById("liaisonSubtitle").textContent = meta.subtitle || "Opération en cours…";
   document.getElementById("liaisonResult").textContent = "";
