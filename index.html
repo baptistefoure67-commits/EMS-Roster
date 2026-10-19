@@ -3465,6 +3465,11 @@ function extractQualifyingAbsences(text){
     // absence du tableau EMS est déjà connue/attendue par ce statut,
     // pas un cas à faire remonter dans le système de 3 absences/30j.
     if(resolvedGrade === "WDV") return;
+    // (19/10, demandé) MC et au-dessus : jamais pris en compte ni
+    // comptabilisé comme absence — ni enregistré, ni affiché, ni
+    // compté nulle part (avant : seulement exclus de la proposition
+    // automatique de licenciement, mais visibles dans la liste).
+    if(["MC","ADD","CD","D","DG"].includes(resolvedGrade)) return;
     const employeeKey = emp ? activiteKeyFor(emp) : (idUnique ? `id:${idUnique}` : `name:${norm(name)}`);
     result.push({
       employeeKey, name: emp ? emp.name : name, grade: resolvedGrade,
@@ -3526,6 +3531,17 @@ function renderAbsencesTab(){
     .filter(([,a])=> !filterPEC || (filterPEC==="oui" ? a.priseEnCompte===true : a.priseEnCompte!==true))
     .sort((a,b)=> (b[1].endIso||"").localeCompare(a[1].endIso||""));
 
+  // (19/10, demandé) Regroupées par personne — plus un doublon par
+  // absence, une seule fiche par employé avec le compte accumulé et
+  // chaque période dessous (chacune garde ses propres contrôles).
+  const groups = {};
+  const groupOrder = [];
+  entries.forEach(([id,a])=>{
+    const key = a.employeeKey || `name:${norm(a.name)}`;
+    if(!groups[key]){ groups[key] = { name:a.name, grade:a.grade, periods:[] }; groupOrder.push(key); }
+    groups[key].periods.push([id,a]);
+  });
+
   // Signalements (section 16/17) : affichés comme simple information ici
   // aussi — pas de décision prise dans le Roster lui-même, uniquement
   // dans Pillbox au moment des paies (section 17 : décision humaine,
@@ -3535,20 +3551,30 @@ function renderAbsencesTab(){
     ${signalements.map(s=>`<div>⚠ <b>${esc(s.name)}</b> : ${s.absences.length} absences prises en compte sur les 30 derniers jours — transmis à Pillbox pour décision au moment des paies.</div>`).join("")}
   </div>` : "";
 
-  box.innerHTML = entries.length ? entries.map(([id,a])=>`
-    <div class="special-row" style="grid-template-columns:minmax(150px,1.3fr) minmax(90px,.6fr) minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.5fr) auto;">
-      <span><b>${esc(a.name)}</b></span>
-      <span style="color:var(--text-dim);">${esc(a.grade||"—")}</span>
-      <span class="special-id">${esc(a.startIso)}</span>
-      <span class="special-id">→ ${esc(a.endIso)}</span>
-      <span style="color:var(--text-dim);">${a.durationDays||"?"} j</span>
-      <span style="display:flex;align-items:center;gap:8px;">
-        <span style="font-weight:700;color:${a.priseEnCompte?'var(--green)':'var(--text-faint)'};">${a.priseEnCompte?'OUI':'NON'}</span>
-        ${canManage ? `<button class="btn-ghost btn-small" data-toggle-pec="${esc(id)}" data-current="${a.priseEnCompte?'1':'0'}">${a.priseEnCompte?'Passer à NON':'Passer à OUI'}</button>
-        <button class="btn-danger btn-small" data-delete-absence="${esc(id)}" title="À réserver aux erreurs de donnée (mauvaise date, doublon...) — pour exempter une vraie absence, utilise plutôt Prise en compte : NON, qui garde l'historique.">🗑 Supprimer</button>` : ""}
-      </span>
-    </div>
-  `).join("") : `<div class="empty-msg">Aucune absence de plus de 3 jours enregistrée pour ce filtre.</div>`;
+  box.innerHTML = groupOrder.length ? groupOrder.map(key=>{
+    const g = groups[key];
+    const periodsHtml = g.periods.map(([id,a])=>`
+      <div class="special-row" style="grid-template-columns:minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.5fr) auto;padding-left:18px;border-left:2px solid var(--border);">
+        <span class="special-id">${esc(a.startIso)}</span>
+        <span class="special-id">→ ${esc(a.endIso)}</span>
+        <span style="color:var(--text-dim);">${a.durationDays||"?"} j</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;color:${a.priseEnCompte?'var(--green)':'var(--text-faint)'};">${a.priseEnCompte?'OUI':'NON'}</span>
+          ${canManage ? `<button class="btn-ghost btn-small" data-toggle-pec="${esc(id)}" data-current="${a.priseEnCompte?'1':'0'}">${a.priseEnCompte?'Passer à NON':'Passer à OUI'}</button>
+          <button class="btn-danger btn-small" data-delete-absence="${esc(id)}" title="À réserver aux erreurs de donnée (mauvaise date, doublon...) — pour exempter une vraie absence, utilise plutôt Prise en compte : NON, qui garde l'historique.">🗑 Supprimer</button>` : ""}
+        </span>
+      </div>
+    `).join("");
+    return `
+    <div class="absence-group" style="margin-bottom:10px;">
+      <div class="special-row" style="grid-template-columns:minmax(150px,1.3fr) minmax(90px,.6fr) auto;background:var(--panel-2);border-radius:8px 8px 0 0;">
+        <span><b>${esc(g.name)}</b></span>
+        <span style="color:var(--text-dim);">${esc(g.grade||"—")}</span>
+        <span style="font-weight:700;color:${g.periods.length>=3?'var(--red)':g.periods.length===2?'var(--amber)':'var(--text-dim)'};">${g.periods.length} absence${g.periods.length>1?"s":""}</span>
+      </div>
+      ${periodsHtml}
+    </div>`;
+  }).join("") : `<div class="empty-msg">Aucune absence de plus de 3 jours enregistrée pour ce filtre.</div>`;
 
   box.querySelectorAll("[data-toggle-pec]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
