@@ -1718,6 +1718,16 @@ function esc(s){
 function norm(s){
   return String(s??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 }
+// (19/10, demandé) Anciens noms (mariage, wipe, bug de jeu...) — un
+// employé peut avoir plusieurs noms connus en plus du nom actuel
+// (e.aliases, tableau de chaînes). Partout où le Roster reconnaît
+// quelqu'un par son nom (import du tableau EMS, recherche, absences),
+// cette fonction vérifie le nom actuel ET tous les anciens noms — donc
+// peu importe lequel des deux apparaît, c'est la même fiche.
+function employeeNameMatches(e, normalizedName){
+  if(norm(e.name) === normalizedName) return true;
+  return (e.aliases||[]).some(a => norm(a) === normalizedName);
+}
 // Audit gestion des employés (29/09) ------------------------------------
 // Les règles Firebase refusent tout le roster si UN seul nom contient < ou >
 // ou dépasse 100 caractères, ou si un ID Discord dépasse 30 caractères. Sans
@@ -1798,7 +1808,7 @@ function getSpecialVisibleEmployees(){
   const q = norm(input ? input.value : "");
   return employees.filter(e=>!e.licencie).filter(e=>{
     if(!q) return true;
-    return norm(e.name).includes(q) || norm(e.grade).includes(q) || norm(e.discordId).includes(q) || norm(e.idUnique||"").includes(q);
+    return norm(e.name).includes(q) || (e.aliases||[]).some(a=>norm(a).includes(q)) || norm(e.grade).includes(q) || norm(e.discordId).includes(q) || norm(e.idUnique||"").includes(q);
   }).sort((a,b)=>{
     const ga = GRADE_ORDER.indexOf(a.grade), gb = GRADE_ORDER.indexOf(b.grade);
     return ga-gb || a.name.localeCompare(b.name, "fr");
@@ -2013,7 +2023,7 @@ function matchesFilter(e, query, gradeFilter){
   if(gradeFilter && e.grade !== gradeFilter) return false;
   if(!query) return true;
   const q = norm(query);
-  return norm(e.name).includes(q) || String(e.discordId||"").includes(query.trim()) || norm(e.grade).includes(q);
+  return norm(e.name).includes(q) || (e.aliases||[]).some(a=>norm(a).includes(q)) || String(e.discordId||"").includes(query.trim()) || norm(e.grade).includes(q);
 }
 
 // Repère les ID Discord utilisés par plusieurs employés actifs à la fois
@@ -2168,6 +2178,7 @@ function editRowHtml(e){
       </select>
       <input type="text" data-edit-name="${e.id}" value="${esc(e.name)}" style="min-width:140px;">
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
+      <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
       <button class="btn-ghost btn-small" data-cancel="${e.id}">Annuler</button>
     </div>
@@ -2226,7 +2237,7 @@ function parseEmsTableForImport(text){
     // personne licenciée ou promue). Désormais : ID unique d'abord ; sinon le
     // nom, mais seulement s'il désigne UNE personne sans ID unique différent.
     const byId = idUnique ? employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)) : null;
-    const nameMatches = employees.filter(e=>norm(e.name)===norm(name) && !(e.idUnique && idUnique && String(e.idUnique)!==String(idUnique)));
+    const nameMatches = employees.filter(e=>employeeNameMatches(e,norm(name)) && !(e.idUnique && idUnique && String(e.idUnique)!==String(idUnique)));
     const existing = byId || (nameMatches.length===1 ? nameMatches[0] : null);
     if(!byId && nameMatches.length>1){
       // Homonymes impossibles à départager : on n'applique RIEN automatiquement.
@@ -2559,11 +2570,20 @@ function attachRowHandlers(){
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
       slot.innerHTML = editRowHtml(e);
       slot.querySelector(`[data-save="${id}"]`).addEventListener("click", async ()=>{
-        const before = { name:e.name, discordId:e.discordId, grade:e.grade, role:e.role };
+        const before = { name:e.name, discordId:e.discordId, grade:e.grade, role:e.role, aliases:(e.aliases||[]).slice() };
         const newName = slot.querySelector(`[data-edit-name="${id}"]`).value.trim() || e.name;
         const newDiscordId = slot.querySelector(`[data-edit-discord="${id}"]`).value.trim() || e.discordId;
         const newGrade = slot.querySelector(`[data-edit-grade="${id}"]`).value;
         const newRole = slot.querySelector(`[data-edit-role="${id}"]`).value;
+        const aliasesInput = slot.querySelector(`[data-edit-aliases="${id}"]`);
+        let newAliases = aliasesInput ? aliasesInput.value.split(",").map(a=>a.trim()).filter(Boolean) : before.aliases;
+        // (19/10, demandé) Un changement de nom ajoute AUTOMATIQUEMENT
+        // l'ancien nom à la liste des anciens noms — pour qu'un mariage
+        // ou un wipe n'exige jamais d'y penser soi-même : la personne
+        // reste reconnue sous les deux noms dès l'enregistrement.
+        if(newName !== before.name && before.name && !newAliases.some(a=>norm(a)===norm(before.name))){
+          newAliases = [...newAliases, before.name];
+        }
         const saveBtn = slot.querySelector(`[data-save="${id}"]`);
         const editError = validateEmployeeFields(newName, newDiscordId);
         if(editError){ toast(editError); return; }
@@ -2575,13 +2595,14 @@ function attachRowHandlers(){
           // revérifie le jeton et le grade avant d'écrire quoi que ce
           // soit sur Firebase (demandé le 07/09 — protection réelle,
           // pas juste un blocage visuel).
-          await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole });
-          e.name = newName; e.discordId = newDiscordId; e.grade = newGrade; e.role = newRole;
+          await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole, aliases:newAliases });
+          e.name = newName; e.discordId = newDiscordId; e.grade = newGrade; e.role = newRole; e.aliases = newAliases;
           const changes = [];
           if(before.name!==e.name) changes.push(`nom "${before.name}" → "${e.name}"`);
           if(before.discordId!==e.discordId) changes.push(`ID Discord "${before.discordId}" → "${e.discordId}"`);
           if(before.grade!==e.grade) changes.push(`grade ${before.grade} → ${e.grade}`);
           if(before.role!==e.role) changes.push(`rôle "${before.role||'—'}" → "${e.role||'—'}"`);
+          if(before.aliases.join(",")!==e.aliases.join(",")) changes.push(`anciens noms : ${e.aliases.join(", ")||"—"}`);
           if(changes.length) logHistory("Modification", e.name, changes.join(", "));
           saveState(); renderAll(); toast(`${e.name} mis à jour (vérifié serveur)`);
         }catch(err){
@@ -3459,7 +3480,7 @@ function extractQualifyingAbsences(text){
     const durationDays = Math.round((parsed.end - parsed.start) / 86400000) + 1;
     if(durationDays <= 3) return; // section 2 : ignorée, jamais stockée
     const emp = (idUnique && employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)))
-      || employees.find(e=>norm(e.name)===norm(name));
+      || employees.find(e=>employeeNameMatches(e,norm(name)));
     const resolvedGrade = emp ? emp.grade : (gradeRaw||null);
     // (10/10, demandé) Grade WDV jamais suivi comme absence — leur
     // absence du tableau EMS est déjà connue/attendue par ce statut,
