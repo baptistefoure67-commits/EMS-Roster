@@ -376,14 +376,66 @@
   @media(max-width:420px){.vault-wrap{width:88px;height:88px;}.vault-core{width:44px;height:44px;font-size:1.25rem;border-radius:12px;}.vault-dial-ticks span{transform-origin:1.5px 42px;}}
   body.roster-anims-off .vault-dial-ticks{animation:none!important;}
   body.roster-anims-off .vault-bars span{animation:none!important;height:40%!important;}
+
+  /* ─── Variante "save" n°2 : Enregistreur (bande magnétique, boîte
+     noire) — alterne aléatoirement avec le coffre-fort. ─── */
+  .liaison-overlay[data-variant="save-recorder"] .vault-wrap,.liaison-overlay[data-variant="save-recorder"] .vault-bars{display:none;}
+  .liaison-overlay:not([data-variant="save-recorder"]) .recorder-wrap,.liaison-overlay:not([data-variant="save-recorder"]) .recorder-counter{display:none;}
+  .recorder-wrap{position:relative;width:168px;height:78px;margin:6px auto 14px;}
+  .recorder-reel{position:absolute;top:8px;width:62px;height:62px;border-radius:50%;background:radial-gradient(circle,var(--panel) 0 34%,rgba(56,189,248,.12) 35% 55%,var(--panel) 56% 70%,rgba(56,189,248,.18) 71% 100%);border:1px solid rgba(56,189,248,.45);animation:liaison-spin 2.6s linear infinite;}
+  .recorder-reel.left{left:0;}
+  .recorder-reel.right{right:0;}
+  .recorder-reel-hub{position:absolute;inset:0;margin:auto;width:14px;height:14px;border-radius:50%;background:var(--panel);border:1px solid rgba(56,189,248,.6);}
+  .recorder-reel::before{content:"";position:absolute;top:6px;left:6px;width:4px;height:4px;border-radius:50%;background:rgba(56,189,248,.8);}
+  .recorder-tape{position:absolute;top:38px;left:52px;right:52px;height:3px;background:linear-gradient(90deg,rgba(56,189,248,.1),rgba(56,189,248,.55),rgba(56,189,248,.1));border-radius:2px;}
+  .recorder-rec{position:absolute;top:-2px;right:2px;display:flex;align-items:center;gap:5px;font-size:.66rem;font-weight:800;letter-spacing:.08em;color:var(--red);}
+  .recorder-rec-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:liaison-ring-pulse-solid 1s ease-in-out infinite;}
+  .recorder-counter{font-family:var(--mono,monospace);font-size:.78rem;letter-spacing:.06em;color:var(--cyan);margin:2px 0 4px;}
+  .liaison-overlay[data-state="success"] .recorder-reel,.liaison-overlay[data-state="partial"] .recorder-reel,.liaison-overlay[data-state="error"] .recorder-reel{animation:none;}
+  .liaison-overlay[data-state="success"] .recorder-reel{border-color:var(--green);}
+  .liaison-overlay[data-state="success"] .recorder-rec-dot{animation:none;background:var(--green);}
+  .liaison-overlay[data-state="success"] .recorder-rec{color:var(--green);}
+  .liaison-overlay[data-state="error"] .recorder-reel{border-color:var(--red);}
+  .liaison-overlay[data-state="error"] .recorder-rec-dot{animation:none;}
+  @keyframes liaison-ring-pulse-solid{0%,100%{opacity:1;}50%{opacity:.25;}}
+  @media(max-width:420px){.recorder-wrap{width:140px;height:66px;}.recorder-reel{width:52px;height:52px;}.recorder-tape{left:44px;right:44px;top:32px;}}
+  body.roster-anims-off .recorder-reel{animation:none!important;}
+  body.roster-anims-off .recorder-rec-dot{animation:none!important;}
+
+  /* ─── Variante "sync" n°2 : Transfusion (perfusion entre Roster et
+     Pillbox) — alterne aléatoirement avec le radar. ─── */
+  .liaison-overlay[data-variant="sync-transfusion"] .liaison-radar,.liaison-overlay[data-variant="sync-transfusion"] .liaison-ekg{display:none;}
+  .liaison-overlay:not([data-variant="sync-transfusion"]) .transfusion-wrap,.liaison-overlay:not([data-variant="sync-transfusion"]) .transfusion-counter{display:none;}
+  .transfusion-wrap{position:relative;width:180px;height:72px;margin:6px auto 14px;}
+  .transfusion-node{position:absolute;top:16px;width:40px;height:40px;border-radius:12px;background:var(--panel);border:1px solid rgba(56,189,248,.5);display:grid;place-items:center;font-size:1.25rem;box-shadow:0 0 16px rgba(56,189,248,.25);z-index:2;}
+  .transfusion-node.left{left:0;}
+  .transfusion-node.right{right:0;}
+  .transfusion-tube{position:absolute;inset:0;width:100%;height:100%;}
+  .transfusion-tube path{fill:none;stroke:rgba(56,189,248,.4);stroke-width:2;}
+  .transfusion-drop{position:absolute;top:0;left:0;width:8px;height:8px;border-radius:50% 50% 50% 0;background:var(--cyan);transform:translate(-50%,-50%) rotate(45deg);offset-path:path("M38,36 C 78,14 102,58 142,36");offset-rotate:0deg;animation:transfusion-flow 1.8s linear infinite;box-shadow:0 0 6px rgba(56,189,248,.7);}
+  .transfusion-drop.d2{animation-delay:.6s;}
+  .transfusion-drop.d3{animation-delay:1.2s;}
+  .transfusion-counter{font-family:var(--mono,monospace);font-size:.78rem;letter-spacing:.04em;color:var(--cyan);margin:2px 0 4px;}
+  @keyframes transfusion-flow{0%{offset-distance:0%;opacity:0;}8%{opacity:1;}92%{opacity:1;}100%{offset-distance:100%;opacity:0;}}
+  .liaison-overlay[data-state="success"] .transfusion-drop{animation:none;opacity:0;}
+  .liaison-overlay[data-state="success"] .transfusion-node{border-color:var(--green);box-shadow:0 0 18px rgba(52,211,153,.5);}
+  .liaison-overlay[data-state="success"] .transfusion-tube path{stroke:var(--green);}
+  .liaison-overlay[data-state="error"] .transfusion-drop{animation:none;opacity:0;}
+  .liaison-overlay[data-state="error"] .transfusion-node{border-color:var(--red);box-shadow:0 0 18px rgba(248,113,113,.5);}
+  .liaison-overlay[data-state="error"] .transfusion-tube path{stroke:var(--red);}
+  .liaison-overlay[data-state="partial"] .transfusion-tube path{stroke:var(--amber);}
+  @media(max-width:420px){.transfusion-wrap{width:150px;height:60px;}.transfusion-node{width:34px;height:34px;font-size:1.05rem;top:13px;}.transfusion-drop{offset-path:path("M30,30 C 64,10 86,48 118,30");}}
+  @media(prefers-reduced-motion:reduce){.transfusion-drop{animation:none!important;opacity:0!important;}}
+  body.roster-anims-off .transfusion-drop{animation:none!important;opacity:0!important;}
   @media(prefers-reduced-motion:reduce){.liaison-overlay *,.liaison-overlay *::before,.liaison-overlay *::after{animation:none!important;transition:none!important;}.liaison-ekg path{stroke-dashoffset:0!important;}}
   body.roster-anims-off .liaison-radar-sweep,body.roster-anims-off .liaison-radar-ring{display:none!important;}
   body.roster-anims-off .liaison-ekg path{animation:none!important;stroke-dashoffset:0!important;}
 
   /* Bouton bascule animations — rond, vert, coin haut-gauche, toujours visible. */
-  .anims-toggle{position:fixed;top:10px;left:10px;z-index:2147483004;width:16px;height:16px;border-radius:50%;border:none;cursor:pointer;background:var(--green);padding:0;box-shadow:0 2px 8px rgba(52,211,153,.5);transition:transform .15s ease,background .15s ease,box-shadow .15s ease;}
-  .anims-toggle:hover{transform:scale(1.25);}
-  .anims-toggle[aria-pressed="false"]{background:var(--border);box-shadow:none;}
+  .anims-toggle{position:fixed;top:6px;left:6px;z-index:2147483004;width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;background:transparent;padding:0;display:grid;place-items:center;}
+  .anims-toggle::after{content:"";width:14px;height:14px;border-radius:50%;background:var(--green);box-shadow:0 2px 8px rgba(52,211,153,.55);transition:transform .15s ease,background .15s ease,box-shadow .15s ease;}
+  .anims-toggle:hover::after{transform:scale(1.3);}
+  .anims-toggle[aria-pressed="false"]::after{background:var(--border);box-shadow:none;}
 
 </style>
 </head>
@@ -431,7 +483,7 @@
       <div class="liaison-radar-ring r2"></div>
       <div class="liaison-radar-core" id="liaisonRadarIcon">🛰️</div>
     </div>
-    <!-- Scène "save" — coffre-fort (écriture/archivage local, jamais une communication) -->
+    <!-- Scène "save" n°1 — coffre-fort (écriture/archivage local) -->
     <div class="vault-wrap" aria-hidden="true">
       <div class="vault-dial"></div>
       <div class="vault-dial-ticks">
@@ -440,8 +492,28 @@
       <div class="vault-core" id="vaultLockIcon">🔓</div>
       <div class="vault-stamp">✓</div>
     </div>
+    <!-- Scène "save" n°2 — enregistreur à bande (boîte noire) -->
+    <div class="recorder-wrap" aria-hidden="true">
+      <div class="recorder-reel left"><div class="recorder-reel-hub"></div></div>
+      <div class="recorder-tape"></div>
+      <div class="recorder-reel right"><div class="recorder-reel-hub"></div></div>
+      <div class="recorder-rec"><span class="recorder-rec-dot"></span>REC</div>
+    </div>
+    <!-- Scène "sync" n°2 — perfusion entre Roster et Pillbox -->
+    <div class="transfusion-wrap" aria-hidden="true">
+      <div class="transfusion-node left">📋</div>
+      <svg class="transfusion-tube" viewBox="0 0 180 72" preserveAspectRatio="none">
+        <path d="M38,36 C 78,14 102,58 142,36" />
+      </svg>
+      <div class="transfusion-drop d1"></div>
+      <div class="transfusion-drop d2"></div>
+      <div class="transfusion-drop d3"></div>
+      <div class="transfusion-node right">💊</div>
+    </div>
     <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
     <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
+    <div id="recorderCounter" class="recorder-counter">00:00:00</div>
+    <div id="transfusionCounter" class="transfusion-counter">0 paquet(s) transféré(s)</div>
     <ul id="liaisonSteps" class="liaison-steps" aria-hidden="true"></ul>
     <svg class="liaison-ekg" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true">
       <path id="liaisonEkgPath" d="M0,20 L55,20 L70,4 L85,36 L100,20 L300,20" />
@@ -2300,18 +2372,36 @@ function liaisonReduced(){
 }
 let liaisonSkipped = false;
 let liaisonTrigger = null;
-const LIAISON_MIN_MS = 2200;
-const LIAISON_MAX_EXTRA_MS = 2800; // au-delà du minimum, jamais plus de 2.8s d'attente artificielle supplémentaire
+// (19/10) Allongé à la demande : 5 à 7 secondes au lieu de 2,2s, pour
+// laisser le temps aux séquences travaillées de se jouer en entier.
+const LIAISON_MIN_MS = 5500;
+const LIAISON_MAX_EXTRA_MS = 6500;
+let liaisonCounterTimer = null;
+
+// Deux scènes différentes par type d'opération, tirées au sort à
+// chaque ouverture — jamais la même visible deux fois de suite par
+// construction (juste un tirage aléatoire parmi les deux disponibles).
+const LIAISON_VARIANTS = { save: ["save-vault", "save-recorder"], sync: ["sync-radar", "sync-transfusion"] };
+function pickLiaisonVariant(kind){
+  const options = LIAISON_VARIANTS[kind] || [kind];
+  return options[Math.floor(Math.random()*options.length)];
+}
 
 function showLiaisonOverlay(kind, title, stepLabels, trigger){
   liaisonSkipped = false;
   liaisonTrigger = trigger || null;
   const overlay = document.getElementById("liaisonOverlay");
+  const variant = pickLiaisonVariant(kind);
   overlay.dataset.state = "loading";
-  overlay.dataset.kind = kind; // "save" (coffre-fort) ou "sync" (radar)
+  overlay.dataset.kind = kind; // "save" (coffre-fort/enregistreur) ou "sync" (radar/transfusion)
+  overlay.dataset.variant = variant;
   document.getElementById("vaultLockIcon").textContent = "🔓";
   document.getElementById("liaisonTitle").textContent = title;
-  document.getElementById("liaisonSubtitle").textContent = kind === "save" ? "Ouverture du coffre…" : "Établissement de la liaison…";
+  document.getElementById("liaisonSubtitle").textContent =
+    variant === "save-vault" ? "Ouverture du coffre…"
+    : variant === "save-recorder" ? "Lecture de la bande…"
+    : variant === "sync-transfusion" ? "Amorçage de la perfusion…"
+    : "Établissement de la liaison…";
   document.getElementById("liaisonResult").textContent = "";
   document.getElementById("liaisonSteps").innerHTML = stepLabels.map((label,i)=>
     `<li class="liaison-step" data-status="pending" data-step="${i}"><span class="liaison-step-dot"></span><span>${esc(label)}</span></li>`
@@ -2319,6 +2409,30 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
   overlay.hidden = false;
   const dlg = overlay.querySelector(".liaison-dialog");
   if(dlg) dlg.focus({preventScroll:true});
+
+  // Compteurs purement cosmétiques (jamais une vraie mesure) — avancent
+  // tant que l'overlay est en chargement, se figent à l'arrêt.
+  if(liaisonCounterTimer){ clearInterval(liaisonCounterTimer); liaisonCounterTimer = null; }
+  if(variant === "save-recorder" && !liaisonReduced()){
+    let secs = 0;
+    const counterEl = document.getElementById("recorderCounter");
+    counterEl.textContent = "00:00:00";
+    liaisonCounterTimer = setInterval(()=>{
+      secs++;
+      const h = String(Math.floor(secs/3600)).padStart(2,"0");
+      const m = String(Math.floor((secs%3600)/60)).padStart(2,"0");
+      const s = String(secs%60).padStart(2,"0");
+      counterEl.textContent = `${h}:${m}:${s}`;
+    }, 1000);
+  } else if(variant === "sync-transfusion" && !liaisonReduced()){
+    let packets = 0;
+    const counterEl = document.getElementById("transfusionCounter");
+    counterEl.textContent = "0 paquet(s) transféré(s)";
+    liaisonCounterTimer = setInterval(()=>{
+      packets++;
+      counterEl.textContent = `${packets} paquet(s) transféré(s)`;
+    }, 600);
+  }
   return overlay;
 }
 function setLiaisonStep(index, status, subtitle){
@@ -2333,17 +2447,24 @@ function setLiaisonStep(index, status, subtitle){
 function finishLiaisonOverlay(state, message, subtitle){
   const overlay = document.getElementById("liaisonOverlay");
   overlay.dataset.state = state;
+  if(liaisonCounterTimer){ clearInterval(liaisonCounterTimer); liaisonCounterTimer = null; }
+  const variant = overlay.dataset.variant;
   const isSave = overlay.dataset.kind === "save";
-  if(isSave) document.getElementById("vaultLockIcon").textContent = state==="error" ? "🔓" : "🔒";
-  const fallback = isSave
+  if(variant === "save-vault") document.getElementById("vaultLockIcon").textContent = state==="error" ? "🔓" : "🔒";
+  const fallback = variant === "save-vault"
     ? (state==="success" ? "Coffre verrouillé." : state==="partial" ? "Coffre partiellement verrouillé." : "Le coffre n’a pas pu se verrouiller.")
-    : (state==="success" ? "Liaison confirmée." : state==="partial" ? "Liaison partiellement établie." : "Échec de la liaison.");
+    : variant === "save-recorder"
+      ? (state==="success" ? "Enregistrement terminé." : state==="partial" ? "Enregistrement partiel." : "L’enregistrement a échoué.")
+      : variant === "sync-transfusion"
+        ? (state==="success" ? "Perfusion terminée." : state==="partial" ? "Perfusion partielle." : "La perfusion a échoué.")
+        : (state==="success" ? "Liaison confirmée." : state==="partial" ? "Liaison partiellement établie." : "Échec de la liaison.");
   document.getElementById("liaisonSubtitle").textContent = subtitle || fallback;
   document.getElementById("liaisonResult").textContent = message;
 }
 function hideLiaisonOverlay(restoreFocus){
   const overlay = document.getElementById("liaisonOverlay");
   overlay.hidden = true;
+  if(liaisonCounterTimer){ clearInterval(liaisonCounterTimer); liaisonCounterTimer = null; }
   const trigger = liaisonTrigger; liaisonTrigger = null;
   if(restoreFocus && trigger && trigger.isConnected && !trigger.disabled){
     try{ trigger.focus({preventScroll:true}); }catch(e){ trigger.focus(); }
