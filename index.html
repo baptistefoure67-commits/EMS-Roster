@@ -1176,6 +1176,7 @@
           <label><input type="radio" name="specialCopyFormat" value="nameUnique"> Nom : ID unique</label>
         </div>
         <button class="btn-primary" id="btnSpecialCopy">📋 Copier la sélection</button>
+        <button class="btn-ghost btn-small" id="btnSpecialMissingPing" title="Génère un message de rappel (pings Discord) pour les employés non cochés ci-dessous, donc n'ayant pas encore la Formation Opération.">📣 Message de rappel (non cochés)</button>
         <!-- (10/10, demandé) Menu "☁️ Sélection (cloud)" retiré — voir
              le bouton unique "💾 Sauvegarder" en haut de page. -->
       </div>
@@ -2696,6 +2697,30 @@ document.getElementById("btnSpecialCopy").addEventListener("click", ()=>{
   const skipped = result.selectedCount - result.outputCount;
   copyToClipboard(result.text, skipped ? `Sélection copiée — ${skipped} sans ID unique ignoré(s)` : `Sélection copiée (${result.outputCount})`);
 });
+
+// (19/10, demandé) Message de rappel prêt à coller sur Discord, pour
+// tous les employés actifs qui n'ont PAS encore coché la Formation
+// Opération ci-dessus — un ping par ligne, même format que l'exemple
+// donné. Change FORMATION_OPERATION_CHANNEL_ID ci-dessous si jamais le
+// salon change.
+const FORMATION_OPERATION_CHANNEL_ID = "1168724093466578994";
+function buildFormationMissingPingMessage(){
+  const missing = employees.filter(e=>!e.licencie && !specialSelected.has(e.id));
+  const withDiscord = missing.filter(e=>e.discordId);
+  const withoutDiscord = missing.length - withDiscord.length;
+  if(!withDiscord.length) return { text: "", missingCount: missing.length, withoutDiscord };
+  const lines = withDiscord.map(e=>`- <@${e.discordId}> `).join("\n");
+  const text = `Bonjour à tous, pour toutes les personnes qui sont **ping**, merci de demander à passer votre **formation OPÉRATION** dans le salon <#${FORMATION_OPERATION_CHANNEL_ID}> (Cette formation est **OBLIGATOIRE**, merci donc de faire le nécessaire pour la passer) : \n\n${lines}\n\nMerci de votre compréhension`;
+  return { text, missingCount: missing.length, withoutDiscord };
+}
+document.getElementById("btnSpecialMissingPing").addEventListener("click", ()=>{
+  const result = buildFormationMissingPingMessage();
+  if(!result.missingCount){ toast("Tout le monde a déjà la Formation Opération !"); return; }
+  if(!result.text){ toast("Personne à ping — aucun des employés manquants n'a d'ID Discord renseigné."); return; }
+  copyToClipboard(result.text, result.withoutDiscord
+    ? `Message copié — ${result.withoutDiscord} employé(s) manquant(s) ignoré(s) (pas d'ID Discord)`
+    : `Message copié (${result.missingCount} à ping)`);
+});
 // (10/10, demandé) Sauvegarde cloud de la sélection Formation Opération
 // — reprise telle quelle de l'ancien btnSpecialCloudSave, maintenant
 // appelée par le bouton unique "💾 Sauvegarder" (voir plus bas,
@@ -2847,8 +2872,11 @@ function pickLiaisonVariant(kind){
 // réalisme). "counter" précise le type de formatage utilisé par
 // tickLiaisonCounter() ci-dessous.
 const LIAISON_META = {
-  "save-anime":    { subtitle: "On va bien soigner cette base de données…" },
-  "sync-anime":    { subtitle: "En route pour Pillbox Hill !" },
+  // (19/10) minMs calé sur la durée réelle de l'animation elle-même
+  // (l'arrivée du coureur / le dernier bandage posé) — plus de longue
+  // attente artificielle une fois l'histoire terminée à l'écran.
+  "save-anime":    { subtitle: "On va bien soigner cette base de données…", minMs: 3300 },
+  "sync-anime":    { subtitle: "En route pour Pillbox Hill !", minMs: 3700 },
   "save-vault":    { subtitle: "Ouverture du coffre…" },
   "save-recorder": { subtitle: "Lecture de la bande…", counter: "time" },
   "save-scanner":  { subtitle: "Analyse biométrique en cours…", counter: "percent" },
@@ -2887,10 +2915,10 @@ function tickLiaisonCounter(type){
 function showLiaisonOverlay(kind, title, stepLabels, trigger){
   liaisonSkipped = false;
   liaisonTrigger = trigger || null;
-  liaisonCurrentMinMs = 6000 + Math.random()*4000; // entre 6 et 10s
   const overlay = document.getElementById("liaisonOverlay");
   const variant = pickLiaisonVariant(kind);
   const meta = LIAISON_META[variant] || {};
+  liaisonCurrentMinMs = meta.minMs || 3500;
   overlay.dataset.state = "loading";
   overlay.dataset.kind = kind;
   overlay.dataset.variant = variant;
