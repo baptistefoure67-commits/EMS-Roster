@@ -708,6 +708,31 @@
   body.roster-anims-off .runner{animation:none!important;left:51%;}
   body.roster-anims-off .runner-leg,body.roster-anims-off .runner-arm,body.roster-anims-off .hospital-road::after{animation:none!important;}
 
+  /* ── Détails scène hôpital : étoiles, nuages, ombre et traînée du
+     coureur, lueur de la porte — ajoutés pour plus de vie, sans
+     toucher à la mécanique (approche, arrivée, succès/échec). ── */
+  .hospital-star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:hospital-twinkle 2.6s ease-in-out infinite;}
+  .hospital-star.s1{top:14%;left:8%;animation-delay:0s;}
+  .hospital-star.s2{top:22%;left:20%;animation-delay:.6s;}
+  .hospital-star.s3{top:10%;left:32%;animation-delay:1.2s;}
+  .hospital-star.s4{top:28%;left:42%;animation-delay:1.8s;}
+  @keyframes hospital-twinkle{0%,100%{opacity:.25;transform:scale(1);}50%{opacity:1;transform:scale(1.6);}}
+  .hospital-cloud{position:absolute;top:18%;width:34px;height:9px;border-radius:99px;background:rgba(255,255,255,.14);animation:hospital-drift 14s linear infinite;}
+  .hospital-cloud.c1{left:-15%;animation-delay:0s;}
+  .hospital-cloud.c2{top:30%;left:-15%;width:24px;height:7px;animation-delay:6s;}
+  @keyframes hospital-drift{from{transform:translateX(0);}to{transform:translateX(420px);}}
+  .hospital-door-glow{position:absolute;inset:-3px;border-radius:3px 3px 0 0;background:radial-gradient(circle at 50% 110%, rgba(255,210,122,.55), transparent 70%);animation:hospital-door-pulse 2s ease-in-out infinite;}
+  @keyframes hospital-door-pulse{0%,100%{opacity:.4;}50%{opacity:.9;}}
+  .runner-shadow{position:absolute;bottom:-3px;left:50%;width:22px;height:5px;margin-left:-11px;border-radius:50%;background:rgba(0,0,0,.35);filter:blur(.5px);animation:runner-shadow-pulse .42s ease-in-out infinite;}
+  @keyframes runner-shadow-pulse{0%,100%{transform:scaleX(1);opacity:.35;}50%{transform:scaleX(.8);opacity:.2;}}
+  .runner-trail{position:absolute;bottom:14px;left:-4px;width:5px;height:3px;border-radius:2px;background:rgba(255,255,255,.5);opacity:0;animation:runner-trail-chase .42s linear infinite;}
+  .runner-trail.t2{bottom:11px;animation-delay:.1s;}
+  .runner-trail.t3{bottom:8px;animation-delay:.2s;}
+  @keyframes runner-trail-chase{0%{opacity:.6;transform:translateX(0);}100%{opacity:0;transform:translateX(-14px);}}
+  .liaison-overlay[data-state!="loading"] .runner-trail{display:none;}
+  body.roster-anims-off .hospital-star,body.roster-anims-off .hospital-cloud,body.roster-anims-off .hospital-door-glow,
+  body.roster-anims-off .runner-shadow,body.roster-anims-off .runner-trail{animation:none!important;}
+
   /* ═══ save-anime : on soigne la base de données ═══ */
   .medic-wrap{position:relative;width:100%;height:148px;margin:0 0 4px;}
   .medic-table{position:absolute;left:14%;right:14%;bottom:18px;height:8px;border-radius:4px;background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.25);}
@@ -736,6 +761,24 @@
   @media(max-width:420px){.medic-wrap{height:132px;}.medic-char{margin-left:8px;}}
   body.roster-anims-off .medic-bandage{animation:none!important;opacity:1!important;transform:translateX(2px) rotate(-8deg)!important;}
   body.roster-anims-off .medic-arm{animation:none!important;}
+
+  /* ── Détails scène médecin : ombre au sol, légère secousse à chaque
+     bandage posé, goutte de sueur pendant l'effort, étincelles à la
+     fin — mêmes temps que l'arrivée des bandages (0.6s/1.6s/2.6s). ── */
+  .medic-db-shadow{position:absolute;left:50%;bottom:-8px;width:50px;height:8px;margin-left:-25px;border-radius:50%;background:rgba(0,0,0,.3);filter:blur(1px);}
+  .medic-db{animation:medic-db-wobble 3.2s ease-in-out infinite;}
+  @keyframes medic-db-wobble{
+    0%,16%{transform:rotate(0deg);} 18%{transform:rotate(-4deg);} 20%,46%{transform:rotate(0deg);}
+    48%{transform:rotate(4deg);} 50%,76%{transform:rotate(0deg);} 78%{transform:rotate(-3deg);} 80%,100%{transform:rotate(0deg);}
+  }
+  .liaison-overlay[data-state!="loading"] .medic-db{animation:none;transform:rotate(0deg);}
+  .medic-sweat{position:absolute;top:-4px;right:2px;font-size:.7rem;opacity:0;animation:medic-sweat-drop 1.4s ease-in-out infinite;}
+  @keyframes medic-sweat-drop{0%{opacity:0;transform:translateY(-3px);}30%{opacity:1;}100%{opacity:0;transform:translateY(6px);}}
+  .liaison-overlay[data-state!="loading"] .medic-sweat{display:none;}
+  .medic-sparks{position:absolute;top:10%;left:-10px;color:#fff;font-size:.8rem;opacity:0;}
+  .liaison-overlay[data-state="success"] .medic-sparks{animation:mascot-sparkle-pop .9s ease-out .1s 2;}
+  body.roster-anims-off .medic-db{animation:none!important;}
+  body.roster-anims-off .medic-sweat{animation:none!important;opacity:0!important;}
   @media(prefers-reduced-motion:reduce){.liaison-overlay *,.liaison-overlay *::before,.liaison-overlay *::after{animation:none!important;transition:none!important;}.liaison-ekg path{stroke-dashoffset:0!important;}}
   body.roster-anims-off .liaison-radar-sweep,body.roster-anims-off .liaison-radar-ring{display:none!important;}
   body.roster-anims-off .liaison-ekg path{animation:none!important;stroke-dashoffset:0!important;}
@@ -900,15 +943,20 @@
     <!-- Scène "anime" — mascotte dessinée qui vient annoncer elle-même ce qui se passe -->
     <!-- Scène "sync-anime" — course vers Pillbox Hill Medical Center -->
     <div class="hospital-wrap" aria-hidden="true">
-      <div class="hospital-sky"></div>
+      <div class="hospital-sky">
+        <span class="hospital-star s1"></span><span class="hospital-star s2"></span><span class="hospital-star s3"></span><span class="hospital-star s4"></span>
+        <div class="hospital-cloud c1"></div><div class="hospital-cloud c2"></div>
+      </div>
       <div class="hospital-building">
         <div class="hospital-windows"></div>
         <div class="hospital-sign">❤️ <span>PILLBOX HILL</span></div>
-        <div class="hospital-door"></div>
+        <div class="hospital-door"><div class="hospital-door-glow"></div></div>
         <div class="hospital-burst"></div>
       </div>
       <div class="hospital-road"></div>
       <div class="runner" id="hospitalRunner">
+        <div class="runner-trail t1"></div><div class="runner-trail t2"></div><div class="runner-trail t3"></div>
+        <div class="runner-shadow"></div>
         <div class="runner-head"></div>
         <div class="runner-body"></div>
         <div class="runner-arm back"></div>
@@ -922,6 +970,7 @@
     <!-- Scène "save-anime" — on soigne la base de données -->
     <div class="medic-wrap" aria-hidden="true">
       <div class="medic-db">
+        <div class="medic-db-shadow"></div>
         <div class="medic-db-top"></div>
         <div class="medic-db-body"></div>
         <div class="medic-db-face">😣</div>
@@ -929,8 +978,10 @@
         <div class="medic-bandage b2"></div>
         <div class="medic-bandage b3"></div>
         <div class="medic-cross">✚</div>
+        <div class="medic-sparks">✦</div>
       </div>
       <div class="medic-char">
+        <div class="medic-sweat">💦</div>
         <div class="medic-head"><div class="medic-cap">✚</div></div>
         <div class="medic-body2"></div>
         <div class="medic-arm"></div>
@@ -2950,9 +3001,19 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
   document.getElementById("liaisonSteps").innerHTML = stepLabels.map((label,i)=>
     `<li class="liaison-step" data-status="pending" data-step="${i}"><span class="liaison-step-dot"></span><span>${esc(label)}</span></li>`
   ).join("");
-  overlay.hidden = false;
-  const dlg = overlay.querySelector(".liaison-dialog");
-  if(dlg) dlg.focus({preventScroll:true});
+  // (19/10, demandé) Bouton vert désactivé = retour exact au comportement
+  // d'avant toutes ces scènes : aucun écran du tout, juste le texte du
+  // bouton qui change et le message final — jamais une version "figée"
+  // de l'animation. setLiaisonStep/finishLiaisonOverlay/hideLiaisonOverlay
+  // restent appelables sans erreur pendant ce temps (l'élément existe,
+  // juste jamais rendu visible).
+  if(!liaisonReduced()){
+    overlay.hidden = false;
+    const dlg = overlay.querySelector(".liaison-dialog");
+    if(dlg) dlg.focus({preventScroll:true});
+  } else {
+    overlay.hidden = true;
+  }
 
   const counterEl = document.getElementById("liaisonCounter");
   counterEl.hidden = true;
