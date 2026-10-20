@@ -1884,6 +1884,16 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <option value="">— Choisir une personne —</option>
       </select>
       <div id="individualPermPersonInfo" class="sub"></div>
+      <div id="individualAnimationControl" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border-soft);border-radius:12px;background:rgba(56,189,248,.045);">
+        <div style="font-weight:800;margin-bottom:4px;">🎬 Animations individuelles</div>
+        <div id="individualAnimationStatus" class="special-sub" style="margin-bottom:10px;">État du verrou en cours de lecture…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn-danger btn-small" id="btnLockIndividualAnimations" style="display:none;">🔒 Désactiver toutes ses animations</button>
+          <button type="button" class="btn-primary btn-small" id="btnUnlockIndividualAnimations" style="display:none;">🔓 Réautoriser ses animations</button>
+          <span id="individualAnimationActionStatus" style="font-size:.78rem;color:var(--text-dim);"></span>
+        </div>
+        <div class="special-sub" style="margin-top:8px;">Réservé à l’Owner, au Directeur Général et au Directeur. Le verrou concerne Synchroniser et Sauvegarder dans le Roster ainsi qu’Analyser la semaine dans Pillbox. Lorsqu’il est levé, le réglage personnel de l’employé reprend effet.</div>
+      </div>
       <div id="individualPermBulkBar" style="display:none;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button type="button" class="btn-primary btn-small" id="btnIndivSelectAll">✅ Tout sélectionner</button>
         <button type="button" class="btn-ghost btn-small" id="btnIndivClearAll">↺ Tout retirer</button>
@@ -2754,10 +2764,6 @@ function editRowHtml(e){
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
       <button class="btn-ghost btn-small" data-cancel="${e.id}">Annuler</button>
-      ${["OWNER","DG","D"].includes(currentUserLevel) && e.discordId ? `
-      <button class="btn-ghost btn-small" data-lock-anim="${esc(e.discordId)}" title="Désactive toutes les animations de cette personne dans le Roster et Pillbox, et l'empêche de les réactiver tant que le verrou est actif.">🔒 Bloquer toutes ses animations</button>
-      <button class="btn-ghost btn-small" data-unlock-anim="${esc(e.discordId)}" title="Lève le verrou individuel et rend à cette personne le contrôle de toutes ses animations.">🔓 Autoriser à nouveau</button>
-      ` : ""}
     </div>
   `;
 }
@@ -3188,26 +3194,6 @@ function attachRowHandlers(){
         }
       });
       slot.querySelector(`[data-cancel="${id}"]`).addEventListener("click", ()=>{ slot.innerHTML = ""; });
-      const lockBtn = slot.querySelector(`[data-lock-anim]`);
-      if(lockBtn) lockBtn.addEventListener("click", async ()=>{
-        const target = lockBtn.dataset.lockAnim;
-        lockBtn.disabled = true;
-        try{
-          await setAnimLockForUser(target, true);
-          toast("🔒 Toutes les animations de cette personne sont bloquées (Roster + Pillbox).");
-        }catch(err){ toast(`✕ ${err.message || "Échec — réessaie."}`); }
-        finally{ lockBtn.disabled = false; }
-      });
-      const unlockBtn = slot.querySelector(`[data-unlock-anim]`);
-      if(unlockBtn) unlockBtn.addEventListener("click", async ()=>{
-        const target = unlockBtn.dataset.unlockAnim;
-        unlockBtn.disabled = true;
-        try{
-          await setAnimLockForUser(target, false);
-          toast("🔓 Verrou levé : cette personne retrouve le contrôle de ses animations.");
-        }catch(err){ toast(`✕ ${err.message || "Échec — réessaie."}`); }
-        finally{ unlockBtn.disabled = false; }
-      });
     });
   });
 
@@ -3464,7 +3450,7 @@ function applyAnimsToggleUi(){
   if(btn){
     btn.setAttribute("aria-pressed", String(rosterAnimsEnabled));
     btn.title = rosterAnimsLocked
-      ? "Animations désactivées par le propriétaire — tu ne peux pas les réactiver toi-même."
+      ? "Animations verrouillées par l’Owner, le Directeur Général ou le Directeur — tu ne peux pas les réactiver toi-même."
       : "Activer/désactiver les animations de sauvegarde et synchronisation (partagé avec Pillbox)";
   }
 }
@@ -3488,13 +3474,15 @@ async function loadAnimPrefFromCloud(){
   }catch(e){ /* best-effort — on garde la valeur locale déjà affichée */ }
 }
 async function writeAnimPrefToCloud(enabled){
-  if(!currentUserDiscordId || !currentFirebaseIdToken) return;
-  try{
-    await fetch(`${ANIM_PREFS_URL}/${currentUserDiscordId}.json?auth=${currentFirebaseIdToken}`, {
-      method: "PATCH", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ enabled, updatedAt: Date.now(), updatedByDiscordId: currentUserDiscordId, updatedByName: currentUserName||"" }),
-    });
-  }catch(e){ /* best-effort — l'affichage local a déjà changé, Pillbox se resynchronisera au prochain chargement */ }
+  if(!currentUserDiscordId || !currentSessionToken) throw new Error("Session expirée — reconnecte-toi avec Discord.");
+  const res = await fetch("/.netlify/functions/animation-preferences", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({token:currentSessionToken,action:"setEnabled",targetDiscordId:String(currentUserDiscordId),enabled:!!enabled}),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || !data.ok) throw new Error(data.error || `Requête refusée (${res.status}).`);
+  try{ localStorage.setItem("rosterAnimsEnabled", enabled ? "1" : "0"); }catch(e){}
+  return true;
 }
 // (19/10, demandé) OWNER, DG et D uniquement : verrouillent/déverrouillent
 // les animations de quelqu'un d'autre — la personne ne peut alors plus les
@@ -3860,16 +3848,27 @@ document.getElementById("liaisonSkipBtn").addEventListener("click", ()=>{
   liaisonSkipped = true;
   hideLiaisonOverlay(true);
 });
-document.getElementById("animsToggleBtn").addEventListener("click", ()=>{
+document.getElementById("animsToggleBtn").addEventListener("click", async ()=>{
   if(rosterAnimsLocked){
-    toast("🔒 Tes animations ont été désactivées par le propriétaire — tu ne peux pas les réactiver toi-même.");
+    toast("🔒 Tes animations ont été désactivées par l’Owner, le DG ou le Directeur — tu ne peux pas les réactiver toi-même.");
     return;
   }
-  rosterAnimsEnabled = !rosterAnimsEnabled;
-  try{ localStorage.setItem("rosterAnimsEnabled", rosterAnimsEnabled ? "1" : "0"); }catch(e){}
-  applyAnimsToggleUi();
-  toast(rosterAnimsEnabled ? "🎬 Animations réactivées (Roster + Pillbox)" : "⏸️ Animations désactivées (Roster + Pillbox)");
-  writeAnimPrefToCloud(rosterAnimsEnabled);
+  const btn = document.getElementById("animsToggleBtn");
+  const previous = rosterAnimsEnabled;
+  const desired = !previous;
+  btn.disabled = true;
+  try{
+    await writeAnimPrefToCloud(desired);
+    rosterAnimsEnabled = desired;
+    applyAnimsToggleUi();
+    toast(rosterAnimsEnabled ? "🎬 Animations réactivées (Roster + Pillbox)" : "⏸️ Animations désactivées (Roster + Pillbox)");
+  }catch(err){
+    // Le serveur fait foi : ne pas laisser un réglage local contredire le verrou distant.
+    await loadAnimPrefFromCloud();
+    toast(`✕ Réglage non enregistré : ${err.message}`);
+  }finally{
+    btn.disabled = false;
+  }
 });
 document.addEventListener("keydown", event=>{
   const overlay = document.getElementById("liaisonOverlay");
@@ -5606,8 +5605,9 @@ let effectiveByGradeCache = null;
 async function renderIndividualPermissionsCard(){
   const card = document.getElementById("individualPermissionsCard");
   const canManage = hasCap("manage_individual_permissions");
-  card.style.display = canManage ? "" : "none";
-  if(!canManage) return;
+  const canManageAnimations = ANIMATION_LOCK_LEVELS.has(String(currentUserLevel));
+  card.style.display = (canManage || canManageAnimations) ? "" : "none";
+  if(!canManage && !canManageAnimations) return;
 
   const select = document.getElementById("individualPermPersonSelect");
   const currentValue = select.value;
@@ -5617,15 +5617,27 @@ async function renderIndividualPermissionsCard(){
       .map(e=>`<option value="${esc(e.discordId)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
   select.value = currentValue;
 
-  try{
-    const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
-    const data = await res.json().catch(()=>({}));
-    if(res.ok){ individualPermsCache = data.individualPermissions || {}; effectiveByGradeCache = data.effectiveByGrade || null; if(Array.isArray(data.allPermissions)) individualAllPermsCache = data.allPermissions; }
-  }catch(err){ /* le tableau se rechargera au prochain changement de sélection */ }
+  if(canManage){
+    try{
+      const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
+      const data = await res.json().catch(()=>({}));
+      if(res.ok){ individualPermsCache = data.individualPermissions || {}; effectiveByGradeCache = data.effectiveByGrade || null; if(Array.isArray(data.allPermissions)) individualAllPermsCache = data.allPermissions; }
+    }catch(err){ /* le tableau se rechargera au prochain changement de sélection */ }
+  } else {
+    // L'accès à la gestion des animations ne donne aucune permission
+    // supplémentaire pour modifier les exceptions individuelles ordinaires.
+    individualPermsCache = {};
+    effectiveByGradeCache = null;
+    individualAllPermsCache = [];
+  }
 
   renderIndividualPermTableForSelected();
 }
-document.getElementById("individualPermPersonSelect").addEventListener("change", renderIndividualPermTableForSelected);
+document.getElementById("individualPermPersonSelect").addEventListener("change", ()=>{
+  const discordId = document.getElementById("individualPermPersonSelect").value;
+  if(discordId && typeof individualAnimationPrefCache !== "undefined") delete individualAnimationPrefCache[discordId];
+  renderIndividualPermTableForSelected();
+});
 
 // (12/10, demandé) « Tout sélectionner » / « Tout retirer » — une seule
 // écriture côté serveur (jamais un état à moitié appliqué), boutons
@@ -5669,18 +5681,120 @@ async function individualBulk(action){
 document.getElementById("btnIndivSelectAll").addEventListener("click", ()=>individualBulk("setAll"));
 document.getElementById("btnIndivClearAll").addEventListener("click", ()=>individualBulk("clearAll"));
 
+// Verrou d'animations individuel intégré directement à « Exceptions individuelles ».
+// Ce n'est pas une permission de grade : c'est un verrou global pour une personne précise,
+// géré uniquement par OWNER, DG et D, avec vérification supplémentaire côté Netlify.
+const ANIMATION_LOCK_LEVELS = new Set(["OWNER","DG","D"]);
+const individualAnimationPrefCache = Object.create(null);
+function renderIndividualAnimationControl(discordId){
+  const panel = document.getElementById("individualAnimationControl");
+  const status = document.getElementById("individualAnimationStatus");
+  const lockBtn = document.getElementById("btnLockIndividualAnimations");
+  const unlockBtn = document.getElementById("btnUnlockIndividualAnimations");
+  const actionStatus = document.getElementById("individualAnimationActionStatus");
+  const canManage = ANIMATION_LOCK_LEVELS.has(String(currentUserLevel));
+  panel.style.display = (canManage && discordId) ? "" : "none";
+  if(!canManage || !discordId) return;
+  const pref = individualAnimationPrefCache[discordId];
+  actionStatus.textContent = "";
+  if(!pref || pref.loading){
+    status.textContent = "Lecture du verrou individuel…";
+    lockBtn.style.display = "none";
+    unlockBtn.style.display = "none";
+    if(!pref || !pref.loading) void loadIndividualAnimationPreference(discordId);
+    return;
+  }
+  if(pref.loadError){
+    status.textContent = `Impossible de lire l’état du verrou : ${pref.loadError}`;
+    lockBtn.style.display = "none";
+    unlockBtn.style.display = "none";
+    return;
+  }
+  const locked = pref.lockedByOwner === true;
+  status.textContent = locked
+    ? "🔒 Verrou administrateur actif : toutes les animations sont désactivées pour cette personne."
+    : `Aucun verrou administrateur. Réglage personnel actuellement : ${pref.enabled === false ? "animations désactivées" : "animations activées"}.`;
+  lockBtn.style.display = locked ? "none" : "inline-flex";
+  unlockBtn.style.display = locked ? "inline-flex" : "none";
+}
+async function loadIndividualAnimationPreference(discordId){
+  if(!discordId || !ANIMATION_LOCK_LEVELS.has(String(currentUserLevel))) return;
+  individualAnimationPrefCache[discordId] = { ...(individualAnimationPrefCache[discordId]||{}), loading:true };
+  try{
+    const res = await fetch("/.netlify/functions/animation-preferences", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ token:currentSessionToken, action:"status", targetDiscordId:String(discordId) }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.ok) throw new Error(data.error || `Requête refusée (${res.status}).`);
+    individualAnimationPrefCache[discordId] = data.preference || {enabled:true,lockedByOwner:false};
+  }catch(err){
+    individualAnimationPrefCache[discordId] = { loadError:err.message };
+  }
+  if(document.getElementById("individualPermPersonSelect")?.value === String(discordId)){
+    const pref = individualAnimationPrefCache[discordId];
+    const status = document.getElementById("individualAnimationStatus");
+    const lockBtn = document.getElementById("btnLockIndividualAnimations");
+    const unlockBtn = document.getElementById("btnUnlockIndividualAnimations");
+    if(pref.loadError){
+      status.textContent = `Impossible de lire l’état du verrou : ${pref.loadError}`;
+      lockBtn.style.display = "none"; unlockBtn.style.display = "none";
+    }else renderIndividualAnimationControl(discordId);
+  }
+}
+async function changeIndividualAnimationLock(action){
+  const select = document.getElementById("individualPermPersonSelect");
+  const discordId = select.value;
+  if(!discordId) return;
+  if(!ANIMATION_LOCK_LEVELS.has(String(currentUserLevel))){ toast("Action réservée à l’Owner, au Directeur Général et au Directeur."); return; }
+  const emp = employees.find(e=>String(e.discordId)===String(discordId));
+  const name = emp ? `${emp.name} (${emp.grade})` : discordId;
+  const locking = action === "lock";
+  const prompt = locking
+    ? `Désactiver et verrouiller toutes les animations de ${name} ?\n\nCela concerne Synchroniser et Sauvegarder dans le Roster ainsi qu’Analyser la semaine dans Pillbox. La personne ne pourra pas les réactiver tant que le verrou est actif.`
+    : `Lever le verrou d’animations de ${name} ?\n\nLa préférence personnelle de cette personne reprendra effet ; les animations ne seront pas forcément réactivées automatiquement.`;
+  if(!confirm(prompt)) return;
+  const lockBtn = document.getElementById("btnLockIndividualAnimations");
+  const unlockBtn = document.getElementById("btnUnlockIndividualAnimations");
+  const actionStatus = document.getElementById("individualAnimationActionStatus");
+  lockBtn.disabled = true; unlockBtn.disabled = true; actionStatus.textContent = "Enregistrement…";
+  try{
+    await setAnimLockForUser(discordId,locking);
+    delete individualAnimationPrefCache[discordId];
+    await loadIndividualAnimationPreference(discordId);
+    actionStatus.textContent = locking ? "✓ Toutes les animations sont verrouillées." : "✓ Verrou levé ; la préférence personnelle reprend effet.";
+    toast(locking ? `🔒 Animations désactivées pour ${emp ? emp.name : discordId}` : `🔓 Verrou d’animations levé pour ${emp ? emp.name : discordId}`);
+  }catch(err){
+    actionStatus.textContent = `✕ Échec : ${err.message}`;
+    toast(`✕ Impossible de modifier les animations : ${err.message}`);
+  }finally{
+    lockBtn.disabled = false; unlockBtn.disabled = false;
+  }
+}
+document.getElementById("btnLockIndividualAnimations").addEventListener("click",()=>changeIndividualAnimationLock("lock"));
+document.getElementById("btnUnlockIndividualAnimations").addEventListener("click",()=>changeIndividualAnimationLock("unlock"));
+
 function renderIndividualPermTableForSelected(){
   const select = document.getElementById("individualPermPersonSelect");
   const discordId = select.value;
   const info = document.getElementById("individualPermPersonInfo");
   const table = document.getElementById("individualPermTable");
   const bulkBar = document.getElementById("individualPermBulkBar");
-  if(!discordId){ info.textContent = ""; table.innerHTML = ""; bulkBar.style.display = "none"; return; }
+  if(!discordId){ info.textContent = ""; table.innerHTML = ""; bulkBar.style.display = "none"; renderIndividualAnimationControl(""); return; }
   const emp = employees.find(e=>e.discordId===discordId);
+  renderIndividualAnimationControl(discordId);
   const isSelf = currentUserDiscordId && String(discordId) === String(currentUserDiscordId) && currentUserLevel !== "OWNER";
-  info.textContent = (emp ? `${emp.name} — grade actuel : ${emp.grade}` : "") + (isSelf ? " — tu ne peux pas modifier tes propres permissions." : "");
-  bulkBar.style.display = isSelf ? "none" : "flex";
+  const canManageIndividualPermissions = hasCap("manage_individual_permissions");
+  info.textContent = (emp ? `${emp.name} — grade actuel : ${emp.grade}` : "") + (isSelf && canManageIndividualPermissions ? " — tu ne peux pas modifier tes propres permissions." : "");
+  bulkBar.style.display = (canManageIndividualPermissions && !isSelf) ? "flex" : "none";
   document.getElementById("individualPermBulkStatus").textContent = "";
+
+  if(!canManageIndividualPermissions){
+    // Cette vue est alors ouverte uniquement pour le verrou d'animations,
+    // dont le contrôle est séparé et protégé côté serveur.
+    table.innerHTML = "";
+    return;
+  }
 
   // Même règle que côté serveur : OWNER -> DG ; CD/D/DG -> leur couche ;
   // quelqu'un d'autre ayant reçu cette permission -> couche CD.
@@ -6320,7 +6434,7 @@ let currentUserName = null;
 const PERMISSIONS_TAB_CAPS = ["manage_permissions","manage_individual_permissions","request_individual_permission","review_permission_requests","force_logout"];
 function applyCapsUi(){
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
-  document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = (PERMISSIONS_TAB_CAPS.some(hasCap) || ANIMATION_LOCK_LEVELS.has(String(currentUserLevel))) ? "" : "none";
   // (14/10) Le Mode troll n'apparaît plus JAMAIS comme bouton dans la
   // barre d'onglets — accessible uniquement via le raccourci secret
   // CTRL+ALT+T (voir plus bas), qui vérifie lui-même manage_troll avant
@@ -6358,7 +6472,7 @@ function showApp(session){
   currentUserName = session.name || null;
   loadAnimPrefFromCloud();
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
-  document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
+  document.getElementById("tabPermissionsBtn").style.display = (PERMISSIONS_TAB_CAPS.some(hasCap) || ANIMATION_LOCK_LEVELS.has(String(currentUserLevel))) ? "" : "none";
   userCaps = null; // repart du grade tant que le serveur n'a pas répondu
   applyCapsUi();
   refreshUserCaps();
@@ -6497,6 +6611,7 @@ const ROSTER_SESSION_STORAGE_KEY = "rosterDiscordSession_v1";
 let rosterSessionEstablishedAt = 0;
 let rosterLiveUpdateInterval = null;
 let rosterKickCheckInterval = null;
+let rosterAnimPrefRefreshTimer = null;
 
 async function rosterCheckKicked(){
   if(!currentSessionToken) return false;
@@ -6612,6 +6727,10 @@ function startRosterLiveUpdates(){
   rosterKickCheckInterval = setInterval(()=>{
     if(currentSessionToken) rosterCheckKicked();
   }, 1500);
+  if(rosterAnimPrefRefreshTimer) clearInterval(rosterAnimPrefRefreshTimer);
+  rosterAnimPrefRefreshTimer = setInterval(()=>{
+    if(currentSessionToken && currentFirebaseIdToken) loadAnimPrefFromCloud();
+  }, 10000); // applique un verrou individuel en direct, sans attendre une reconnexion
   rosterLiveUpdateInterval = setInterval(async ()=>{
     if(!currentSessionToken) return;
     rosterSendHeartbeat();
@@ -6632,6 +6751,7 @@ function startRosterLiveUpdates(){
 function stopRosterLiveUpdates(){
   if(rosterLiveUpdateInterval){ clearInterval(rosterLiveUpdateInterval); rosterLiveUpdateInterval = null; }
   if(rosterKickCheckInterval){ clearInterval(rosterKickCheckInterval); rosterKickCheckInterval = null; }
+  if(rosterAnimPrefRefreshTimer){ clearInterval(rosterAnimPrefRefreshTimer); rosterAnimPrefRefreshTimer = null; }
 }
 
 function saveSessionToStorage(token, session){
@@ -7097,6 +7217,7 @@ async function restoreSessionFromStorage(){
     if(!currentFirebaseIdToken){
       toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
     } else {
+      await loadAnimPrefFromCloud();
       await finishRosterInit();
     }
     return true;
@@ -7128,6 +7249,7 @@ async function restoreSessionFromStorage(){
       if(!currentFirebaseIdToken){
         toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
       } else {
+        await loadAnimPrefFromCloud();
         await finishRosterInit();
       }
     }
