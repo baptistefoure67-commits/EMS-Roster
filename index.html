@@ -686,6 +686,19 @@
   /* (19/10, demandé) Le coureur se tourne vers l'infirmière pour lui
      remettre le dossier, puis se retourne une fois qu'elle repart —
      calé sur la même fenêtre que la séquence de remise (~3.2s-5.4s). */
+  /* (20/10, demandé) Nouveau début : la personne est à son poste, se lève
+     (petit "pop" vers le haut) puis part courir — avant, elle restait
+     déjà debout à gauche prête à partir. */
+  @keyframes desk-standup{0%{transform:translateY(4px) scale(.94);}60%{transform:translateY(-2px) scale(1.04);}100%{transform:translateY(0) scale(1);}}
+  .hospital-desk{position:absolute;bottom:20px;left:1%;width:30px;height:20px;opacity:1;animation:desk-fade-out .45s ease-in .85s 1 forwards;}
+  .hospital-desk-monitor{position:absolute;bottom:9px;left:2px;width:16px;height:12px;border-radius:2px;background:#1a2636;border:1px solid rgba(120,180,230,.4);}
+  .hospital-desk-monitor::after{content:"";position:absolute;inset:2px;background:#3aa7e0;opacity:.75;border-radius:1px;animation:desk-screen-flicker .5s ease-in-out infinite;}
+  .hospital-desk-stand{position:absolute;bottom:0;left:8px;width:4px;height:9px;background:#45536b;}
+  .hospital-desk-base{position:absolute;bottom:0;left:2px;width:16px;height:2px;border-radius:1px;background:#2c3747;}
+  @keyframes desk-screen-flicker{0%,100%{opacity:.75;}50%{opacity:.5;}}
+  @keyframes desk-fade-out{to{opacity:0;}}
+  .liaison-overlay:not([data-state="loading"]) .hospital-desk{display:none;}
+  body.roster-anims-off .hospital-desk{animation:none!important;opacity:0!important;}
   @keyframes runner-turn{
     0%,8%{transform:scaleX(1);}
     18%,78%{transform:scaleX(-1);}
@@ -872,18 +885,18 @@
 .hospital-road{height:25px;background:linear-gradient(180deg,#253044,#121a29);border-top:1px solid rgba(255,255,255,.12);}
 .hospital-road:after{height:2px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0 11px,transparent 11px 23px);}
 .hospital-burst{z-index:4;bottom:24px;left:71%;width:7px;height:7px;background:#d1ffe7;box-shadow:0 0 15px #6effb4;}
-.hospital-nurse{z-index:5;left:72%;width:34px;height:36px;margin-left:-17px;transform-origin:50% 90%;animation:ems-nurse-route 2.35s cubic-bezier(.22,.72,.25,1) 3.05s both;}
+.hospital-nurse{z-index:5;left:72%;width:34px;height:36px;margin-left:-17px;transform-origin:50% 90%;animation:ems-nurse-route 2.35s cubic-bezier(.22,.72,.25,1) 3.95s both;}
 .hospital-nurse:before{content:"";position:absolute;z-index:1;left:8px;top:23px;width:18px;height:20px;border:1px solid rgba(255,255,255,.45);border-radius:5px 5px 2px 2px;background:linear-gradient(90deg,#f4f7fb,#b9d0dc);box-shadow:inset 0 2px rgba(255,255,255,.7),0 2px 4px rgba(0,0,0,.18);}
 .hospital-nurse:after{content:"";position:absolute;z-index:1;left:4px;top:27px;width:27px;height:5px;border-radius:4px;background:linear-gradient(180deg,#eaf6fd,#86aabd);transform:rotate(-8deg);transform-origin:50% 50%;}
 .nurse-portrait{z-index:3;width:34px;height:34px;margin-left:-17px;}
-.runner{z-index:4;animation:ems-runner-delivery 5.4s cubic-bezier(.2,.75,.2,1) both;}
+.runner{z-index:4;animation:ems-runner-delivery 5.4s cubic-bezier(.2,.75,.2,1) .9s both, desk-standup .5s ease-out .5s 1;}
 .runner:before{content:"";position:absolute;z-index:1;left:9px;top:35px;width:21px;height:20px;border:1px solid rgba(255,255,255,.16);border-radius:6px 6px 3px 3px;background:linear-gradient(100deg,#263b59,#101f35);box-shadow:inset 0 2px rgba(255,255,255,.1),0 2px 5px rgba(0,0,0,.18);}
 .runner .char-portrait{z-index:4;width:40px;height:40px;}
 .runner-leg{z-index:2;width:6px;height:16px;background:linear-gradient(180deg,#29384e,#111b2a);box-shadow:0 1px 2px rgba(0,0,0,.22);}
-.runner-arm{position:absolute;z-index:5;top:35px;left:25px;width:17px;height:5px;border-radius:5px;background:linear-gradient(180deg,#4388e7,#1d4d96);border:1px solid rgba(255,255,255,.16);transform-origin:3px 50%;transform:rotate(20deg);animation:ems-offer-folder .8s cubic-bezier(.2,.8,.25,1) 3.12s both;}
+.runner-arm{position:absolute;z-index:5;top:35px;left:25px;width:17px;height:5px;border-radius:5px;background:linear-gradient(180deg,#4388e7,#1d4d96);border:1px solid rgba(255,255,255,.16);transform-origin:3px 50%;transform:rotate(20deg);animation:ems-offer-folder .8s cubic-bezier(.2,.8,.25,1) 4.02s both;}
 .runner-item{z-index:6;top:30px;left:27px;padding:1px 2px;border:1px solid rgba(255,255,255,.22);border-radius:3px;background:linear-gradient(180deg,#fce6b0,#c8a66b);font-size:.68rem;box-shadow:0 2px 4px rgba(0,0,0,.38);transform:rotate(-10deg);}
-.hospital-nurse .nurse-arm{position:absolute;z-index:5;top:27px;left:1px;width:17px;height:5px;border-radius:5px;background:linear-gradient(180deg,#f1f7fb,#92b4c3);transform-origin:15px 50%;transform:rotate(12deg);animation:ems-nurse-reach .78s cubic-bezier(.2,.8,.25,1) 3.48s both;}
-.nurse-item{z-index:7;top:28px;left:-15px;padding:1px 2px;border:1px solid rgba(255,255,255,.24);border-radius:3px;background:linear-gradient(180deg,#fce6b0,#c8a66b);font-size:.58rem;box-shadow:0 2px 4px rgba(0,0,0,.35);animation:ems-nurse-folder .8s ease-in-out 3.46s both;}
+.hospital-nurse .nurse-arm{position:absolute;z-index:5;top:27px;left:1px;width:17px;height:5px;border-radius:5px;background:linear-gradient(180deg,#f1f7fb,#92b4c3);transform-origin:15px 50%;transform:rotate(12deg);animation:ems-nurse-reach .78s cubic-bezier(.2,.8,.25,1) 4.38s both;}
+.nurse-item{z-index:7;top:28px;left:-15px;padding:1px 2px;border:1px solid rgba(255,255,255,.24);border-radius:3px;background:linear-gradient(180deg,#fce6b0,#c8a66b);font-size:.58rem;box-shadow:0 2px 4px rgba(0,0,0,.35);animation:ems-nurse-folder .8s ease-in-out 4.36s both;}
 .runner-shadow{z-index:0;width:26px;height:6px;background:rgba(0,0,0,.45);filter:blur(1px);}
 @keyframes ems-runner-delivery{
   0%{left:2%;opacity:1;transform:translateY(0) scaleX(1)}
@@ -917,14 +930,14 @@
   61%{opacity:1;transform:translate(0,0) scale(1)}
   88%,100%{opacity:0;transform:translate(8px,-4px) scale(.72)}
 }
-.liaison-overlay[data-variant="sync-anime"][data-state="loading"] #hospitalRunnerItem{animation:ems-folder-handoff 2.35s ease-in-out 3.05s both;}
+.liaison-overlay[data-variant="sync-anime"][data-state="loading"] #hospitalRunnerItem{animation:ems-folder-handoff 2.35s ease-in-out 3.95s both;}
 @keyframes ems-folder-handoff{
   0%,23%{opacity:1;transform:translate(0,0) rotate(-10deg) scale(1)}
   42%{opacity:1;transform:translate(13px,-4px) rotate(5deg) scale(1.05)}
   57%{opacity:0;transform:translate(28px,1px) rotate(12deg) scale(.6)}
   100%{opacity:0;transform:translate(28px,1px) rotate(12deg) scale(.6)}
 }
-.liaison-overlay[data-variant="sync-anime"][data-state="loading"] .hospital-nurse{animation:ems-nurse-route 2.35s cubic-bezier(.22,.72,.25,1) 3.05s both;}
+.liaison-overlay[data-variant="sync-anime"][data-state="loading"] .hospital-nurse{animation:ems-nurse-route 2.35s cubic-bezier(.22,.72,.25,1) 3.95s both;}
 @media(max-width:420px){.liaison-overlay[data-variant="sync-anime"] .hospital-wrap{height:145px}.hospital-building{height:114px}.runner{bottom:22px}.hospital-nurse{bottom:22px;}}
 
 /* The treatment action reads as three deliberate, soft impacts instead of floating strips. */
@@ -1117,10 +1130,10 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
 @media(max-width:420px){.tablet-save-wrap{height:166px!important}.tablet-save-person{transform:scale(.82);transform-origin:bottom center}.tablet-save-person.operator{left:1%}.tablet-save-person.reviewer{right:1%}.tablet-device{width:122px;height:101px;margin-left:-61px;bottom:15px}.tablet-live-viewport .roster-snapshot-canvas{transform:scale(.215)}.tablet-save-state{font-size:4.2px!important}}
 @media(prefers-reduced-motion:reduce){.tablet-save-wrap *,.tablet-save-wrap *:before,.tablet-save-wrap *:after{animation:none!important;transition:none!important}.tablet-save-check{opacity:1;transform:none}.tablet-save-check:before{content:"✓"}}
 
-/* Synchroniser : communication entre le vrai Roster et l'étape de réception Pillbox. */
-.liaison-overlay[data-variant="sync-anime"] .hospital-wrap{display:none!important;}
-.liaison-overlay[data-variant="sync-anime"] .sync-live-scene{display:block!important;}
-.sync-live-scene{display:none;position:relative;isolation:isolate;width:100%;height:180px;margin:0 0 5px;border-radius:13px;overflow:hidden;border:1px solid rgba(100,174,222,.28);background:linear-gradient(145deg,#091522,#13263a 55%,#0b1726);box-shadow:inset 0 1px rgba(255,255,255,.07),0 10px 25px rgba(0,0,0,.23);}
+/* (20/10, demandé) Retour à la scène du coureur pour "Synchroniser" — le
+   tableau de bord ci-dessous est désactivé (laissé dans le code, juste
+   plus jamais affiché) plutôt que supprimé, au cas où. */
+.sync-live-scene{display:none!important;position:relative;isolation:isolate;width:100%;height:180px;margin:0 0 5px;border-radius:13px;overflow:hidden;border:1px solid rgba(100,174,222,.28);background:linear-gradient(145deg,#091522,#13263a 55%,#0b1726);box-shadow:inset 0 1px rgba(255,255,255,.07),0 10px 25px rgba(0,0,0,.23);}
 .sync-scene-ambient{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 30% 15%,rgba(52,153,209,.2),transparent 44%),radial-gradient(ellipse at 95% 18%,rgba(40,195,150,.13),transparent 38%);}
 .sync-live-dashboard{position:absolute;left:6px;top:6px;width:64%;height:125px;overflow:hidden;border:1px solid rgba(125,179,216,.32);border-radius:7px;background:rgba(5,13,22,.82);box-shadow:0 7px 17px rgba(0,0,0,.25);}
 .sync-dashboard-bar{height:17px;display:flex;align-items:center;gap:5px;padding:0 6px;background:rgba(4,12,22,.9);border-bottom:1px solid rgba(125,179,216,.25);font-size:6px;letter-spacing:.75px;font-weight:900;color:#c6e4f6;position:relative;z-index:2;}
@@ -1418,6 +1431,11 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
         <div class="hospital-burst"></div>
       </div>
       <div class="hospital-road"></div>
+      <div class="hospital-desk" aria-hidden="true">
+        <div class="hospital-desk-monitor"></div>
+        <div class="hospital-desk-stand"></div>
+        <div class="hospital-desk-base"></div>
+      </div>
       <div class="runner" id="hospitalRunner">
         <div class="runner-trail t1"></div><div class="runner-trail t2"></div><div class="runner-trail t3"></div>
         <div class="runner-shadow"></div>
@@ -3536,7 +3554,7 @@ const LIAISON_META = {
   // (l'arrivée du coureur / le dernier bandage posé) — plus de longue
   // attente artificielle une fois l'histoire terminée à l'écran.
   "save-anime":    { subtitle: "Mise à jour du Roster sur tablette…", minMs: 5900 },
-  "sync-anime":    { subtitle: "Transmission du Roster vers Pillbox…", minMs: 5900 }, // scène visuelle de 5,8 s ; l'opération réelle peut finir après
+  "sync-anime":    { subtitle: "Transmission du Roster vers Pillbox…", minMs: 6800 }, // (20/10) +0,9s pour le nouveau début "à l'ordinateur, se lève" ; scène visuelle totale ~6,7s, sous la limite de 7s demandée
   "save-vault":    { subtitle: "Ouverture du coffre…" },
   "save-recorder": { subtitle: "Lecture de la bande…", counter: "time" },
   "save-scanner":  { subtitle: "Analyse biométrique en cours…", counter: "percent" },
