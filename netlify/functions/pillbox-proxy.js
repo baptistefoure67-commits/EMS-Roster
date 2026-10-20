@@ -28,6 +28,10 @@ const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 const ABSENCES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsences.json";
 const ABSENCE_ALERT_DECISIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsenceAlertDecisions.json";
+// (19/10, demandé) Réglage "animations" partagé Roster + Pillbox — lu
+// ici pour que Pillbox sache si la personne (ou l'OWNER pour elle) l'a
+// désactivé, sans avoir besoin de son propre accès Firebase direct.
+const ANIM_PREFS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAnimPrefs";
 // (13/10, section 6) NOUVEAU CHEMIN FIREBASE — nécessite ses propres
 // règles de validation (voir le rapport final) avant de fonctionner
 // réellement en production.
@@ -264,13 +268,15 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, absencesRes, payRulesRes, alertDecisionsRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
       fetch(PAY_RULES_URL), // lecture publique, comme rosterGradeLabels — pas besoin du jeton
       fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
+      fetch(`${ANIM_PREFS_BASE}/${encodeURIComponent(session.discordId)}.json?auth=${idToken}`),
     ]);
+    const animPref = animPrefRes.ok ? await animPrefRes.json() : null;
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
     let absences = absencesRes.ok ? await absencesRes.json() : null;
@@ -355,6 +361,8 @@ exports.handler = async function (event) {
     return json(200, {
       roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
+      animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
+      animLocked: !!(animPref && animPref.lockedByOwner),
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
