@@ -55,59 +55,21 @@ exports.handler = async function(event){
   if(!SESSION_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY) return json(500,{error:"Configuration serveur incomplète pour gérer les animations."});
   const session = verify(body.token, SESSION_SECRET);
   if(!session) return json(401,{error:"Session expirée ou invalide — reconnecte-toi avec Discord."});
-
-  const action = String(body.action||"");
+  if(!ALLOWED_LEVELS.has(String(session.level))) return json(403,{error:"Action réservée à l'Owner, au Directeur Général et au Directeur."});
   const targetDiscordId = String(body.targetDiscordId||"").trim();
   if(!/^\d{5,25}$/.test(targetDiscordId)) return json(400,{error:"ID Discord cible invalide."});
-
-  // Chacun peut modifier uniquement sa préférence personnelle, et uniquement
-  // si aucun verrou individuel administrateur n'est actif.
-  if(action === "setEnabled"){
-    if(String(session.discordId) !== targetDiscordId) return json(403,{error:"Tu peux modifier uniquement ton propre réglage d'animations."});
-    if(typeof body.enabled !== "boolean") return json(400,{error:"Valeur d'animation invalide."});
-    try{
-      const accessToken = await serviceAccountAccessToken(FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY);
-      const url = `${ANIM_PREFS_BASE}/${encodeURIComponent(targetDiscordId)}.json`;
-      const headers = {"Authorization":`Bearer ${accessToken}`};
-      const currentResponse = await fetch(url,{headers});
-      if(!currentResponse.ok) return json(502,{error:`Impossible de lire le verrou des animations (${currentResponse.status}).`});
-      const current = await currentResponse.json().catch(()=>null);
-      if(current && current.lockedByOwner === true) return json(423,{error:"Les animations de ce compte sont verrouillées par l'Owner, le Directeur Général ou le Directeur."});
-      const patch = {enabled:body.enabled,updatedAt:Date.now(),updatedByDiscordId:String(session.discordId),updatedByName:String(session.name||"")};
-      const response = await fetch(url,{method:"PATCH",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify(patch)});
-      if(!response.ok){
-        const details = await response.text().catch(()=>"");
-        return json(502,{error:`Firebase a refusé la mise à jour des animations (${response.status}). ${details.slice(0,160)}`});
-      }
-      return json(200,{ok:true,action,targetDiscordId,enabled:body.enabled});
-    }catch(error){
-      return json(500,{error:error.message||"Erreur serveur lors de la modification de la préférence d'animation."});
-    }
-  }
-
-  // Le statut et la modification du verrou sont réservés exclusivement à
-  // OWNER, DG et D — pas à CD, ADD ou aux permissions individuelles ordinaires.
-  if(!ALLOWED_LEVELS.has(String(session.level))) return json(403,{error:"Action réservée à l'Owner, au Directeur Général et au Directeur."});
-  if(!["lock","unlock","status"].includes(action)) return json(400,{error:"Action d'animation inconnue."});
+  if(!["lock","unlock"].includes(body.action)) return json(400,{error:"Action d'animation inconnue."});
 
   try{
+    // Écriture serveur avec jeton de compte de service : l'autorisation de
+    // l'acteur a déjà été vérifiée ci-dessus et la route ne permet de modifier
+    // que le verrou d'animation de l'ID cible fourni.
     const accessToken = await serviceAccountAccessToken(FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY);
     const url = `${ANIM_PREFS_BASE}/${encodeURIComponent(targetDiscordId)}.json`;
-    const headers = {"Authorization":`Bearer ${accessToken}`};
-
-    if(action === "status"){
-      const response = await fetch(url,{headers});
-      if(!response.ok) return json(502,{error:`Impossible de lire l'état des animations (${response.status}).`});
-      const preference = await response.json().catch(()=>null);
-      return json(200,{ok:true,action,targetDiscordId,preference:preference||{enabled:true,lockedByOwner:false}});
-    }
-
-    // Écriture serveur avec jeton de compte de service : l'autorisation de
-    // l'acteur a déjà été vérifiée ci-dessus, pas de dépendance à l'UI.
-    const patch = action === "lock"
+    const patch = body.action === "lock"
       ? {enabled:false,lockedByOwner:true,updatedAt:Date.now(),updatedByDiscordId:String(session.discordId),updatedByName:String(session.name||""),updatedByLevel:String(session.level)}
       : {lockedByOwner:false,updatedAt:Date.now(),updatedByDiscordId:String(session.discordId),updatedByName:String(session.name||""),updatedByLevel:String(session.level)};
-    const response = await fetch(url,{method:"PATCH",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify(patch)});
+    const response = await fetch(url,{method:"PATCH",headers:{"Content-Type":"application/json","Authorization":`Bearer ${accessToken}`},body:JSON.stringify(patch)});
     if(!response.ok){
       const details = await response.text().catch(()=>"");
       return json(502,{error:`Firebase a refusé la mise à jour des animations (${response.status}). ${details.slice(0,160)}`});
@@ -116,12 +78,12 @@ exports.handler = async function(event){
     try{
       const idToken = await userIdToken(session);
       if(idToken) await logAction({
-        action:action === "lock" ? "animations_individuelles_bloquees" : "animations_individuelles_debloquees",
+        action:body.action === "lock" ? "animations_individuelles_bloquees" : "animations_individuelles_debloquees",
         authorDiscordId:session.discordId, authorName:session.name, authorLevel:session.level,
-        targetDiscordId, details:action === "lock" ? "Toutes les animations Roster + Pillbox bloquées individuellement." : "Verrou individuel des animations levé.", idToken,
+        targetDiscordId, details:body.action === "lock" ? "Toutes les animations Roster + Pillbox bloquées individuellement." : "Verrou individuel des animations levé.", idToken,
       });
     }catch(e){}
-    return json(200,{ok:true,action,targetDiscordId});
+    return json(200,{ok:true,action:body.action,targetDiscordId});
   }catch(error){
     return json(500,{error:error.message||"Erreur serveur lors de la modification du verrou d'animation."});
   }
