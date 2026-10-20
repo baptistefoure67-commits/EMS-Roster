@@ -985,6 +985,67 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
 @media(prefers-reduced-motion:reduce){.liaison-overlay[data-variant="sync-anime"] .runner{animation:none!important;}}
 </style>
 
+
+<style id="ems-save-tablet-scene-v1">
+/* Sauvegarder : scène dédiée à la fiche employé sur tablette. Aucun membre inférieur ni faux torse n'est ajouté aux portraits. */
+.liaison-overlay[data-variant="save-anime"] .medic-wrap{display:none!important;}
+.liaison-overlay[data-variant="save-anime"] .tablet-save-wrap{display:block!important;}
+.tablet-save-wrap{display:none;position:relative;isolation:isolate;width:100%;height:158px;margin:0 0 5px;overflow:hidden;border:1px solid rgba(110,190,235,.2);border-radius:14px;background:radial-gradient(ellipse at 50% 42%,rgba(36,113,159,.25),transparent 47%),linear-gradient(150deg,#17283b 0%,#101b2c 55%,#192b3e 100%);box-shadow:inset 0 1px rgba(255,255,255,.06),0 12px 28px rgba(0,0,0,.17);}
+.tablet-save-ambient{position:absolute;inset:0;background:linear-gradient(115deg,transparent 0%,rgba(97,199,248,.055) 48%,transparent 69%);opacity:.6;animation:tablet-ambient-sweep 4.2s ease-in-out both;}
+.tablet-save-floor{position:absolute;left:5%;right:5%;bottom:15px;height:2px;border-radius:100%;background:linear-gradient(90deg,transparent,rgba(105,169,210,.23),transparent);}
+.tablet-save-person{position:absolute;z-index:3;bottom:9px;width:76px;height:91px;display:flex;justify-content:center;align-items:flex-end;}
+.tablet-save-person.operator{left:5.5%;}
+.tablet-save-person.reviewer{right:5.5%;}
+.tablet-save-person .char-portrait{position:absolute;left:50%;bottom:0;width:76px;height:76px;margin-left:-38px;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 5px 5px rgba(0,0,0,.35));transform-origin:50% 88%;}
+.tablet-person-label{position:absolute;z-index:8;top:0;left:50%;transform:translateX(-50%);padding:3px 6px;white-space:nowrap;border-radius:4px;background:rgba(6,16,27,.62);border:1px solid rgba(154,207,235,.17);font-size:7px;line-height:1.1;letter-spacing:.85px;font-weight:800;color:#a9d7f0;}
+.tablet-person-glow{position:absolute;bottom:0;left:50%;width:54px;height:7px;margin-left:-27px;border-radius:50%;background:rgba(78,183,233,.25);filter:blur(4px);}
+.tablet-device{position:absolute;z-index:4;left:50%;bottom:20px;width:130px;height:102px;margin-left:-65px;padding:6px;border:1px solid #7c9aaf;border-radius:9px;background:linear-gradient(145deg,#40566a,#17293a 40%,#0c1725 100%);box-shadow:0 10px 17px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.2);transform-origin:50% 100%;animation:tablet-device-settle .7s cubic-bezier(.2,.8,.2,1) both;}
+.tablet-device:after{content:"";position:absolute;inset:2px;border:1px solid rgba(255,255,255,.07);border-radius:7px;pointer-events:none;}
+.tablet-device-camera{position:absolute;top:4px;left:50%;width:3px;height:3px;margin-left:-1px;border-radius:50%;background:#8aabc0;box-shadow:0 0 4px rgba(127,207,244,.65);}
+.tablet-screen{position:relative;width:100%;height:100%;overflow:hidden;border-radius:4px;background:linear-gradient(165deg,#f0f7fb,#dceaf2);padding:8px 7px 5px;color:#244154;box-shadow:inset 0 0 0 1px rgba(24,55,73,.2);}
+.tablet-screen-header{height:12px;display:flex;align-items:center;gap:4px;border-bottom:1px solid rgba(65,110,137,.2);font-size:6px;font-weight:900;letter-spacing:.45px;white-space:nowrap;color:#23465c;}
+.tablet-status-light{width:4px;height:4px;flex:none;border-radius:50%;background:#35bd85;box-shadow:0 0 5px rgba(53,189,133,.75);}
+.tablet-live{margin-left:auto;font-size:5px;letter-spacing:.5px;color:#168d70;}
+.tablet-screen-identity{height:17px;display:flex;align-items:center;gap:5px;padding-top:3px;}
+.tablet-avatar-dot{width:10px;height:10px;border-radius:3px;background:linear-gradient(145deg,#5c8ea7,#2c637f);box-shadow:inset 0 1px rgba(255,255,255,.45);}
+.tablet-identity-line{width:39px;height:4px;border-radius:4px;background:#7999ac;box-shadow:0 5px 0 -1px #a6bdca;}
+.tablet-data-row{position:relative;height:9px;margin:1px 0 0;display:flex;align-items:center;justify-content:space-between;gap:6px;opacity:0;transform:translateX(-4px);}
+.tablet-data-row span{height:3px;width:44%;border-radius:4px;background:#a5bbc8;}
+.tablet-data-row i{height:4px;width:23%;border-radius:4px;background:#44b89b;box-shadow:0 0 0 2px rgba(68,184,155,.1);}
+.tablet-data-row.row-one{animation:tablet-data-appear .43s ease-out .55s both;}
+.tablet-data-row.row-two{animation:tablet-data-appear .43s ease-out .94s both;}
+.tablet-data-row.row-three{animation:tablet-data-appear .43s ease-out 1.32s both;}
+.tablet-save-state{position:absolute;bottom:5px;left:7px;display:flex;align-items:center;gap:4px;font-size:5px;font-weight:900;letter-spacing:.45px;color:#4e7a89;opacity:0;animation:tablet-lock-in .52s ease-out 1.85s both;}
+.tablet-lock-shape{position:relative;width:6px;height:5px;margin-top:3px;border-radius:1px;background:#218b75;}
+.tablet-lock-shape:before{content:"";position:absolute;left:1px;top:-4px;width:4px;height:5px;border:1px solid #218b75;border-radius:4px 4px 0 0;border-bottom:0;}
+.tablet-save-check{position:absolute;right:5px;bottom:3px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#5ce1ac,#1a9b75);border:2px solid #eefcf6;color:white;font-size:12px;font-weight:900;box-shadow:0 0 0 0 rgba(67,220,165,.5),0 2px 6px rgba(12,91,73,.3);opacity:0;transform:scale(.3) rotate(-25deg);animation:tablet-check-pop .55s cubic-bezier(.18,.9,.2,1.25) 2.25s both;}
+.tablet-save-check:before{content:"✓";}
+.tablet-touch-point{position:absolute;z-index:6;left:31%;top:65%;width:13px;height:13px;margin:-6px 0 0 -6px;opacity:0;animation:tablet-touch-tap 3.2s ease-in-out .45s both;pointer-events:none;}
+.tablet-touch-point span{position:absolute;left:3px;top:3px;width:7px;height:7px;border-radius:50%;background:#f3ffff;border:2px solid #31b8e5;box-shadow:0 0 7px rgba(49,184,229,.85);}
+.tablet-touch-point:before,.tablet-touch-point:after{content:"";position:absolute;inset:-3px;border:1px solid rgba(73,204,244,.75);border-radius:50%;animation:tablet-touch-ripple .8s ease-out 1.25s both;}
+.tablet-touch-point:after{animation-delay:1.4s;}
+.tablet-nod-mark{position:absolute;top:22px;right:3px;width:13px;height:13px;border-radius:50%;display:grid;place-items:center;background:#1d9c79;color:#fff;font-size:8px;font-weight:900;opacity:0;transform:scale(.5);box-shadow:0 0 9px rgba(41,206,156,.38);animation:tablet-review-confirm .45s ease-out 2.75s both;}
+.tablet-save-bottom{position:absolute;left:0;right:0;bottom:4px;display:flex;justify-content:center;align-items:center;gap:6px;font-size:6px;line-height:1;letter-spacing:1.6px;font-weight:900;color:rgba(165,205,227,.35);}
+.tablet-save-bottom span{width:18px;height:1px;background:rgba(142,192,220,.24);}
+@keyframes tablet-ambient-sweep{0%,12%{transform:translateX(-35%);opacity:.15}45%{opacity:.8}90%,100%{transform:translateX(30%);opacity:.4}}
+@keyframes tablet-device-settle{0%{opacity:0;transform:translateY(9px) rotate(2deg) scale(.94)}100%{opacity:1;transform:translateY(0) rotate(0) scale(1)}}
+@keyframes tablet-data-appear{0%{opacity:0;transform:translateX(-4px)}65%{opacity:1;transform:translateX(1px)}100%{opacity:1;transform:translateX(0)}}
+@keyframes tablet-lock-in{0%{opacity:0;transform:translateY(3px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes tablet-check-pop{0%{opacity:0;transform:scale(.3) rotate(-25deg)}72%{opacity:1;transform:scale(1.18) rotate(5deg)}100%{opacity:1;transform:scale(1) rotate(0);box-shadow:0 0 0 5px rgba(67,220,165,0),0 2px 6px rgba(12,91,73,.3)}}
+@keyframes tablet-touch-tap{0%,7%{opacity:0;transform:translate(0,6px) scale(.65)}17%{opacity:1;transform:translate(0,0) scale(1)}30%{opacity:1;transform:translate(28px,-8px) scale(.92)}39%{opacity:1;transform:translate(34px,-8px) scale(.88)}48%,100%{opacity:0;transform:translate(34px,-8px) scale(.75)}}
+@keyframes tablet-touch-ripple{0%{opacity:0;transform:scale(.3)}35%{opacity:.85}100%{opacity:0;transform:scale(1.8)}}
+@keyframes tablet-operator-ready{0%,12%{transform:translateY(0) rotate(0)}23%{transform:translateY(1px) rotate(1.5deg)}34%,100%{transform:translateY(0) rotate(0)}}
+@keyframes tablet-reviewer-nod{0%,51%{transform:translateY(0) rotate(0)}61%{transform:translateY(-3px) rotate(-1.5deg)}70%{transform:translateY(1px) rotate(.6deg)}79%,100%{transform:translateY(0) rotate(0)}}
+@keyframes tablet-review-confirm{0%,30%{opacity:0;transform:scale(.5)}70%{opacity:1;transform:scale(1.14)}100%{opacity:1;transform:scale(1)}}
+.tablet-save-person.operator .char-portrait{animation:tablet-operator-ready 4.2s ease-in-out both;}
+.tablet-save-person.reviewer .char-portrait{animation:tablet-reviewer-nod 4.2s ease-in-out both;}
+.liaison-overlay:not([data-state="loading"]) .tablet-save-wrap *{animation-play-state:paused!important;}
+.liaison-overlay[data-state="error"][data-variant="save-anime"] .tablet-save-check{background:linear-gradient(145deg,#f08b86,#d94c52);}
+.liaison-overlay[data-state="error"][data-variant="save-anime"] .tablet-save-check:before{content:"!";}
+@media(max-width:420px){.tablet-save-wrap{height:148px}.tablet-save-person{transform:scale(.9);transform-origin:bottom center}.tablet-save-person.operator{left:2%}.tablet-save-person.reviewer{right:2%}.tablet-device{width:119px;height:96px;margin-left:-59.5px;bottom:19px}.tablet-touch-point{left:30%;top:64%}}
+@media(prefers-reduced-motion:reduce){.tablet-save-wrap *,.tablet-save-wrap *:before,.tablet-save-wrap *:after{animation:none!important;transition:none!important}.tablet-save-check{opacity:1;transform:none}.tablet-save-check:before{content:"✓"}}
+</style>
+
 </head>
 <body>
 
@@ -1152,10 +1213,8 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
       <div class="runner" id="hospitalRunner">
         <div class="runner-trail t1"></div><div class="runner-trail t2"></div><div class="runner-trail t3"></div>
         <div class="runner-shadow"></div>
-        <!-- (20/10, demandé) Vraie illustration du personnage à la place
-             des formes CSS — voir applyCharacterPortrait(). Les jambes
-             restent en CSS (animées, émergent sous l'image) ainsi que le
-             rebond de course posé sur ce portrait. -->
+        <!-- Portrait buste illustré uniquement. Le déplacement anime ce buste
+             entier : aucun torse ni aucune jambe CSS n'est ajouté dessous. -->
         <img class="char-portrait" id="runnerPortrait" alt="" />
         <div class="runner-arm" aria-hidden="true"></div>
         <div class="runner-leg back"></div>
@@ -1169,7 +1228,8 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
         <div class="nurse-item">📋</div>
       </div>
     </div>
-    <!-- Scène "save-anime" — on soigne la base de données -->
+    <!-- Ancienne scène de soin conservée masquée pour compatibilité.
+         La scène active "save-anime" est désormais la fiche employé sur tablette. -->
     <div class="medic-wrap" aria-hidden="true">
       <!-- (19/10, demandé) Le "patient" n'est plus une base de données
            dessinée en cylindre : c'est un autre haut gradé, tiré au
@@ -1190,6 +1250,37 @@ body.roster-anims-off .hospital-road:after{animation:none!important;}
         <div class="medic-arm"></div>
       </div>
       <div class="medic-table"></div>
+    </div>
+    <!-- Nouvelle scène Sauvegarder : mise à jour d'une fiche employé sur tablette. -->
+    <div class="tablet-save-wrap" aria-hidden="true">
+      <div class="tablet-save-ambient"></div>
+      <div class="tablet-save-floor"></div>
+      <div class="tablet-save-person operator">
+        <div class="tablet-person-label">MISE À JOUR</div>
+        <img class="char-portrait" id="tabletOperatorPortrait" alt="" />
+        <div class="tablet-person-glow"></div>
+      </div>
+      <div class="tablet-device">
+        <div class="tablet-device-camera"></div>
+        <div class="tablet-screen">
+          <div class="tablet-screen-header"><span class="tablet-status-light"></span><span>FICHE EMPLOYÉ</span><span class="tablet-live">ROSTER</span></div>
+          <div class="tablet-screen-identity"><span class="tablet-avatar-dot"></span><span class="tablet-identity-line"></span></div>
+          <div class="tablet-data-row row-one"><span></span><i></i></div>
+          <div class="tablet-data-row row-two"><span></span><i></i></div>
+          <div class="tablet-data-row row-three"><span></span><i></i></div>
+          <div class="tablet-save-state"><span class="tablet-lock-shape"></span><span>ENREGISTREMENT</span></div>
+          <div class="tablet-save-check" id="tabletSaveCheck" aria-hidden="true"></div>
+        </div>
+        <div class="tablet-touch-wave"></div>
+      </div>
+      <div class="tablet-touch-point" aria-hidden="true"><span></span></div>
+      <div class="tablet-save-person reviewer">
+        <div class="tablet-person-label">VÉRIFICATION</div>
+        <img class="char-portrait" id="tabletReviewerPortrait" alt="" />
+        <div class="tablet-person-glow"></div>
+        <div class="tablet-nod-mark">✓</div>
+      </div>
+      <div class="tablet-save-bottom"><span></span><span>ROSTER EMS</span><span></span></div>
     </div>
     <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
     <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
@@ -3177,8 +3268,8 @@ async function writeAnimPrefToCloud(enabled){
     });
   }catch(e){ /* best-effort — l'affichage local a déjà changé, Pillbox se resynchronisera au prochain chargement */ }
 }
-// (19/10, demandé) OWNER uniquement : verrouille/déverrouille les
-// animations de quelqu'un d'autre — la personne ne peut alors plus les
+// (19/10, demandé) OWNER, DG et D uniquement : verrouillent/déverrouillent
+// les animations de quelqu'un d'autre — la personne ne peut alors plus les
 // réactiver elle-même tant que l'OWNER n'a pas levé le verrou (la règle
 // Firebase impose ce même blocage côté serveur, ceci n'est que le
 // raccourci pour le déclencher).
@@ -3228,7 +3319,7 @@ const LIAISON_META = {
   // (19/10) minMs calé sur la durée réelle de l'animation elle-même
   // (l'arrivée du coureur / le dernier bandage posé) — plus de longue
   // attente artificielle une fois l'histoire terminée à l'écran.
-  "save-anime":    { subtitle: "On va bien soigner ce collègue…", minMs: 3300 },
+  "save-anime":    { subtitle: "Mise à jour de la fiche employé…", minMs: 4200 },
   "sync-anime":    { subtitle: "En route pour Pillbox Hill !", minMs: 5500 }, // laisse le temps à la remise du dossier (infirmière) de se jouer en entier
   "save-vault":    { subtitle: "Ouverture du coffre…" },
   "save-recorder": { subtitle: "Lecture de la bande…", counter: "time" },
@@ -3357,13 +3448,12 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
     applyCharacterPortrait(document.getElementById("nursePortrait"), nurseId);
   }
   if(variant === "save-anime"){
-    // (19/10, demandé) Le médecin, c'est la personne connectée ; le
-    // "patient" soigné est un autre haut gradé tiré au sort — jamais
-    // soi-même.
-    applyCharacterPortrait(document.getElementById("medicPortrait"), currentUserDiscordId);
+    // Le personnage connecté met à jour la fiche sur tablette ; un collègue
+    // différent consulte les informations et confirme d'un signe de tête.
+    applyCharacterPortrait(document.getElementById("tabletOperatorPortrait"), currentUserDiscordId);
     const others2 = Object.keys(CHARACTER_APPEARANCES).filter(id => id !== String(currentUserDiscordId||""));
-    const patientId = pickBalancedAnimationCharacter(others2, "ems-roster-colleague-cycle-v1");
-    applyCharacterPortrait(document.getElementById("patientPortrait"), patientId);
+    const reviewerId = pickBalancedAnimationCharacter(others2, "ems-roster-colleague-cycle-v1");
+    applyCharacterPortrait(document.getElementById("tabletReviewerPortrait"), reviewerId);
   }
   // (19/10, demandé) Bouton vert désactivé = retour exact au comportement
   // d'avant toutes ces scènes : aucun écran du tout, juste le texte du
@@ -3378,7 +3468,7 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
     // Les scènes comportent des délais CSS (course, arrivée, bandages).
     // On réinitialise leurs animations à chaque ouverture pour éviter de
     // reprendre une ancienne timeline quand on relance très vite l'action.
-    const scene = overlay.querySelector(variant === "sync-anime" ? ".hospital-wrap" : ".medic-wrap");
+    const scene = overlay.querySelector(variant === "sync-anime" ? ".hospital-wrap" : ".tablet-save-wrap");
     if(scene){
       const animatedNodes = [scene, ...scene.querySelectorAll("*")];
       animatedNodes.forEach(node => { node.style.animation = "none"; });
