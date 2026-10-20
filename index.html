@@ -733,6 +733,37 @@
   body.roster-anims-off .hospital-star,body.roster-anims-off .hospital-cloud,body.roster-anims-off .hospital-door-glow,
   body.roster-anims-off .runner-shadow,body.roster-anims-off .runner-trail{animation:none!important;}
 
+  /* ── Remise du dossier (19/10, demandé) : une infirmière sort de
+     l'hôpital juste après l'arrivée du coureur, récupère le dossier
+     (qui disparaît de la main du coureur au même instant) et rentre.
+     Un seul passage (pas une boucle), calé juste après l'arrivée à la
+     porte (~3.4s), tient sa position ensuite jusqu'à la vraie fin. ── */
+  .hospital-nurse{position:absolute;bottom:22px;left:50%;margin-left:-7px;width:16px;height:30px;opacity:0;animation:nurse-sequence 2s ease-in-out 3.3s 1 both;}
+  .nurse-head{width:11px;height:11px;margin:0 auto;border-radius:50%;background:#ffcf9e;}
+  .nurse-body{width:14px;height:16px;margin:1px auto 0;border-radius:5px 5px 3px 3px;background:#fff;border:1px solid rgba(56,189,248,.4);}
+  .nurse-item{position:absolute;top:9px;left:-6px;font-size:.6rem;opacity:0;animation:nurse-item-hold 2s ease-in-out 3.3s 1 both;}
+  @keyframes nurse-sequence{
+    0%{opacity:0;transform:translateY(4px) scale(.85);}
+    18%{opacity:1;transform:translateY(0) scale(1);}
+    70%{opacity:1;transform:translateY(0) scale(1);}
+    100%{opacity:0;transform:translateY(4px) scale(.85);}
+  }
+  @keyframes nurse-item-hold{
+    0%,28%{opacity:0;}
+    38%{opacity:1;}
+    70%{opacity:1;}
+    82%,100%{opacity:0;}
+  }
+  #hospitalRunnerItem{animation:runner-item-handoff 2s ease-in-out 3.3s 1 both, mascot-item-bob 1.8s ease-in-out infinite;}
+  @keyframes runner-item-handoff{
+    0%,32%{opacity:1;}
+    40%{opacity:0;}
+    100%{opacity:0;}
+  }
+  .liaison-overlay[data-state!="loading"] .hospital-nurse,.liaison-overlay[data-state!="loading"] .nurse-item{animation-play-state:paused;}
+  body.roster-anims-off .hospital-nurse,body.roster-anims-off .nurse-item{animation:none!important;opacity:0!important;}
+  body.roster-anims-off #hospitalRunnerItem{animation:none!important;opacity:1!important;}
+
   /* ═══ save-anime : on soigne la base de données ═══ */
   .medic-wrap{position:relative;width:100%;height:148px;margin:0 0 4px;}
   .medic-table{position:absolute;left:14%;right:14%;bottom:18px;height:8px;border-radius:4px;background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.25);}
@@ -963,8 +994,13 @@
         <div class="runner-arm front"></div>
         <div class="runner-leg back"></div>
         <div class="runner-leg front"></div>
-        <div class="runner-item">📋</div>
+        <div class="runner-item" id="hospitalRunnerItem">📋</div>
         <div class="runner-bubble">?</div>
+      </div>
+      <div class="hospital-nurse" id="hospitalNurse">
+        <div class="nurse-head"></div>
+        <div class="nurse-body"></div>
+        <div class="nurse-item">📋</div>
       </div>
     </div>
     <!-- Scène "save-anime" — on soigne la base de données -->
@@ -2948,7 +2984,7 @@ const LIAISON_META = {
   // (l'arrivée du coureur / le dernier bandage posé) — plus de longue
   // attente artificielle une fois l'histoire terminée à l'écran.
   "save-anime":    { subtitle: "On va bien soigner cette base de données…", minMs: 3300 },
-  "sync-anime":    { subtitle: "En route pour Pillbox Hill !", minMs: 3700 },
+  "sync-anime":    { subtitle: "En route pour Pillbox Hill !", minMs: 5500 }, // laisse le temps à la remise du dossier (infirmière) de se jouer en entier
   "save-vault":    { subtitle: "Ouverture du coffre…" },
   "save-recorder": { subtitle: "Lecture de la bande…", counter: "time" },
   "save-scanner":  { subtitle: "Analyse biométrique en cours…", counter: "percent" },
