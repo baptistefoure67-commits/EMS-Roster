@@ -54,6 +54,35 @@ const SCOPES = {
 const PENDING_STALE_MS = 2 * 60 * 1000; // un marqueur "en cours" plus vieux que ça est considéré abandonné
 
 function activiteKeyFor(e){ return e.idUnique ? `id:${e.idUnique}` : `name:${String(e.name||"").trim().toLowerCase()}`; }
+const SPECIALTY_BY_GRADE = {
+  MF:{ fields:["recrutements","formations"] }, RF:{ fields:["recrutements","formations"] },
+  MP:{ fields:["testsPsy","ppa","consultations"] }, RP:{ fields:["testsPsy","ppa","consultations"] },
+};
+function normalizeActivityRecord(record, grade){
+  const cfg = SPECIALTY_BY_GRADE[String(grade||"").toUpperCase()];
+  if(!cfg || !record || typeof record!=="object") return null;
+  const out={};
+  cfg.fields.forEach(f=>{ if(Object.prototype.hasOwnProperty.call(record,f)) out[f]=Math.max(0,Number(record[f])||0); });
+  if(record.excused===true) out.excused=true;
+  if(!Object.keys(out).length) cfg.fields.forEach(f=>{ out[f]=0; });
+  return out;
+}
+function sanitizeActivityState(activite, employees){
+  const srcData={...((activite&&activite.data)||{})};
+  const srcStreak={...((activite&&activite.streak)||{})};
+  const data={}, streak={};
+  (employees||[]).filter(e=>!e.licencie && SPECIALTY_BY_GRADE[String(e.grade||"").toUpperCase()]).forEach(emp=>{
+    const canonical=activiteKeyFor(emp);
+    const nameKey=`name:${String(emp.name||"").trim().toLowerCase()}`;
+    const oldRec=(nameKey!==canonical && srcData[nameKey]) ? srcData[nameKey] : null;
+    const canonRec=srcData[canonical]||null;
+    const merged=oldRec||canonRec ? {...(oldRec||{}),...(canonRec||{})} : null;
+    if(merged) data[canonical]=normalizeActivityRecord(merged,emp.grade);
+    const st=srcStreak[canonical]!==undefined?srcStreak[canonical]:srcStreak[nameKey];
+    if(st!==undefined&&st!==null) streak[canonical]=st;
+  });
+  return {data,streak};
+}
 function streakThresholdFor(e){ return ["RF","RP"].includes(String((e && e.grade)||"").toUpperCase()) ? 3 : 2; }
 function utcDayKey(d){ return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`; }
 
@@ -72,8 +101,12 @@ async function putIfMatch(url, idToken, body, etag){
 
 // Calcule le nouvel état (fonction PURE — testée à part), sans rien écrire.
 function computeClosure({ activite, employees, scopesToClose, isAbsent, now }){
-  const data = { ...((activite && activite.data) || {}) };
-  const streak = { ...((activite && activite.streak) || {}) };
+  // Nettoie d'abord les anciennes SP et les doubles clés name:/id:, sinon
+  // une clôture Pillbox pourrait réinjecter exactement les entrées que le
+  // Roster vient de nettoyer.
+  const sanitized = sanitizeActivityState(activite, employees);
+  const data = { ...sanitized.data };
+  const streak = { ...sanitized.streak };
   const historyByScope = {};
   const signalementsToCreate = [];
   for (const scope of scopesToClose){
@@ -265,4 +298,4 @@ async function closeActiviteWeekServer({ idToken, weekKey, weekEndMs, absentIds,
   }
 }
 
-module.exports = { closeActiviteWeekServer, computeClosure, activiteKeyFor, streakThresholdFor };
+module.exports = { closeActiviteWeekServer, computeClosure, activiteKeyFor, streakThresholdFor, sanitizeActivityState };
