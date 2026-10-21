@@ -1,0 +1,875 @@
+{
+  "rules": {
+    ".read": "auth != null && auth.token.level == 'OWNER'",
+    ".write": "auth != null && auth.token.level == 'OWNER'",
+    "discordIdsList": {
+      ".read": "auth != null",
+      ".write": true,
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['text','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
+      "text": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 50000)"
+      },
+      "savedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "formationOperationList": {
+      ".read": true,
+      ".write": true,
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['text','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
+      "text": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 50000)"
+      },
+      "savedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "rosterEmsData": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'DG' || auth.token.level == 'D' || auth.token.level == 'OWNER')",
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['employees','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
+      "employees": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())",
+        "$empIndex": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || ($empIndex.matches(/^[0-9]+$/) && newData.hasChildren(['id','name','grade']))",
+          "id": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || ((newData.isString() && newData.val().length > 0 && newData.val().length < 60) || newData.isNumber())"
+          },
+          "name": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100 && newData.val().matches(/^[^<>]+$/))"
+          },
+          "discordId": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || (newData.isString() && newData.val().length < 30))"
+          },
+          "grade": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/))"
+          },
+          "role": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 100)"
+          },
+          "licencie": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
+          "licencieDate": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
+          },
+          "idUnique": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
+          },
+          "$other": {
+            ".validate": "auth != null && auth.token.level == 'OWNER'"
+          },
+          "aliases": {
+            "$index": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/) && newData.isString() && newData.val().length > 0 && newData.val().length < 100)"
+            }
+          }
+        }
+      },
+      "savedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "rosterAbsences": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'DG' || auth.token.level == 'D' || auth.token.level == 'OWNER')",
+      "$absenceId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || newData.hasChildren(['employeeKey','name','startIso','endIso','priseEnCompte','createdAt']))",
+        "employeeKey": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 120)"
+        },
+        "name": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100 && newData.val().matches(/^[^<>]+$/))"
+        },
+        "grade": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/))"
+        },
+        "startIso": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/))"
+        },
+        "endIso": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/))"
+        },
+        "durationDays": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 3 && newData.val() <= 365)"
+        },
+        "priseEnCompte": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "rosterForcedLogouts": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      "$discordId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || ((newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000) || (newData.hasChild('at') && newData.child('at').isNumber() && newData.child('at').val() > 1735689600000 && newData.child('at').val() <= now + 86400000))",
+        "at": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "reason": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 60)"
+        }
+      }
+    },
+    "pillboxForcedLogouts": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      "$discordId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || ((newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000) || (newData.hasChild('at') && newData.child('at').isNumber() && newData.child('at').val() > 1735689600000 && newData.child('at').val() <= now + 86400000))",
+        "at": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "reason": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 60)"
+        }
+      }
+    },
+    "rosterActiviteClosures": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$weekKey": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || ($weekKey.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['status'])))",
+        "status": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.val() == 'pending' || newData.val() == 'done')"
+        },
+        "claimedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        },
+        "closedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        },
+        "byName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 150)"
+        },
+        "closedScopes": {
+          ".validate": true
+        },
+        "skippedScopes": {
+          ".validate": true
+        },
+        "note": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 100)"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "rosterActiviteLastClosure": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$scope": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (($scope == 'formateur' || $scope == 'psychologue') && newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      }
+    },
+    "trollJokes": {
+      ".read": "auth != null && auth.token.trollService == true",
+      ".write": "auth != null && auth.token.trollService == true"
+    },
+    "trollMedia": {
+      ".read": "auth != null && auth.token.trollService == true",
+      ".write": "auth != null && auth.token.trollService == true"
+    },
+    "payRulesConfig": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['reaRate','fixedSalaryByGrade','bonusByRank','ppaEligibleGrades','ppaWeeklyCap','quotaStandard','quotaStaff','exemptGrades','nearMissGrades','nearMissThreshold','stgProposalThreshold','stgAutoThreshold','aProposalThreshold','qaCumulThreshold','infProposalEnabled','infProposalThreshold','extraQProposalGrades','extraQProposalThreshold','updatedAt','updatedBy']))",
+      "reaRate": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+      },
+      "ppaWeeklyCap": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+      },
+      "quotaStandard": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000)"
+      },
+      "quotaStaff": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000)"
+      },
+      "nearMissThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000)"
+      },
+      "stgProposalThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "stgAutoThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "aProposalThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "infProposalEnabled": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+      },
+      "infProposalThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "extraQProposalThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "qaCumulThreshold": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 3)"
+      },
+      "updatedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "updatedBy": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100)"
+      },
+      "fixedSalaryByGrade": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['STG','A','INF','M','MF','MP','MLP','RF','RP','RL','MC','ADD','CD','D','DG']))",
+        "STG": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "A": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "INF": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "M": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "MF": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "MP": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "MLP": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "RF": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "RP": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "RL": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "MC": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "ADD": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "CD": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "D": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "DG": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      },
+      "bonusByRank": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['1','2','3']))",
+        "1": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "2": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "3": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      },
+      "ppaEligibleGrades": {
+        "$index": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/) && newData.isString() && newData.val().matches(/^(STG|A|INF|M|MF|MP|MLP|RF|RP|RL|MC|ADD|CD|D|DG)$/))"
+        }
+      },
+      "exemptGrades": {
+        "$index": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/) && newData.isString() && newData.val().matches(/^(STG|A|INF|M|MF|MP|MLP|RF|RP|RL|MC|ADD|CD|D|DG)$/))"
+        }
+      },
+      "nearMissGrades": {
+        "$index": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/) && newData.isString() && newData.val().matches(/^(STG|A|INF|M|MF|MP|MLP|RF|RP|RL|MC|ADD|CD|D|DG)$/))"
+        }
+      },
+      "extraQProposalGrades": {
+        "$index": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/) && newData.isString() && newData.val().matches(/^(M|MF|MP|MLP|RF|RP|RL)$/))"
+        }
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "payRulesConfigHistory": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      "$historyId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['field','authorDiscordId','authorName','authorLevel','createdAt']))",
+        "field": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 60)"
+        },
+        "oldValue": {
+          ".validate": true
+        },
+        "newValue": {
+          ".validate": true
+        },
+        "authorDiscordId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "authorName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "authorLevel": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "pillboxWeekHistory": {
+      ".read": true,
+      ".write": true,
+      "$weekKey": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || ($weekKey.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['processedAt'])))",
+        "processedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000)"
+        },
+        "summary": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.exists())"
+        },
+        "sessionSnapshot": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.exists())"
+        }
+      }
+    },
+    "rosterEmsSpecialSelection": {
+      ".read": true,
+      ".write": true,
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('savedAt') && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
+      "selectedEmployees": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.exists())"
+      },
+      "savedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "signalements": {
+      ".read": true,
+      ".write": true,
+      "$signalementId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','createdAt']))",
+        "personName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100)"
+        },
+        "personId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
+        },
+        "personGrade": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(MF|MP|MLP|RF|RP|RL|MC|ADD)$/))"
+        },
+        "category": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(inactivite|quantite_travail|qualite_travail|comportement|disponibilite|autre)(,(inactivite|quantite_travail|qualite_travail|comportement|disponibilite|autre))*$/))"
+        },
+        "reason": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length >= 10 && newData.val().length < 2000)"
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "deferredUntil": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000)"
+        },
+        "gradeAtDecision": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(MF|MP|MLP|RF|RP|RL|MC|ADD)$/))"
+        },
+        "activiteSnapshot": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())",
+          "recrutements": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "formations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "testsPsy": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "ppa": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "consultations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "$other": {
+            ".validate": "auth != null && auth.token.level == 'OWNER'"
+          }
+        },
+        "auto": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "signalements_test": {
+      ".read": true,
+      ".write": true,
+      "$signalementId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','createdAt']))",
+        "personName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100)"
+        },
+        "personId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
+        },
+        "personGrade": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(MF|MP|MLP|RF|RP|RL|MC|ADD)$/))"
+        },
+        "category": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(inactivite|quantite_travail|qualite_travail|comportement|disponibilite|autre)(,(inactivite|quantite_travail|qualite_travail|comportement|disponibilite|autre))*$/))"
+        },
+        "reason": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length >= 10 && newData.val().length < 2000)"
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "deferredUntil": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000)"
+        },
+        "gradeAtDecision": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().matches(/^(MF|MP|MLP|RF|RP|RL|MC|ADD)$/))"
+        },
+        "activiteSnapshot": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())",
+          "recrutements": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "formations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "testsPsy": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "ppa": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "consultations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "$other": {
+            ".validate": "auth != null && auth.token.level == 'OWNER'"
+          }
+        },
+        "auto": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "activiteSuivi": {
+      ".read": true,
+      ".write": "auth != null",
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('savedAt') && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
+      "data": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())"
+      },
+      "savedAt": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "streak": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())"
+      },
+      "weekFinishedAt": {
+        ".write": true,
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+      },
+      "$other": {
+        ".validate": "auth != null && auth.token.level == 'OWNER'"
+      }
+    },
+    "signalementPropositions": {
+      ".read": true,
+      ".write": "auth != null",
+      "$propositionId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','authorDiscordId','authorLevel','status','createdAt']))",
+        "personName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length < 100)"
+        },
+        "personId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "personGrade": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "category": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "reason": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length >= 10 && newData.val().length < 2000)"
+        },
+        "authorDiscordId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "authorName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "authorLevel": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "status": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.val() == 'pending' || newData.val() == 'accepted' || newData.val() == 'refused' || newData.val() == 'needs_info')"
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        },
+        "validatedByDiscordId": {
+          ".validate": true
+        },
+        "validatedByName": {
+          ".validate": true
+        },
+        "validatedAt": {
+          ".validate": true
+        },
+        "refusedByDiscordId": {
+          ".validate": true
+        },
+        "refusedByName": {
+          ".validate": true
+        },
+        "refusedAt": {
+          ".validate": true
+        },
+        "refusalMessage": {
+          ".validate": true
+        },
+        "infoRequestedByDiscordId": {
+          ".validate": true
+        },
+        "infoRequestedByName": {
+          ".validate": true
+        },
+        "infoRequestedAt": {
+          ".validate": true
+        },
+        "infoMessage": {
+          ".validate": true
+        },
+        "activiteSnapshot": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())",
+          "recrutements": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "formations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "testsPsy": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "ppa": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "consultations": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0)"
+          },
+          "$other": {
+            ".validate": "auth != null && auth.token.level == 'OWNER'"
+          }
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "rosterLogs": {
+      ".read": "auth != null",
+      "$logId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || newData.hasChildren(['action','createdAt']))",
+        "action": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "authorDiscordId": {
+          ".validate": true
+        },
+        "authorName": {
+          ".validate": true
+        },
+        "authorLevel": {
+          ".validate": true
+        },
+        "targetDiscordId": {
+          ".validate": true
+        },
+        "targetName": {
+          ".validate": true
+        },
+        "oldValue": {
+          ".validate": true
+        },
+        "newValue": {
+          ".validate": true
+        },
+        "details": {
+          ".validate": true
+        },
+        "createdAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        },
+        ".write": "auth != null && (!data.exists() || auth.token.level == 'OWNER')"
+      }
+    },
+    "rosterPermissionsOverride": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)"
+    },
+    "rosterGradeLabels": {
+      ".read": true,
+      ".write": "auth != null",
+      "$grade": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length <= 60)"
+      }
+    },
+    "rosterIndividualPermissions": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)"
+    },
+    "rosterPermissionRequests": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)",
+      "$requestId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['targetDiscordId','permissionName','requestedValue','status','requestedByDiscordId','requestedAt']))",
+        "targetDiscordId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "targetName": {
+          ".validate": true
+        },
+        "permissionName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "requestedValue": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+        },
+        "status": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.val() == 'pending' || newData.val() == 'accepted' || newData.val() == 'refused' || newData.val() == 'cancelled')"
+        },
+        "requestedByDiscordId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "requestedByName": {
+          ".validate": true
+        },
+        "requestedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        },
+        "reviewedByDiscordId": {
+          ".validate": true
+        },
+        "reviewedByName": {
+          ".validate": true
+        },
+        "reviewedByLevel": {
+          ".validate": true
+        },
+        "reviewedAt": {
+          ".validate": true
+        },
+        "reviewMessage": {
+          ".validate": true
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "pillboxWeekHistoryArchive": {
+      ".read": true,
+      ".write": true
+    },
+    "rosterActiviteWeekHistory": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "rosterActiviteWeekHistoryArchive": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "rosterPresence": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$discordId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['name','level','lastSeen']))",
+        "name": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "level": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "lastSeen": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        }
+      }
+    },
+    "pillboxPresence": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$discordId": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['name','level','lastSeen']))",
+        "name": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "level": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "lastSeen": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+        }
+      }
+    },
+    "rosterAbsenceAlertDecisions": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$alertKey": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['decision','decidedAt']))",
+        "decision": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.val() == 'oui' || newData.val() == 'non')"
+        },
+        "decidedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "decidedByDiscordId": {
+          ".validate": true
+        },
+        "decidedByName": {
+          ".validate": true
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "pillboxLiveUpDecisions": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$weekKey": {
+        "$employeeKey": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('updatedAt'))",
+          "value": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean() || newData.val() == null)"
+          },
+          "updatedAt": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+          },
+          "updatedByDiscordId": {
+            ".validate": true
+          },
+          "updatedByName": {
+            ".validate": true
+          },
+          "$other": {
+            ".validate": "auth != null && auth.token.level == 'OWNER'"
+          }
+        }
+      }
+    },
+    "pillboxLiveUpSessions": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$weekKey": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['operatorDiscordId','operatorName','updatedAt']))",
+        "operatorDiscordId": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "operatorName": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+        },
+        "updatedAt": {
+          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
+        },
+        "entries": {
+          "$index": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || ($index.matches(/^[0-9]+$/))",
+            "category": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 80)"
+            },
+            "employeeKey": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 120)"
+            },
+            "sentence": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 400)"
+            },
+            "details": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 600)"
+            },
+            "decided": {
+              ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean() || newData.val() == null)"
+            },
+            "$other": {
+              ".validate": "auth != null && auth.token.level == 'OWNER'"
+            }
+          }
+        },
+        "$other": {
+          ".validate": "auth != null && auth.token.level == 'OWNER'"
+        }
+      }
+    },
+    "rosterAnimPrefs": {
+      ".read": "auth != null",
+      "$discordId": {
+        ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D' || (auth.uid == $discordId && (!data.exists() || data.child('lockedByOwner').val() != true)))",
+        ".validate": "newData.hasChildren(['enabled','updatedAt']) && (!newData.child('lockedByOwner').exists() || newData.child('lockedByOwner').isBoolean()) && ((auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D')) || (data.child('lockedByOwner').val() == newData.child('lockedByOwner').val()) || (!data.child('lockedByOwner').exists() && (!newData.child('lockedByOwner').exists() || newData.child('lockedByOwner').val() == false)) || (data.child('lockedByOwner').val() == false && !newData.child('lockedByOwner').exists()))",
+        "enabled": {
+          ".validate": "newData.isBoolean()"
+        },
+        "lockedByOwner": {
+          ".validate": "newData.isBoolean()"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000"
+        },
+        "updatedByDiscordId": {
+          ".validate": true
+        },
+        "updatedByName": {
+          ".validate": true
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}
