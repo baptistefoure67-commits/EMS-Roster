@@ -79,6 +79,35 @@
         ".validate": "auth != null && auth.token.level == 'OWNER'"
       }
     },
+    "rosterPillboxSyncMeta": {
+      ".read": "auth != null",
+      ".write": "auth != null && (auth.token.level == 'MC' || auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".validate": "newData.hasChildren(['lastSyncAt','employeeCount','dropPercent'])",
+      "lastSyncAt": {
+        ".validate": "newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000"
+      },
+      "employeeCount": {
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000"
+      },
+      "previousEmployeeCount": {
+        ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000)"
+      },
+      "previousSyncAt": {
+        ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 1735689600000)"
+      },
+      "dropPercent": {
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+      },
+      "syncedByDiscordId": {
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length < 40)"
+      },
+      "syncedByName": {
+        ".validate": "!newData.exists() || (newData.isString() && newData.val().length < 120)"
+      },
+      "$other": {
+        ".validate": false
+      }
+    },
     "rosterAbsences": {
       ".read": "auth != null",
       ".write": "auth != null && (auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'DG' || auth.token.level == 'D' || auth.token.level == 'OWNER')",
