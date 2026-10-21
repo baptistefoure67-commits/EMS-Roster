@@ -1,0 +1,52 @@
+ROSTER EMS / PILLBOX — RAPPORT TESTS SAUVEGARDE + SYNCHRONISATION
+Version : 1
+Date : 21/10/2026
+
+FONCTIONNALITES AJOUTEES
+- Fenêtre de confirmation avant sauvegarde quand des changements existent.
+- Détail : ajouts, licenciements, changements de grade, suppressions, réactivations, noms/IDs modifiés.
+- Comparaison Formation Opération et suivi d'activité.
+- Alerte rouge si baisse > 50 %, liste quasi vide, ou comparaison cloud impossible.
+- Confirmation renforcée pour changement à risque.
+- Suppression de l'ancienne sauvegarde automatique silencieuse des employés : les changements attendent le bouton Sauvegarder.
+- Protection contre modification concurrente : savedAt est revérifié juste avant le PUT.
+- Pillbox : date/heure de dernière synchronisation Roster réellement reçue, nombre d'employés et comparaison précédente.
+- Alerte Pillbox si baisse > 50 %.
+- Nouveau chemin Firebase : rosterPillboxSyncMeta.
+
+TESTS PERMISSIONS
+28/28 réussis.
+
+TESTS SECURITE SAUVEGARDE / SYNCHRONISATION
+18/18 réussis :
+- Aucun changement.
+- Ajout employé.
+- Licenciement.
+- Changement de grade.
+- Suppression de fiche.
+- Incident 60 employés -> 0 : alerte forte.
+- Baisse > 50 % : alerte.
+- Baisse = 50 % : seuil > 50 % non déclenché.
+- Présence modale confirmation.
+- Revue exécutée avant sauvegarde.
+- Acquittement renforcé sur risque.
+- saveState ne fait plus de fetch automatique.
+- anciens appels pushStateToCloudNow bloqués.
+- aucun pagehide ne sauvegarde silencieusement.
+- contrôle savedAt avant PUT.
+- écriture des métadonnées de synchronisation.
+- règles Firebase pour rosterPillboxSyncMeta.
+- proxy Roster -> Pillbox transmet rosterSyncMeta.
+
+CONTROLES STATIQUES
+- JavaScript inline Roster : syntaxe OK.
+- JavaScript inline Pillbox : syntaxe OK.
+- Toutes les fonctions Netlify du Roster : syntaxe OK.
+- Firebase rules : JSON valide.
+- IDs HTML statiques Roster : aucun doublon.
+- IDs HTML statiques Pillbox : aucun doublon.
+
+LIMITES DU TEST
+- Pas de déploiement Netlify effectué.
+- Pas d'écriture sur la vraie base Firebase de production.
+- Les tests réseau sont simulés/statiques dans l'environnement local.
