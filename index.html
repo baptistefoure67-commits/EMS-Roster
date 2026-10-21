@@ -899,51 +899,158 @@
 @keyframes syncDoorCycle{0%,27%,100%{transform:translateX(-50%) perspective(100px) rotateY(0)}35%,80%{transform:translateX(-50%) perspective(100px) rotateY(-42deg)}}
 
 /* SAUVEGARDER : poste vivant — prise de tablette + collègue qui vient contrôler. */
-.save-roster-scene{height:226px;padding:0;box-sizing:border-box;background:radial-gradient(circle at 79% 24%,rgba(56,189,248,.13),transparent 28%),radial-gradient(circle at 18% 18%,rgba(14,165,233,.08),transparent 26%),linear-gradient(180deg,#0b1828,#08111d)}
-.save-room-label{position:absolute;left:17px;top:12px;z-index:5;font-size:7px;letter-spacing:.12em;font-weight:900;color:#8bdcff;opacity:.85}
-.save-office-wall{position:absolute;left:0;top:0;width:100%;height:60%;background:linear-gradient(180deg,rgba(22,39,60,.74),rgba(9,18,30,.25));border-bottom:1px solid rgba(255,255,255,.06)}
-.save-office-floor{position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(180deg,#0c1624,#09111d)}
-.save-roster-screen{position:absolute;left:15px;right:188px;top:32px;bottom:56px;overflow:hidden;border:6px solid #2d4055;border-radius:12px;background:#050b12;box-shadow:0 14px 30px rgba(0,0,0,.38),0 0 0 1px rgba(255,255,255,.035)}
-.save-roster-screen:after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 0 42%,rgba(255,255,255,.035) 48%,transparent 55%);transform:translateX(-120%);animation:saveScreenSweep 2.2s ease-in-out infinite;pointer-events:none}
+.save-roster-scene{height:232px;padding:0;box-sizing:border-box;background:radial-gradient(circle at 78% 20%,rgba(56,189,248,.14),transparent 27%),radial-gradient(circle at 18% 12%,rgba(14,165,233,.08),transparent 26%),linear-gradient(180deg,#0c192a 0 59%,#08111d 59%);isolation:isolate}
+.save-roster-scene:before{content:'';position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(180deg,#000 0 60%,transparent 100%);pointer-events:none;opacity:.45}
+.save-room-label{position:absolute;left:17px;top:12px;z-index:8;font-size:7px;letter-spacing:.13em;font-weight:950;color:#91e2ff;opacity:.92;text-shadow:0 0 14px rgba(56,189,248,.25)}
+.save-room-label:before{content:'';display:inline-block;width:5px;height:5px;margin-right:6px;border-radius:50%;background:#38bdf8;box-shadow:0 0 9px rgba(56,189,248,.75);vertical-align:1px;animation:saveRoomLed 1.8s ease-in-out infinite}
+.save-office-wall{position:absolute;z-index:0;left:0;top:0;width:100%;height:60%;background:linear-gradient(180deg,rgba(23,42,64,.78),rgba(9,18,30,.22));border-bottom:1px solid rgba(255,255,255,.06)}
+.save-office-wall:after{content:'EMS · ADMINISTRATION';position:absolute;right:16px;top:40px;padding:4px 7px;border:1px solid rgba(125,211,252,.11);border-radius:6px;background:rgba(4,14,24,.22);font-size:6px;font-weight:850;letter-spacing:.1em;color:rgba(188,229,255,.5)}
+.save-office-floor{position:absolute;z-index:0;left:0;right:0;bottom:0;height:42%;background:linear-gradient(180deg,#0c1624,#09111d)}
+.save-office-floor:after{content:'';position:absolute;left:-10%;right:-10%;top:16%;height:1px;background:linear-gradient(90deg,transparent,rgba(125,211,252,.08),transparent);box-shadow:0 18px rgba(125,211,252,.04),0 36px rgba(125,211,252,.025)}
+.save-roster-screen{position:absolute;z-index:4;left:15px;right:188px;top:33px;bottom:58px;overflow:hidden;border:6px solid #2d4055;border-radius:12px;background:#050b12;box-shadow:0 16px 32px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.035),0 0 24px rgba(56,189,248,.055)}
+.save-roster-screen:before{content:'';position:absolute;z-index:30;inset:0;background:repeating-linear-gradient(180deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px);pointer-events:none;mix-blend-mode:screen;opacity:.38}
+.save-roster-screen:after{content:'';position:absolute;z-index:31;inset:0;background:linear-gradient(105deg,transparent 0 42%,rgba(255,255,255,.055) 48%,transparent 55%);transform:translateX(-120%);animation:saveScreenSweep 2.2s ease-in-out infinite;pointer-events:none}
 .save-roster-screen .save-live-clone{position:absolute;left:0;top:0;width:250%;height:250%;transform:scale(.4);transform-origin:0 0;overflow:hidden;pointer-events:none;background:var(--bg,#07111e)}
-.save-desk{position:absolute;left:54%;right:16px;bottom:52px;height:13px;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,#5e738a,#33475d);box-shadow:0 9px 0 #162233,0 14px 22px rgba(0,0,0,.28)}
-.save-desk:after{content:'';position:absolute;left:18px;right:18px;top:13px;height:38px;border-left:6px solid #1b2a3b;border-right:6px solid #1b2a3b}
-.save-tablet{position:absolute;z-index:14;left:62%;bottom:66px;width:42px;height:58px;border-radius:10px;background:linear-gradient(180deg,#12283d,#0a1727);border:2px solid #5b7592;box-shadow:0 10px 18px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.03) inset;animation:saveTabletLift 5.2s cubic-bezier(.4,0,.2,1) both;transform-origin:center center}
-.save-tablet:before{content:'';position:absolute;left:5px;right:5px;top:7px;bottom:10px;border-radius:7px;background:linear-gradient(180deg,rgba(56,189,248,.28),rgba(10,25,39,.66));box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-.save-tablet:after{content:'ROSTER';position:absolute;left:0;right:0;bottom:2px;font-size:6px;font-weight:950;letter-spacing:.08em;text-align:center;color:#cbeeff}
-.save-tablet-ui{position:absolute;z-index:15;left:calc(62% + 8px);bottom:100px;width:26px;height:31px;pointer-events:none;animation:saveTabletLift 5.2s cubic-bezier(.4,0,.2,1) both}
-.save-tablet-ui span{display:block;height:4px;margin:3px 0;border-radius:99px;background:rgba(201,234,255,.85)}
+.save-monitor-led{position:absolute;z-index:33;right:7px;bottom:4px;width:4px;height:4px;border-radius:50%;background:#38bdf8;box-shadow:0 0 7px rgba(56,189,248,.7);animation:saveMonitorLed 1.5s ease-in-out infinite}
+.save-desk-light{position:absolute;z-index:2;right:24px;bottom:42px;width:202px;height:88px;border-radius:50%;background:radial-gradient(ellipse,rgba(88,191,255,.075),transparent 68%);filter:blur(3px);pointer-events:none}
+.save-desk{position:absolute;z-index:5;left:53%;right:14px;bottom:53px;height:13px;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,#637991,#354a60);box-shadow:0 9px 0 #162233,0 14px 24px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.1)}
+.save-desk:after{content:'';position:absolute;left:18px;right:18px;top:13px;height:39px;border-left:6px solid #1b2a3b;border-right:6px solid #1b2a3b;filter:drop-shadow(0 7px 7px rgba(0,0,0,.25))}
+.save-keyboard{position:absolute;z-index:7;left:54%;bottom:67px;width:72px;height:21px;transform:skewX(-9deg) rotate(-2deg);border:1px solid #4c647d;border-radius:4px;background:linear-gradient(180deg,#22364a,#142638);box-shadow:0 5px 9px rgba(0,0,0,.28)}
+.save-keyboard:before{content:'';position:absolute;inset:4px;background:repeating-linear-gradient(90deg,rgba(174,221,246,.28) 0 4px,transparent 4px 7px),repeating-linear-gradient(180deg,rgba(174,221,246,.2) 0 2px,transparent 2px 5px);opacity:.6}
+.save-badge-card{position:absolute;z-index:7;right:20px;bottom:68px;width:28px;height:18px;border-radius:3px;background:linear-gradient(135deg,#e4edf4,#b8cad8);transform:rotate(7deg);box-shadow:0 4px 8px rgba(0,0,0,.24)}
+.save-badge-card:before{content:'EMS';position:absolute;left:3px;top:3px;font-size:6px;font-weight:950;color:#b51731}
+.save-badge-card:after{content:'';position:absolute;right:3px;top:4px;width:7px;height:7px;border-radius:50%;background:#6b8295}
+.save-tablet-dock{position:absolute;z-index:8;left:63%;bottom:64px;width:39px;height:9px;border-radius:50%;background:radial-gradient(ellipse,#263c50 0 48%,#0d1723 52% 100%);box-shadow:0 4px 10px rgba(0,0,0,.28),0 0 10px rgba(56,189,248,.04)}
+.save-tablet{position:absolute;z-index:14;left:63%;bottom:68px;width:34px;height:48px;border-radius:9px;background:linear-gradient(180deg,#142b42,#0a1727);border:2px solid #607c99;box-shadow:0 10px 18px rgba(0,0,0,.34),0 0 0 1px rgba(255,255,255,.035) inset;animation:saveTabletLift 5.2s cubic-bezier(.4,0,.2,1) both;transform-origin:center center}
+.save-tablet:before{content:'';position:absolute;left:4px;right:4px;top:6px;bottom:9px;border-radius:6px;background:radial-gradient(circle at 70% 20%,rgba(94,208,255,.24),transparent 38%),linear-gradient(180deg,rgba(56,189,248,.24),rgba(10,25,39,.72));box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 0 10px rgba(56,189,248,.06)}
+.save-tablet:after{content:'ROSTER';position:absolute;left:0;right:0;bottom:2px;font-size:5px;font-weight:950;letter-spacing:.08em;text-align:center;color:#cbeeff}
+.save-tablet-ui{position:absolute;z-index:15;left:calc(63% + 7px);bottom:96px;width:20px;height:25px;pointer-events:none;animation:saveTabletLift 5.2s cubic-bezier(.4,0,.2,1) both}
+.save-tablet-ui span{display:block;height:3px;margin:3px 0;border-radius:99px;background:rgba(201,234,255,.88);box-shadow:0 0 5px rgba(56,189,248,.12)}
 .save-tablet-ui span:nth-child(2){width:86%;opacity:.82}.save-tablet-ui span:nth-child(3){width:72%;opacity:.65}
-.save-roster-person,.save-roster-colleague{position:absolute;z-index:9;width:82px;height:96px;bottom:40px;transform-origin:50% 100%}
-.save-roster-person{right:16px}
-.save-roster-colleague{right:-18px;opacity:0;animation:saveColleagueArrive 5.2s cubic-bezier(.4,0,.2,1) both}
-.save-roster-person:before,.save-roster-colleague:before{content:'';position:absolute;left:50%;top:4px;width:72px;height:72px;margin-left:-36px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.12),transparent 70%)}
-.save-roster-person img,.save-roster-colleague img{position:absolute;left:50%;top:0;width:82px;height:82px;margin-left:-41px;object-fit:contain;object-position:center;filter:drop-shadow(0 7px 7px rgba(0,0,0,.5))}
+.save-tablet-glow{position:absolute;z-index:6;left:67%;bottom:74px;width:60px;height:60px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.16),transparent 68%);filter:blur(5px);opacity:0;animation:saveTabletGlow 5.2s ease both;pointer-events:none}
+.save-roster-person,.save-roster-colleague{position:absolute;z-index:10;width:82px;height:96px;bottom:40px;transform-origin:50% 100%}
+.save-roster-person{right:18px}
+.save-roster-colleague{right:102px;opacity:0;animation:saveColleagueArrive 5.2s cubic-bezier(.4,0,.2,1) both}
+.save-roster-person:before,.save-roster-colleague:before{content:'';position:absolute;left:50%;top:4px;width:72px;height:72px;margin-left:-36px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.12),transparent 70%);filter:blur(1px)}
+.save-roster-person img,.save-roster-colleague img{position:absolute;left:50%;top:0;width:82px;height:82px;margin-left:-41px;object-fit:contain;object-position:center;filter:drop-shadow(0 8px 8px rgba(0,0,0,.52))}
 .save-roster-person img{animation:saveRosterLead 5.2s cubic-bezier(.4,0,.2,1) both}
 .save-roster-colleague img{animation:saveRosterObserve 1.8s ease-in-out 2.6s infinite}
-.save-person-label{position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);max-width:106px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:99px;background:rgba(3,8,18,.78);border:1px solid rgba(255,255,255,.09);font-size:7px;font-weight:800;color:#fff}
-.save-work-cursor{position:absolute;left:46%;top:52%;z-index:12;width:12px;height:12px;border:2px solid rgba(125,211,252,.9);border-radius:50%;box-shadow:0 0 0 0 rgba(56,189,248,.35);animation:saveCursorTap 1.55s ease-in-out infinite}
-.save-ui-tags{position:absolute;left:20px;right:195px;bottom:18px;display:flex;flex-wrap:wrap;gap:6px;z-index:6}
-.save-ui-tags span{padding:4px 8px;border-radius:99px;background:rgba(11,30,49,.82);border:1px solid rgba(125,211,252,.14);font-size:7px;font-weight:850;color:#b7e8ff;box-shadow:0 8px 14px rgba(0,0,0,.16);animation:saveTagPulse 2.2s ease-in-out infinite}
-.save-ui-tags span:nth-child(2){animation-delay:.25s}.save-ui-tags span:nth-child(3){animation-delay:.5s}.save-ui-tags span:nth-child(4){animation-delay:.75s}
-.save-status-chip{position:absolute;left:18px;bottom:11px;padding:5px 9px;border-radius:99px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.28);font-size:8px;font-weight:900;color:#a9e7ff;z-index:8}
+.save-person-label{position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);max-width:106px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:99px;background:rgba(3,8,18,.82);border:1px solid rgba(255,255,255,.1);font-size:7px;font-weight:800;color:#fff;box-shadow:0 4px 9px rgba(0,0,0,.22);backdrop-filter:blur(4px)}
+.save-work-cursor{position:absolute;left:46%;top:52%;z-index:32;width:12px;height:12px;border:2px solid rgba(125,211,252,.9);border-radius:50%;box-shadow:0 0 0 0 rgba(56,189,248,.35);animation:saveCursorTap 1.55s ease-in-out infinite}
+.save-step-strip{position:absolute;z-index:8;left:18px;right:188px;bottom:16px;display:flex;gap:6px;align-items:center}
+.save-step-pill{position:relative;min-width:0;flex:1;padding:5px 8px 5px 18px;border-radius:99px;background:rgba(11,30,49,.84);border:1px solid rgba(125,211,252,.14);font-size:6.6px;font-weight:850;color:#a9bfd0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 8px 14px rgba(0,0,0,.14);transition:border-color .25s ease,background .25s ease,color .25s ease,transform .25s ease}
+.save-step-pill:before{content:'';position:absolute;left:7px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#64748b;box-shadow:0 0 0 0 rgba(56,189,248,0);transition:background .2s ease,box-shadow .2s ease}
+.save-step-pill[data-status="active"]{color:#d8f4ff;border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.12);transform:translateY(-1px)}
+.save-step-pill[data-status="active"]:before{background:#38bdf8;box-shadow:0 0 8px rgba(56,189,248,.8);animation:saveStepActive 1s ease-in-out infinite}
+.save-step-pill[data-status="done"]{color:#bff7dd;border-color:rgba(52,211,153,.42);background:rgba(52,211,153,.09)}
+.save-step-pill[data-status="done"]:before{background:#34d399;box-shadow:0 0 7px rgba(52,211,153,.48)}
+.save-step-pill[data-status="failed"]{color:#fecaca;border-color:rgba(248,113,113,.42);background:rgba(248,113,113,.08)}
+.save-step-pill[data-status="failed"]:before{background:#f87171;box-shadow:0 0 7px rgba(248,113,113,.45)}
+.save-status-chip{position:absolute;right:11px;top:11px;z-index:18;padding:5px 9px;border-radius:99px;background:rgba(56,189,248,.11);border:1px solid rgba(56,189,248,.27);font-size:7px;font-weight:900;color:#a9e7ff;box-shadow:0 8px 18px rgba(0,0,0,.2);backdrop-filter:blur(6px);transition:color .2s ease,border-color .2s ease,background .2s ease}
+.save-success-mark{position:absolute;z-index:25;left:38%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;display:grid;place-items:center;opacity:0;transform:scale(.5);font-size:22px;font-weight:950;color:#eafff5;background:rgba(5,46,36,.84);border:1px solid rgba(52,211,153,.55);box-shadow:0 0 0 0 rgba(52,211,153,.24),0 12px 30px rgba(0,0,0,.25);pointer-events:none}
+.liaison-overlay[data-state="success"] .save-success-mark{animation:saveSuccessPop .65s cubic-bezier(.2,1.45,.3,1) both}
+.liaison-overlay[data-state="success"] .save-success-mark:before{content:'✓'}
+.liaison-overlay[data-state="partial"] .save-success-mark{opacity:1;transform:scale(1);color:#fff7d1;background:rgba(72,47,5,.84);border-color:rgba(251,191,36,.5)}
+.liaison-overlay[data-state="partial"] .save-success-mark:before{content:'!'}
+.liaison-overlay[data-state="error"] .save-roster-scene{box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(248,113,113,.12)}
+.liaison-overlay[data-state="error"] .save-tablet{border-color:#9d4550;box-shadow:0 10px 18px rgba(0,0,0,.34),0 0 18px rgba(248,113,113,.08)}
 .liaison-overlay[data-state="success"] .save-status-chip{color:var(--green);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
-.liaison-overlay[data-state="partial"] .save-status-chip{color:var(--amber);border-color:rgba(251,191,36,.38)}
-.liaison-overlay[data-state="error"] .save-status-chip{color:var(--red);border-color:rgba(248,113,113,.38)}
-@keyframes saveRosterLead{0%,16%{transform:translate(0,0) rotate(0)}24%{transform:translate(-10px,-2px) rotate(-1.1deg)}34%,58%{transform:translate(-16px,-2px) rotate(-2deg)}68%{transform:translate(-9px,0) rotate(.3deg)}84%,100%{transform:translate(0,0) rotate(0)}}
-@keyframes saveTabletLift{0%,16%{transform:translate(0,0) rotate(-10deg) scale(1)}24%{transform:translate(-6px,-12px) rotate(-4deg) scale(1.02)}34%,58%{transform:translate(24px,-30px) rotate(3deg) scale(1.03)}72%{transform:translate(20px,-22px) rotate(1deg) scale(1.02)}100%{transform:translate(10px,-14px) rotate(0deg) scale(1)}}
-@keyframes saveColleagueArrive{0%,30%{opacity:0;transform:translateX(42px) scale(.96)}44%{opacity:1;transform:translateX(0) scale(1)}52%,74%{opacity:1;transform:translateX(-30px) translateY(-2px) scale(1.01)}88%,100%{opacity:1;transform:translateX(-18px) scale(1)}}
-@keyframes saveRosterObserve{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-2px) rotate(.9deg)}}
-@keyframes saveTagPulse{0%,100%{transform:translateY(0);border-color:rgba(125,211,252,.14)}50%{transform:translateY(-1px);border-color:rgba(125,211,252,.34)}}
+.liaison-overlay[data-state="partial"] .save-status-chip{color:var(--amber);border-color:rgba(251,191,36,.38);background:rgba(251,191,36,.08)}
+.liaison-overlay[data-state="error"] .save-status-chip{color:var(--red);border-color:rgba(248,113,113,.38);background:rgba(248,113,113,.08)}
+@keyframes saveRosterLead{0%,15%{transform:translate(0,0) rotate(0)}23%{transform:translate(-8px,-2px) rotate(-.8deg)}34%,58%{transform:translate(-16px,-3px) rotate(-1.8deg)}67%{transform:translate(-10px,-1px) rotate(.25deg)}84%,100%{transform:translate(0,0) rotate(0)}}
+@keyframes saveTabletLift{0%,15%{transform:translate(0,0) rotate(-9deg) scale(1)}23%{transform:translate(10px,-2px) rotate(-4deg) scale(1.01)}34%,58%{transform:translate(34px,13px) rotate(3deg) scale(.99)}70%{transform:translate(32px,11px) rotate(1deg) scale(.995)}100%{transform:translate(28px,10px) rotate(0) scale(.995)}}
+@keyframes saveTabletGlow{0%,20%{opacity:0;transform:scale(.65)}34%,67%{opacity:1;transform:scale(1)}85%,100%{opacity:.34;transform:scale(1.12)}}
+@keyframes saveColleagueArrive{0%,29%{opacity:0;transform:translateX(165px) scale(.95)}43%{opacity:1;transform:translateX(22px) scale(1)}52%,74%{opacity:1;transform:translateX(0) translateY(-2px) scale(1.01)}88%,100%{opacity:1;transform:translateX(7px) scale(1)}}
+@keyframes saveRosterObserve{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-2px) rotate(.8deg)}}
+@keyframes saveStepActive{0%,100%{transform:scale(.8);opacity:.65}50%{transform:scale(1.12);opacity:1}}
 @keyframes saveCursorTap{0%,33%,100%{opacity:0;transform:scale(.45);box-shadow:0 0 0 0 rgba(56,189,248,.35)}43%{opacity:1;transform:scale(1);box-shadow:0 0 0 0 rgba(56,189,248,.35)}58%{opacity:.25;transform:scale(.75);box-shadow:0 0 0 12px rgba(56,189,248,0)}}
 @keyframes saveScreenSweep{0%,48%{transform:translateX(-120%)}80%,100%{transform:translateX(150%)}}
+@keyframes saveMonitorLed{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes saveRoomLed{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes saveSuccessPop{0%{opacity:0;transform:scale(.45) rotate(-8deg);box-shadow:0 0 0 0 rgba(52,211,153,.28)}60%{opacity:1;transform:scale(1.08) rotate(2deg);box-shadow:0 0 0 13px rgba(52,211,153,0)}100%{opacity:1;transform:scale(1) rotate(0);box-shadow:0 0 0 0 rgba(52,211,153,0),0 12px 30px rgba(0,0,0,.25)}}
+
+.liaison-overlay[data-state="success"] .save-roster-colleague{animation:saveColleagueSuccess .48s ease-out both}
+.liaison-overlay[data-state="success"] .save-tablet{border-color:#4e9d80;box-shadow:0 10px 18px rgba(0,0,0,.34),0 0 18px rgba(52,211,153,.12)}
+.liaison-overlay[data-state="partial"] .save-tablet{border-color:#a17b35;box-shadow:0 10px 18px rgba(0,0,0,.34),0 0 16px rgba(251,191,36,.09)}
+.liaison-overlay[data-state="error"] .save-success-mark{opacity:1;transform:scale(1);color:#ffe8e8;background:rgba(67,20,24,.86);border-color:rgba(248,113,113,.55)}
+.liaison-overlay[data-state="error"] .save-success-mark:before{content:'×'}
+@keyframes saveColleagueSuccess{0%{opacity:1;transform:translateX(7px) translateY(0) scale(1)}45%{opacity:1;transform:translateX(7px) translateY(-3px) scale(1.015)}100%{opacity:1;transform:translateX(7px) translateY(0) scale(1)}}
 
 @media(max-width:520px){
- .sync-handoff-scene{height:200px}.sync-office{width:39%}.sync-monitor{left:5%;width:84px;height:58px}.sync-monitor-stand{left:calc(5% + 39px)}.sync-hospital{width:31%;height:137px}.sync-person{transform:scale(.86);transform-origin:bottom center}.sync-person.me{left:3%}.sync-person.colleague{right:3%}.sync-folder{left:20%}.save-roster-scene{height:205px}.save-roster-screen{right:142px;bottom:56px}.save-desk{left:57%;right:8px;bottom:51px}.save-tablet{left:65%}.save-tablet-ui{left:calc(65% + 8px)}.save-roster-person{right:4px;transform:scale(.83);transform-origin:bottom right}.save-roster-colleague{right:-8px;transform:scale(.81);transform-origin:bottom right}.save-ui-tags{right:145px}
+ .sync-handoff-scene{height:200px}.sync-office{width:39%}.sync-monitor{left:5%;width:84px;height:58px}.sync-monitor-stand{left:calc(5% + 39px)}.sync-hospital{width:31%;height:137px}.sync-person{transform:scale(.86);transform-origin:bottom center}.sync-person.me{left:3%}.sync-person.colleague{right:3%}.sync-folder{left:20%}.save-roster-scene{height:208px}.save-roster-screen{right:145px;bottom:59px}.save-desk{left:56%;right:7px;bottom:52px}.save-keyboard{left:57%;transform:scale(.82) skewX(-9deg) rotate(-2deg);transform-origin:left bottom}.save-badge-card{display:none}.save-tablet-dock{left:64%;bottom:62px}.save-tablet{left:64%;bottom:67px}.save-tablet-ui{left:calc(64% + 7px);bottom:95px}.save-roster-person{right:2px;transform:scale(.82);transform-origin:bottom right}.save-roster-colleague{right:80px;transform:scale(.78);transform-origin:bottom right}.save-step-strip{right:148px;gap:4px}.save-step-pill{padding-left:16px;font-size:6px}.save-status-chip{font-size:6.4px}
 }
-@media(prefers-reduced-motion:reduce){.sync-person,.sync-folder,.sync-handoff-glow,.sync-corridor:after,.sync-hospital-door,.save-roster-person img,.save-roster-colleague img,.save-work-cursor,.save-roster-screen:after,.save-tablet,.save-tablet-ui,.save-ui-tags span{animation:none!important}.sync-person.colleague,.save-roster-colleague{opacity:1!important}}
-body.roster-anims-off .sync-person,body.roster-anims-off .sync-folder,body.roster-anims-off .sync-handoff-glow,body.roster-anims-off .sync-corridor:after,body.roster-anims-off .sync-hospital-door,body.roster-anims-off .save-roster-person img,body.roster-anims-off .save-roster-colleague img,body.roster-anims-off .save-work-cursor,body.roster-anims-off .save-roster-screen:after,body.roster-anims-off .save-tablet,body.roster-anims-off .save-tablet-ui,body.roster-anims-off .save-ui-tags span{animation:none!important}
-.liaison-overlay.scene-paused .sync-corridor:after,.liaison-overlay.scene-paused .sync-hospital-door,.liaison-overlay.scene-paused .save-roster-person img,.liaison-overlay.scene-paused .save-roster-colleague img,.liaison-overlay.scene-paused .save-work-cursor,.liaison-overlay.scene-paused .save-roster-screen:after,.liaison-overlay.scene-paused .save-tablet,.liaison-overlay.scene-paused .save-tablet-ui,.liaison-overlay.scene-paused .save-ui-tags span{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.sync-person,.sync-folder,.sync-handoff-glow,.sync-corridor:after,.sync-hospital-door,.save-roster-person img,.save-roster-colleague img,.save-work-cursor,.save-roster-screen:after,.save-tablet,.save-tablet-ui,.save-tablet-glow,.save-roster-colleague,.save-step-pill:before,.save-monitor-led,.save-room-label:before{animation:none!important}.sync-person.colleague,.save-roster-colleague{opacity:1!important}}
+body.roster-anims-off .sync-person,body.roster-anims-off .sync-folder,body.roster-anims-off .sync-handoff-glow,body.roster-anims-off .sync-corridor:after,body.roster-anims-off .sync-hospital-door,body.roster-anims-off .save-roster-person img,body.roster-anims-off .save-roster-colleague img,body.roster-anims-off .save-work-cursor,body.roster-anims-off .save-roster-screen:after,body.roster-anims-off .save-tablet,body.roster-anims-off .save-tablet-ui,body.roster-anims-off .save-tablet-glow,body.roster-anims-off .save-step-pill:before,body.roster-anims-off .save-monitor-led,body.roster-anims-off .save-room-label:before{animation:none!important}
+.liaison-overlay.scene-paused .sync-corridor:after,.liaison-overlay.scene-paused .sync-hospital-door,.liaison-overlay.scene-paused .save-roster-person img,.liaison-overlay.scene-paused .save-roster-colleague img,.liaison-overlay.scene-paused .save-work-cursor,.liaison-overlay.scene-paused .save-roster-screen:after,.liaison-overlay.scene-paused .save-tablet,.liaison-overlay.scene-paused .save-tablet-ui,.liaison-overlay.scene-paused .save-tablet-glow,.liaison-overlay.scene-paused .save-step-pill:before,.liaison-overlay.scene-paused .save-monitor-led,.liaison-overlay.scene-paused .save-room-label:before{animation-play-state:paused!important}
+
+/* ═══════════════════════════════════════════════════════════════
+   SYNCHRONISER — DETAILS MAX PLUS
+   ═══════════════════════════════════════════════════════════════ */
+.sync-handoff-scene{height:232px;isolation:isolate;background:radial-gradient(circle at 20% 17%,rgba(56,189,248,.16),transparent 25%),radial-gradient(circle at 83% 18%,rgba(244,63,94,.12),transparent 24%),linear-gradient(180deg,#10213a 0 56%,#0a1525 56% 100%)}
+.sync-handoff-scene:before{content:'';position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(180deg,#000 0 62%,transparent 100%);opacity:.45;pointer-events:none}
+.sync-ceiling-light{position:absolute;z-index:2;left:8%;top:0;width:29%;height:5px;border-radius:0 0 10px 10px;background:linear-gradient(90deg,transparent,#aeeaff 16% 84%,transparent);box-shadow:0 0 25px rgba(125,211,252,.3),0 14px 34px rgba(56,189,248,.08)}
+.sync-wall-clock{position:absolute;z-index:4;left:34%;top:17px;width:24px;height:24px;border:2px solid rgba(199,233,255,.42);border-radius:50%;background:#0b1726;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.sync-wall-clock:before{content:'';position:absolute;left:11px;top:5px;width:1px;height:7px;background:#d8f3ff;transform-origin:bottom center;transform:rotate(9deg)}
+.sync-wall-clock:after{content:'';position:absolute;left:11px;top:11px;width:6px;height:1px;background:#d8f3ff;transform-origin:left center;transform:rotate(-24deg)}
+.sync-exit-sign{position:absolute;z-index:6;right:31.5%;top:23px;padding:3px 8px;border-radius:4px;background:#0e382d;border:1px solid rgba(52,211,153,.3);font-size:6px;font-weight:950;letter-spacing:.12em;color:#a7f3d0;box-shadow:0 0 13px rgba(52,211,153,.13)}
+.sync-office{z-index:2;background:linear-gradient(180deg,rgba(31,57,83,.68),rgba(11,22,37,.24));box-shadow:inset -20px 0 38px rgba(0,0,0,.08)}
+.sync-office:after{content:'';position:absolute;left:11px;right:15px;top:38px;height:1px;background:linear-gradient(90deg,rgba(125,211,252,.22),transparent)}
+.sync-desk{z-index:7;box-shadow:0 8px 0 #172334,0 15px 22px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.14)}
+.sync-keyboard{position:absolute;z-index:9;left:8%;bottom:43px;width:70px;height:17px;border-radius:4px;background:repeating-linear-gradient(90deg,#25394d 0 5px,#1a2a3a 5px 7px);border:1px solid #4c637a;transform:skewX(-10deg) rotate(-2deg);box-shadow:0 5px 8px rgba(0,0,0,.25)}
+.sync-file-tray{position:absolute;z-index:9;left:31%;bottom:43px;width:34px;height:22px;border:1px solid rgba(148,163,184,.32);border-radius:4px;background:linear-gradient(180deg,rgba(69,89,109,.85),rgba(38,55,73,.9));box-shadow:0 6px 9px rgba(0,0,0,.24)}
+.sync-file-tray:before,.sync-file-tray:after{content:'';position:absolute;left:5px;right:5px;height:3px;border-radius:3px;background:#d2bf84;box-shadow:0 1px rgba(255,255,255,.2)}
+.sync-file-tray:before{top:5px}.sync-file-tray:after{top:11px}
+.sync-monitor{z-index:8;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 22px rgba(0,0,0,.36),0 0 24px rgba(56,189,248,.09)}
+.sync-monitor-led{position:absolute;z-index:12;right:4px;bottom:2px;width:3px;height:3px;border-radius:50%;background:#38bdf8;box-shadow:0 0 6px rgba(56,189,248,.75);animation:syncMonitorLed 1.5s ease-in-out infinite}
+.sync-corridor{z-index:3;bottom:29px;height:69px;background:linear-gradient(180deg,rgba(148,163,184,.075),rgba(15,23,42,.025)),repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 22px)}
+.sync-corridor:before{content:'';position:absolute;left:-12%;right:-12%;bottom:-17px;height:30px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.2));transform:skewX(12deg);pointer-events:none}
+.sync-floor-arrow{position:absolute;z-index:4;left:45%;bottom:47px;width:42px;height:9px;opacity:.33;transform:skewX(-12deg)}
+.sync-floor-arrow:before{content:'';position:absolute;left:0;top:3px;width:30px;height:3px;border-radius:4px;background:#7dd3fc}.sync-floor-arrow:after{content:'';position:absolute;right:0;top:0;border-left:9px solid #7dd3fc;border-top:5px solid transparent;border-bottom:5px solid transparent}
+.sync-hospital{z-index:5;box-shadow:0 14px 30px rgba(0,0,0,.32),0 0 30px rgba(244,63,94,.05)}
+.sync-hospital-cross{position:absolute;z-index:7;right:calc(3% + 8px);bottom:134px;width:17px;height:17px;border-radius:5px;background:#f8fafc;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.sync-hospital-cross:before,.sync-hospital-cross:after{content:'';position:absolute;background:#d61f42;border-radius:1px}.sync-hospital-cross:before{left:7px;top:3px;width:4px;height:11px}.sync-hospital-cross:after{left:3px;top:7px;width:11px;height:4px}
+.sync-hospital-door{z-index:8;box-shadow:0 0 16px rgba(56,189,248,.08),inset 0 0 12px rgba(125,211,252,.05)}
+.sync-hospital-doorlight{position:absolute;z-index:6;right:calc(3% + 9%);bottom:20px;width:72px;height:56px;background:radial-gradient(ellipse at 50% 100%,rgba(255,230,170,.22),transparent 68%);opacity:0;animation:syncDoorLight 5.9s ease both;pointer-events:none}
+.sync-person{z-index:14}
+.sync-person:after{content:'';position:absolute;left:50%;bottom:4px;width:49px;height:8px;margin-left:-24.5px;border-radius:50%;background:rgba(0,0,0,.28);filter:blur(2px);z-index:-1;animation:syncPersonShadow 5.9s ease both}
+.sync-person img{filter:drop-shadow(0 7px 8px rgba(0,0,0,.55))}
+.sync-person.me img{animation:syncMeBustMicro 5.9s ease both}.sync-person.colleague img{animation:syncColleagueBustMicro 5.9s ease both}
+.sync-folder{width:40px;height:27px;z-index:18;box-shadow:0 5px 10px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.32);transform-origin:center center}
+.sync-folder:before{width:17px}
+.sync-folder:after{content:'PILLBOX';right:3px;bottom:3px;font-size:5px;letter-spacing:.04em;color:#8d2032;transform:rotate(-4deg)}
+.sync-folder-sheet{position:absolute;z-index:17;left:26%;bottom:69px;width:31px;height:20px;border-radius:3px;background:linear-gradient(180deg,#fffdf4,#e7e1c9);border:1px solid #b7aa83;box-shadow:0 3px 7px rgba(0,0,0,.23);animation:syncSheetTravel 5.9s cubic-bezier(.4,0,.2,1) both;pointer-events:none}
+.sync-folder-sheet:before{content:'';position:absolute;left:5px;right:5px;top:5px;height:2px;background:#96a0aa;box-shadow:0 4px #c0c5ca,0 8px #c0c5ca}
+.sync-folder-owner{position:absolute;z-index:19;left:50%;bottom:54px;transform:translateX(-50%);padding:3px 7px;border-radius:99px;background:rgba(8,18,31,.82);border:1px solid rgba(244,216,141,.24);font-size:6px;font-weight:900;color:#f3dfa3;opacity:0;animation:syncOwnerBadge 5.9s ease both;pointer-events:none}
+.sync-handoff-seal{position:absolute;z-index:20;left:52.5%;bottom:73px;width:30px;height:30px;margin-left:-15px;border:2px solid rgba(52,211,153,.74);border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:950;color:#6ee7b7;opacity:0;transform:scale(.45) rotate(-16deg);animation:syncSealPop 5.9s ease both;text-shadow:0 0 8px rgba(52,211,153,.35)}
+.sync-handoff-glow{z-index:10;left:49%;bottom:58px;width:92px;height:46px;background:radial-gradient(circle,rgba(255,216,116,.22),transparent 68%)}
+.sync-step-strip{position:absolute;z-index:22;left:12px;right:12px;bottom:17px;display:flex;gap:5px;align-items:center;justify-content:center;pointer-events:none}
+.sync-step-pill{position:relative;min-width:0;max-width:112px;padding:4px 7px 4px 18px;border-radius:99px;background:rgba(8,20,34,.8);border:1px solid rgba(125,211,252,.14);font-size:6px;font-weight:850;color:#9fb7ca;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:border-color .22s ease,color .22s ease,background .22s ease,transform .22s ease}
+.sync-step-pill:before{content:'';position:absolute;left:7px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#52687b}
+.sync-step-pill[data-status="active"]{color:#d9f5ff;border-color:rgba(56,189,248,.46);background:rgba(56,189,248,.12);transform:translateY(-1px)}
+.sync-step-pill[data-status="active"]:before{background:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.1);animation:syncStepDot 1s ease-in-out infinite}
+.sync-step-pill[data-status="done"]{color:#a7f3d0;border-color:rgba(52,211,153,.28);background:rgba(52,211,153,.08)}.sync-step-pill[data-status="done"]:before{background:#34d399;box-shadow:0 0 6px rgba(52,211,153,.45)}
+.sync-step-pill[data-status="failed"]{color:#fecaca;border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.08)}.sync-step-pill[data-status="failed"]:before{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.45)}
+.sync-status-chip{top:10px;right:11px;font-size:6.6px;box-shadow:0 8px 16px rgba(0,0,0,.15)}
+.sync-caption{bottom:4px;font-size:6.5px;opacity:.7}
+.liaison-overlay[data-state="success"] .sync-handoff-scene{box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(52,211,153,.08),0 0 22px rgba(52,211,153,.07)}
+.liaison-overlay[data-state="partial"] .sync-handoff-scene{box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(251,191,36,.08)}
+.liaison-overlay[data-state="error"] .sync-handoff-scene{box-shadow:0 18px 38px rgba(0,0,0,.28),inset 0 0 0 1px rgba(248,113,113,.1)}
+.liaison-overlay[data-state="error"] .sync-monitor{animation:syncErrorNudge .32s ease-out}
+@keyframes syncMonitorLed{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes syncDoorLight{0%,28%,87%,100%{opacity:0}36%,78%{opacity:1}}
+@keyframes syncPersonShadow{0%,100%{transform:scaleX(1);opacity:.65}46%,62%{transform:scaleX(.84);opacity:.52}}
+@keyframes syncMeBustMicro{0%,16%,100%{transform:translateY(0) rotate(0)}24%{transform:translateY(-2px) rotate(-.7deg)}42%,60%{transform:translateY(-1px) rotate(.6deg)}71%{transform:translateY(1px) rotate(-.3deg)}86%{transform:translateY(0)}}
+@keyframes syncColleagueBustMicro{0%,33%{transform:translateY(0) rotate(0)}44%{transform:translateY(-2px) rotate(.7deg)}52%,63%{transform:translateY(-1px) rotate(-.7deg)}72%{transform:translateY(1px) rotate(.4deg)}100%{transform:translateY(0)}}
+@keyframes syncSheetTravel{0%,15%{transform:translate(0,0) rotate(-3deg);opacity:1}26%{transform:translate(112%,-4px) rotate(2deg)}40%{transform:translate(195%,-7px) rotate(0)}50%{transform:translate(296%,-7px) rotate(1deg)}58%{transform:translate(402%,-7px) rotate(-1deg)}66%{transform:translate(510%,-6px) rotate(1deg)}82%{transform:translate(610%,-5px) rotate(0);opacity:1}100%{transform:translate(668%,-4px);opacity:0}}
+@keyframes syncOwnerBadge{0%,39%{opacity:0;transform:translateX(-50%) translateY(5px) scale(.94)}47%,62%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}72%,100%{opacity:0;transform:translateX(-50%) translateY(-2px) scale(.97)}}
+@keyframes syncSealPop{0%,47%{opacity:0;transform:scale(.45) rotate(-16deg)}53%{opacity:1;transform:scale(1.08) rotate(-7deg)}61%{opacity:.9;transform:scale(.94) rotate(-7deg)}72%,100%{opacity:0;transform:scale(1.18) rotate(-7deg)}}
+@keyframes syncStepDot{0%,100%{transform:scale(.85);opacity:.65}50%{transform:scale(1.15);opacity:1}}
+@keyframes syncErrorNudge{0%,100%{transform:translateX(0)}30%{transform:translateX(-3px)}60%{transform:translateX(3px)}}
+@media(max-width:520px){.sync-handoff-scene{height:210px}.sync-ceiling-light{left:4%;width:31%}.sync-wall-clock{display:none}.sync-exit-sign{right:29%;top:18px}.sync-keyboard{left:5%;transform:scale(.82) skewX(-10deg) rotate(-2deg);transform-origin:left bottom}.sync-file-tray{display:none}.sync-hospital-cross{display:none}.sync-step-strip{gap:3px;left:6px;right:6px}.sync-step-pill{padding:3px 5px 3px 14px;font-size:5px}.sync-step-pill:before{left:5px}.sync-folder-owner{font-size:5px}}
+@media(prefers-reduced-motion:reduce){.sync-monitor-led,.sync-hospital-doorlight,.sync-person:after,.sync-person.me img,.sync-person.colleague img,.sync-folder-sheet,.sync-folder-owner,.sync-handoff-seal,.sync-step-pill[data-status="active"]:before{animation:none!important}.sync-hospital-doorlight{opacity:.35}.sync-folder-owner{display:none}}
+body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doorlight,body.roster-anims-off .sync-person:after,body.roster-anims-off .sync-person.me img,body.roster-anims-off .sync-person.colleague img,body.roster-anims-off .sync-folder-sheet,body.roster-anims-off .sync-folder-owner,body.roster-anims-off .sync-handoff-seal,body.roster-anims-off .sync-step-pill[data-status="active"]:before{animation:none!important}
+.liaison-overlay.scene-paused .sync-monitor-led,.liaison-overlay.scene-paused .sync-hospital-doorlight,.liaison-overlay.scene-paused .sync-person:after,.liaison-overlay.scene-paused .sync-person.me img,.liaison-overlay.scene-paused .sync-person.colleague img,.liaison-overlay.scene-paused .sync-folder-sheet,.liaison-overlay.scene-paused .sync-folder-owner,.liaison-overlay.scene-paused .sync-handoff-seal,.liaison-overlay.scene-paused .sync-step-pill[data-status="active"]:before{animation-play-state:paused!important}
+
 </style>
 </head>
 <body>
@@ -1150,26 +1257,30 @@ body.roster-anims-off .sync-person,body.roster-anims-off .sync-folder,body.roste
       <div class="medic-table"></div>
     </div>
     <div class="sync-handoff-scene" aria-hidden="true">
-      <div class="sync-ambient"></div><div class="sync-office"></div><div class="sync-wall-line"></div><div class="sync-corridor"></div>
-      <div class="sync-desk"></div>
-      <div class="sync-monitor"><div class="sync-monitor-screen"><div id="syncRosterLiveClone" class="sync-live-clone"></div></div></div><div class="sync-monitor-stand"></div>
-      <div class="sync-hospital"><div class="sync-hospital-windows"></div><div class="sync-hospital-door"></div></div>
+      <div class="sync-ambient"></div><div class="sync-ceiling-light"></div><div class="sync-office"></div><div class="sync-wall-line"></div><div class="sync-wall-clock"></div><div class="sync-exit-sign">SORTIE →</div><div class="sync-corridor"></div><div class="sync-floor-arrow"></div>
+      <div class="sync-desk"></div><div class="sync-keyboard"></div><div class="sync-file-tray"></div>
+      <div class="sync-monitor"><div class="sync-monitor-screen"><div id="syncRosterLiveClone" class="sync-live-clone"></div></div><div class="sync-monitor-led"></div></div><div class="sync-monitor-stand"></div>
+      <div class="sync-hospital"><div class="sync-hospital-windows"></div><div class="sync-hospital-door"></div></div><div class="sync-hospital-cross"></div><div class="sync-hospital-doorlight"></div>
       <div class="sync-person me"><div class="bust-halo"></div><img id="syncMePortrait" alt="" /><div class="sync-person-label" id="syncMeName"></div></div>
       <div class="sync-person colleague"><div class="bust-halo"></div><img id="syncColleaguePortrait" alt="" /><div class="sync-person-label" id="syncColleagueName"></div></div>
-      <div class="sync-handoff-glow"></div><div class="sync-folder"></div>
+      <div class="sync-handoff-glow"></div><div class="sync-folder-sheet"></div><div class="sync-folder"></div><div class="sync-folder-owner">DOSSIER REMIS</div><div class="sync-handoff-seal">✓</div>
       <div id="syncHandoffStatusChip" class="sync-status-chip">Transmission du dossier…</div>
+      <div id="syncStepStrip" class="sync-step-strip"></div>
       <div class="sync-caption">Bureau EMS → remise physique du dossier → Pillbox</div>
     </div>
     <div class="save-roster-scene" aria-hidden="true">
       <div class="save-office-wall"></div><div class="save-office-floor"></div>
       <div class="save-room-label">POSTE ROSTER EMS · ENREGISTREMENT</div>
-      <div class="save-roster-screen"><div id="saveRosterLiveClone" class="save-live-clone"></div><div class="save-work-cursor"></div></div>
-      <div class="save-desk"></div>
+      <div class="save-desk-light"></div>
+      <div class="save-roster-screen"><div id="saveRosterLiveClone" class="save-live-clone"></div><div class="save-work-cursor"></div><div class="save-monitor-led"></div></div>
+      <div class="save-desk"></div><div class="save-keyboard"></div><div class="save-badge-card"></div>
+      <div class="save-tablet-dock"></div><div class="save-tablet-glow"></div>
       <div class="save-tablet"></div><div class="save-tablet-ui"><span></span><span></span><span></span></div>
       <div class="save-roster-person"><img id="saveRosterPortrait" alt="" /><div class="save-person-label" id="saveRosterName"></div></div>
       <div class="save-roster-colleague"><img id="saveRosterColleaguePortrait" alt="" /><div class="save-person-label" id="saveRosterColleagueName"></div></div>
-      <div class="save-ui-tags"><span>Roster</span><span>Formation opération</span><span>Suivi formateur</span><span>Suivi psychologue</span></div>
+      <div class="save-step-strip"><div class="save-step-pill" data-save-step="0" data-status="pending">Formation Opération</div><div class="save-step-pill" data-save-step="1" data-status="pending">Suivi d'activité</div></div>
       <div id="saveRosterStatusChip" class="save-status-chip">Enregistrement en cours…</div>
+      <div class="save-success-mark" aria-hidden="true"></div>
     </div>
     <h2 id="liaisonTitle" class="liaison-title" tabindex="-1">Sauvegarde Roster</h2>
     <p id="liaisonSubtitle" class="liaison-subtitle" aria-live="polite">Établissement de la liaison…</p>
@@ -1529,18 +1640,18 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     </div>
   </div>
 
-  <!-- Réservé à D et OWNER (can manage_permissions) — masqué par défaut. -->
+  <!-- Affiché uniquement aux personnes ayant la permission regroupée manage_permissions. -->
   <div id="permissionsView" style="display:none;">
     <div class="card" id="permissionsGradeTableCard">
       <div class="special-title">🔑 Gestion des permissions par grade</div>
-      <div class="special-sub" style="margin-bottom:10px;">Coche ou décoche une permission pour un niveau — ça s'applique immédiatement à tout le monde. OWNER a toujours tout, ce tableau ne le concerne pas.</div>
+      <div class="special-sub" style="margin-bottom:10px;">Coche ou décoche une permission pour un niveau. Tu ne peux modifier que les niveaux et droits qui ne dépassent pas ta propre autorité. OWNER a toujours tout.</div>
       <div id="permissionsTable" class="sub">Chargement…</div>
     </div>
 
-    <!-- Réservé à CD/D/DG/OWNER (can manage_individual_permissions). -->
+    <!-- Même permission manage_permissions : gestion individuelle avec contrôle serveur du niveau de l'auteur. -->
     <div class="card" id="individualPermissionsCard" style="display:none;">
       <div class="special-title">👤 Exceptions individuelles</div>
-      <div class="special-sub" style="margin-bottom:10px;">Donne ou retire une permission précise à UNE personne, sans toucher à son grade. Une décision d'un niveau supérieur l'emporte toujours sur celle d'un niveau inférieur (DG &gt; D &gt; CD).</div>
+      <div class="special-sub" style="margin-bottom:10px;">Donne ou retire une permission précise à UNE personne, sans toucher à son grade. Tu ne peux attribuer que les droits que tu possèdes toi-même. Les droits OWNER et Mode troll restent individuels.</div>
       <select id="individualPermPersonSelect" style="width:100%;margin-bottom:10px;">
         <option value="">— Choisir une personne —</option>
       </select>
@@ -1553,11 +1664,11 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div id="individualPermTable" style="margin-top:10px;"></div>
     </div>
 
-    <!-- ADD : créer une demande + voir les siennes. CD+ : voir et traiter les demandes en attente. -->
+    <!-- Les personnes autorisées peuvent demander ; manage_permissions permet de traiter. -->
     <div class="card" id="permissionRequestsCard" style="display:none;">
       <div class="special-title">📨 Demandes de permissions</div>
       <div id="permissionRequestCreateBox" style="display:none;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border-soft);">
-        <div class="special-sub" style="margin-bottom:8px;">Demande une exception individuelle pour quelqu'un — un CD minimum devra valider avant que ça s'applique.</div>
+        <div class="special-sub" style="margin-bottom:8px;">Demande une exception individuelle pour quelqu'un — une personne disposant de « Gérer les permissions » devra la valider.</div>
         <select id="permReqPersonSelect" style="width:100%;margin-bottom:8px;">
           <option value="">— Personne concernée —</option>
         </select>
@@ -2380,7 +2491,7 @@ function empRowHtml(e, isLicencie){
   // masqués ici pour un MC (juste le confort visuel, la vraie
   // protection reste côté serveur dans protected-write.js).
   const canManageRoster = hasCap("manage_roster");
-  const canViewHistory = hasCap("view_member_history");
+  const canViewHistory = hasCap("view_logs");
   const historyBtn = canViewHistory ? `<button class="btn-ghost btn-small" data-view-history="${esc(e.name)}" title="Voir l'historique de cette personne">🕘</button>` : "";
   const actionsHtml = !canManageRoster ? historyBtn : (isLicencie
     ? `${historyBtn}<button class="btn-ghost btn-small" data-reintegrer="${e.id}">Réintégrer</button>`
@@ -3069,8 +3180,7 @@ function parseDiscordIdsText(text){
 // juste un point d'entrée unique qui les enchaîne.
 //
 // Respecte le même partage de permissions qu'avant : MC peut
-// synchroniser Formateur+Psychologue (send_pillbox_formation/
-// psychologie), ADD+ synchronise TOUT en plus (send_pillbox_all) —
+// synchroniser Formateur+Psychologue (sync_pillbox_complete), ADD+ synchronise TOUT en plus (sync_pillbox_complete) —
 // jamais élargi côté client, la vraie vérification reste dans
 // activite-actions.js pour Formateur/Psychologue (déjà en place).
 // Roster et Formation Opération restent sans vérification serveur
@@ -3331,6 +3441,8 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
     const target=document.getElementById("syncRosterLiveClone"), source=document.getElementById("rosterView");
     if(target){target.innerHTML=""; if(source){const clone=source.cloneNode(true);clone.removeAttribute("id");clone.querySelectorAll("[id]").forEach(el=>el.removeAttribute("id"));clone.querySelectorAll("button,input,select,textarea,a").forEach(el=>{el.setAttribute("tabindex","-1");el.style.pointerEvents="none";});target.appendChild(clone);}}
     const chip=document.getElementById("syncHandoffStatusChip"); if(chip) chip.textContent="Transmission du dossier…";
+    const strip=document.getElementById("syncStepStrip");
+    if(strip) strip.innerHTML=stepLabels.map((label,i)=>`<span class="sync-step-pill" data-step="${i}" data-status="pending">${esc(label.replace(" (activité)",""))}</span>`).join("");
   }
   if(variant === "save-roster-ui"){
     applyCharacterPortrait(document.getElementById("saveRosterPortrait"), currentUserDiscordId);
@@ -3350,6 +3462,7 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
         target.appendChild(clone);
       }
     }
+    document.querySelectorAll(".save-step-pill[data-save-step]").forEach(el=>el.dataset.status="pending");
     const chip=document.getElementById("saveRosterStatusChip"); if(chip) chip.textContent="Enregistrement en cours…";
   }
   if(variant === "sync-anime"){
@@ -3397,6 +3510,17 @@ function setLiaisonStep(index, status, subtitle){
     li.dataset.status = status;
     const dot = li.querySelector(".liaison-step-dot");
     if(dot) dot.textContent = status==="done" ? "✓" : status==="failed" ? "✕" : "";
+  }
+  const currentOverlay = document.getElementById("liaisonOverlay");
+  if(currentOverlay && currentOverlay.dataset.variant === "save-roster-ui"){
+    const visualStep = currentOverlay.querySelector(`.save-step-pill[data-save-step="${index}"]`);
+    if(visualStep) visualStep.dataset.status = status;
+  }
+  if(currentOverlay && currentOverlay.dataset.variant === "sync-handoff"){
+    const visualStep = currentOverlay.querySelector(`#syncStepStrip .sync-step-pill[data-step="${index}"]`);
+    if(visualStep) visualStep.dataset.status = status;
+    const syncChip = document.getElementById("syncHandoffStatusChip");
+    if(syncChip && status === "active" && subtitle) syncChip.textContent = subtitle.replace(/…$/,'');
   }
   if(subtitle) document.getElementById("liaisonSubtitle").textContent = subtitle;
 }
@@ -3472,7 +3596,7 @@ applyAnimsToggleUi();
 async function syncWithPillbox(){
   const btn = document.getElementById("btnSyncPillbox");
   const statusEl = document.getElementById("syncPillboxStatus");
-  const canAll = hasCap("send_pillbox_all");
+  const canAll = hasCap("sync_pillbox_complete");
   const syncStartedAt = Date.now();
 
   const stepLabels = canAll
@@ -3489,7 +3613,7 @@ async function syncWithPillbox(){
   const done = [];
   const failed = [];
 
-  // 1) Roster + Formation Opération — réservé ADD+ (comme send_pillbox_all)
+  // 1) Roster + Formation Opération — réservé ADD+ (comme sync_pillbox_complete)
   if(canAll){
     setLiaisonStep(stepIdx, "active", "Envoi du Roster…");
     try{
@@ -5094,39 +5218,38 @@ document.getElementById("logsFilterBtn").addEventListener("click", loadLogs);
 const PERMISSION_LABEL = {
   view_roster: "Consulter le Roster",
   manage_roster: "Modifier/Licencier un employé",
-  manage_ppa: "Gérer les PPA",
-  manage_psy: "Gérer le suivi Psychologue",
-  manage_formations: "Gérer les Formations",
-  manage_recruitments: "Gérer les Recrutements",
+  manage_psychologue_category: "Gérer la catégorie Psychologue",
+  manage_formateur_category: "Gérer la catégorie Formateur",
   propose_signalement: "Proposer un signalement",
   create_signalement: "Créer un signalement officiel",
   validate_signalement: "Valider/refuser une proposition",
   manage_retrogradation: "Gérer les rétrogradations",
-  send_pillbox_formation: "Envoyer Formation vers Pillbox",
-  send_pillbox_psychologie: "Envoyer Psychologie vers Pillbox",
-  send_pillbox_all: "Envoyer TOUT vers Pillbox",
+  sync_pillbox_complete: "Synchronisation complète avec Pillbox",
   view_logs: "Consulter les logs",
-  delete_logs: "🗑️ Supprimer une entrée de log (réservé OWNER par défaut)",
-  owner_delegate: "👑 Droits OWNER délégués (équivaut à TOUT — Roster et Pillbox — jamais affiché comme OWNER, grade EMS conservé)",
-  view_member_history: "Consulter l'historique d'un membre",
   modify_role_label: "Modifier les libellés de rôle",
   manage_advanced_settings: "Paramètres avancés",
-  manage_permissions: "Gérer les permissions (très sensible)",
+  manage_permissions: "Gérer les permissions",
   use_pillbox_terminal: "Accéder au Terminal Paie (Pillbox)",
-  manage_individual_permissions: "Gérer les exceptions individuelles",
   request_individual_permission: "Demander une exception individuelle",
-  review_permission_requests: "Valider/refuser une demande",
   cancel_lower_decisions: "Annuler une décision d'un niveau inférieur",
-  reopen_week: "Réouvrir une semaine de paie",
-  delete_week: "Supprimer une semaine de paie",
+  manage_pay_weeks: "Gérer les semaines de paie (réouvrir / supprimer)",
   manage_absences: "Gérer les absences (synchroniser, Prise en compte)",
   manage_pay_rules: "Réglages des paies (gestionnaire paie)",
   force_logout: "Déconnexion forcée (déconnecter quelqu'un)",
-  // (12/10) Manquaient : impossibles à cocher individuellement jusqu'ici.
   reset_activite_streak: "Réinitialiser une série d'inactivité (Formateur/Psy)",
   reopen_roster_week: "Réouvrir une semaine Formateur/Psychologue clôturée",
-  manage_troll: "🎭 Mode troll (créer et déclencher des blagues) — décoché par défaut",
+  owner_delegate: "👑 Droits OWNER délégués (individuel uniquement)",
+  manage_troll: "🎭 Mode troll (individuel uniquement)",
 };
+const GRADE_PERMISSION_KEYS_UI = [
+  "view_roster","manage_roster","manage_psychologue_category","manage_formateur_category",
+  "propose_signalement","create_signalement","validate_signalement","manage_retrogradation",
+  "sync_pillbox_complete","view_logs","modify_role_label","manage_advanced_settings",
+  "manage_permissions","use_pillbox_terminal","request_individual_permission","cancel_lower_decisions",
+  "manage_pay_weeks","manage_absences","manage_pay_rules","force_logout","reset_activite_streak","reopen_roster_week"
+];
+const REQUESTABLE_PERMISSION_KEYS = [...GRADE_PERMISSION_KEYS_UI];
+const INDIVIDUAL_PERM_KEYS = [...GRADE_PERMISSION_KEYS_UI, "owner_delegate", "manage_troll"];
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
 async function loadPermissionsTable(){
@@ -5139,7 +5262,9 @@ async function loadPermissionsTable(){
     const res = await fetch(`/.netlify/functions/manage-permissions?token=${encodeURIComponent(currentSessionToken)}`);
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || `${res.status}`);
-    const allPerms = Object.keys(PERMISSION_LABEL);
+    const allPerms = Array.isArray(data.gradePermissionKeys) ? data.gradePermissionKeys : GRADE_PERMISSION_KEYS_UI;
+    const editableLevels = new Set(Array.isArray(data.editableLevels) ? data.editableLevels : EDITABLE_LEVELS);
+    const editablePermissions = new Set(Array.isArray(data.editablePermissions) ? data.editablePermissions : allPerms);
     box.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
       <thead><tr>
         <th style="text-align:left;padding:6px;border-bottom:1px solid var(--border-soft);">Permission</th>
@@ -5147,10 +5272,10 @@ async function loadPermissionsTable(){
       </tr></thead>
       <tbody>
         ${allPerms.map(p=>`<tr>
-          <td style="padding:6px;color:var(--text-dim);">${esc(PERMISSION_LABEL[p])}</td>
-          ${EDITABLE_LEVELS.map(l=>`<td style="text-align:center;padding:6px;">
-            <input type="checkbox" data-perm="${p}" data-level="${l}" ${data.permissions?.[l]?.[p] ? "checked" : ""} ${p==="manage_permissions" && currentUserLevel!=="OWNER" ? "disabled title='Seul OWNER peut modifier ceci'" : ""}>
-          </td>`).join("")}
+          <td style="padding:6px;color:var(--text-dim);">${esc(PERMISSION_LABEL[p]||p)}</td>
+          ${EDITABLE_LEVELS.map(l=>{ const blocked=!editableLevels.has(l)||!editablePermissions.has(p)||(p==="manage_permissions"&&currentUserLevel!=="OWNER"); const why=p==="manage_permissions"&&currentUserLevel!=="OWNER"?"Seul OWNER peut déléguer ce droit":(!editableLevels.has(l)?"Niveau supérieur à ton autorité":(!editablePermissions.has(p)?"Tu ne possèdes pas ce droit":"")); return `<td style="text-align:center;padding:6px;${blocked?'opacity:.5;':''}">
+            <input type="checkbox" data-perm="${p}" data-level="${l}" ${data.permissions?.[l]?.[p] ? "checked" : ""} ${blocked ? `disabled title="${esc(why)}"` : ""}>
+          </td>`;}).join("")}
         </tr>`).join("")}
       </tbody>
     </table></div>`;
@@ -5169,7 +5294,7 @@ async function loadPermissionsTable(){
           cb.checked = !cb.checked; // annule visuellement si refusé
           toast(`✕ Refusé : ${err.message}`);
         }finally{
-          if(!(cb.dataset.perm==="manage_permissions" && currentUserLevel!=="OWNER")) cb.disabled = false;
+          cb.disabled = false;
         }
       });
     });
@@ -5183,14 +5308,13 @@ async function loadPermissionsTable(){
 // ═══════════════════════════════════════════════════════════════════
 // (12/10, demandé) Toutes les permissions, « Gérer les permissions » comprise. La liste
 // réelle vient du serveur (allPermissions) ; celle-ci ne sert que de repli.
-const INDIVIDUAL_PERM_KEYS = Object.keys(PERMISSION_LABEL);
 let individualAllPermsCache = null;
 let individualPermsCache = null;
 let effectiveByGradeCache = null;
 
 async function renderIndividualPermissionsCard(){
   const card = document.getElementById("individualPermissionsCard");
-  const canManage = hasCap("manage_individual_permissions");
+  const canManage = hasCap("manage_permissions");
   card.style.display = canManage ? "" : "none";
   if(!canManage) return;
 
@@ -5223,7 +5347,7 @@ async function individualBulk(action){
   const who = emp ? `${emp.name} (${emp.grade})` : discordId;
   const n = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).length;
   const msg = action === "setAll"
-    ? `Accorder TOUTES les permissions (${n}) à ${who} ?\n\nSon grade réel, sa paie et son ancienneté ne changent pas.\n\nLe Mode troll sera également activé.`
+    ? `Accorder TOUTES les permissions (${n}) à ${who} ?\n\nSon grade réel, sa paie et son ancienneté ne changent pas.\n\nLes permissions spéciales OWNER/Mode troll restent à accorder séparément.`
     : `Retirer toutes les exceptions individuelles de ${who} (celles que ton niveau peut retirer) ?\n\nIl retrouvera exactement les droits de son grade.`;
   if(!confirm(msg)) return;
   const btns = [document.getElementById("btnIndivSelectAll"), document.getElementById("btnIndivClearAll")];
@@ -5327,8 +5451,8 @@ async function renderPermissionRequestsCard(){
   const card = document.getElementById("permissionRequestsCard");
   // (12/10) Selon les droits réels : peut demander (sans pouvoir décider
   // directement) / peut traiter les demandes.
-  const isAdd = hasCap("request_individual_permission") && !hasCap("manage_individual_permissions");
-  const canReview = hasCap("review_permission_requests");
+  const isAdd = hasCap("request_individual_permission") && !hasCap("manage_permissions");
+  const canReview = hasCap("manage_permissions");
   card.style.display = (isAdd || canReview) ? "" : "none";
   if(!isAdd && !canReview) return;
 
@@ -5341,7 +5465,7 @@ async function renderPermissionRequestsCard(){
         .map(e=>`<option value="${esc(e.discordId)}" data-name="${esc(e.name)}">${esc(e.name)} (${esc(e.grade)})</option>`).join("");
     const permSelect = document.getElementById("permReqPermissionSelect");
     permSelect.innerHTML = `<option value="">— Permission concernée —</option>` +
-      INDIVIDUAL_PERM_KEYS.map(k=>`<option value="${k}">${esc(PERMISSION_LABEL[k])}</option>`).join("");
+      REQUESTABLE_PERMISSION_KEYS.map(k=>`<option value="${k}">${esc(PERMISSION_LABEL[k])}</option>`).join("");
   }
 
   const list = document.getElementById("permissionRequestsList");
@@ -5359,18 +5483,20 @@ async function renderPermissionRequestsCard(){
     // Limitation connue : un ADD voit ici TOUTES les demandes, pas
     // seulement les siennes (le client ne connaît pas son propre
     // discordId séparément du jeton signé) — pas un souci de sécurité
-    // (un ADD ne peut de toute façon rien y faire, review_permission_requests
-    // lui est refusé), juste un affichage moins filtré qu'idéal.
+    // (une personne sans « Gérer les permissions » ne peut de toute façon rien y faire),
+    // juste un affichage moins filtré qu'idéal.
     if(!entries.length){ list.textContent = "Aucune demande pour l'instant."; return; }
     list.innerHTML = entries.map(([id, r])=>{
       const statusLabel = { pending:"⏳ En attente", accepted:"✅ Acceptée", refused:"❌ Refusée", cancelled:"◌ Annulée" }[r.status] || r.status;
       const canAct = canReview && r.status === "pending";
+      const canDelete = canReview && r.status !== "pending";
       return `<div style="font-size:0.82rem;padding:8px 0;border-bottom:1px solid var(--border-soft);">
         <div><b>${esc(r.requestedByName||"?")}</b> demande <b>${esc(PERMISSION_LABEL[r.permissionName]||r.permissionName)}</b> = ${r.requestedValue ? "Autorisé" : "Refusé"} pour <b>${esc(r.targetName||r.targetDiscordId)}</b></div>
         <div style="color:var(--text-faint);margin-top:2px;">${statusLabel}${r.reviewedByName ? ` — traité par ${esc(r.reviewedByName)} (${esc(r.reviewedByLevel)})` : ""}</div>
-        ${canAct ? `<div style="margin-top:6px;display:flex;gap:8px;">
-          <button type="button" class="btn-primary btn-small" data-req-approve="${id}">✅ Accepter</button>
-          <button type="button" class="btn-danger btn-small" data-req-refuse="${id}">❌ Refuser</button>
+        ${(canAct || canDelete) ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+          ${canAct ? `<button type="button" class="btn-primary btn-small" data-req-approve="${id}">✅ Accepter</button>
+          <button type="button" class="btn-danger btn-small" data-req-refuse="${id}">❌ Refuser</button>` : ""}
+          ${canDelete ? `<button type="button" class="btn-ghost btn-small" data-req-delete="${id}" title="Supprimer cette demande traitée">🗑️ Supprimer</button>` : ""}
         </div>` : ""}
       </div>`;
     }).join("");
@@ -5389,6 +5515,26 @@ async function renderPermissionRequestsCard(){
           renderPermissionRequestsCard();
         }catch(err){
           toast(`✕ Refusé : ${err.message}`);
+        }
+      });
+    });
+    list.querySelectorAll("[data-req-delete]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const requestId = btn.dataset.reqDelete;
+        if(!confirm("Supprimer définitivement cette demande de permission de l’historique ?\n\nLa permission déjà appliquée ne sera PAS retirée.")) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch("/.netlify/functions/permission-requests", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, action:"delete", requestId }),
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || `${res.status}`);
+          toast("🗑️ Demande supprimée de l’historique.");
+          renderPermissionRequestsCard();
+        }catch(err){
+          toast(`✕ Suppression refusée : ${err.message}`);
+          btn.disabled = false;
         }
       });
     });
@@ -5895,14 +6041,38 @@ function populateForceLogoutSelect(){
 // repli générique aurait affiché le mauvais niveau par défaut pour
 // l'un des deux pendant le bref instant avant la réponse serveur).
 let userCaps = null;
-const CAP_DEFAULT_LEVELS = {"manage_troll": ["OWNER"], "view_roster": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_roster": ["ADD", "CD", "D", "DG", "OWNER"], "manage_ppa": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_psy": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_formations": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_recruitments": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "propose_signalement": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "create_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "validate_signalement": ["ADD", "CD", "D", "DG", "OWNER"], "manage_retrogradation": ["ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_formation": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_psychologie": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "send_pillbox_all": ["ADD", "CD", "D", "DG", "OWNER"], "view_logs": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "view_member_history": ["ADD", "CD", "D", "DG", "OWNER"], "modify_role_label": ["CD", "D", "DG", "OWNER"], "manage_advanced_settings": ["D", "DG", "OWNER"], "manage_permissions": ["D", "DG", "OWNER"], "use_pillbox_terminal": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "manage_individual_permissions": ["D", "DG", "OWNER"], "request_individual_permission": ["MC", "ADD", "CD", "D", "DG", "OWNER"], "review_permission_requests": ["D", "DG", "OWNER"], "delete_week": ["ADD", "CD", "D", "DG", "OWNER"], "reset_activite_streak": ["ADD", "CD", "D", "DG", "OWNER"], "manage_absences": ["ADD", "CD", "D", "DG", "OWNER"], "reopen_week": ["CD", "D", "DG", "OWNER"], "reopen_roster_week": ["CD", "D", "DG", "OWNER"], "force_logout": ["CD", "D", "DG", "OWNER"], "manage_pay_rules": ["D", "DG", "OWNER"], "delete_logs": ["OWNER"], "owner_delegate": ["OWNER"]}; // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu — delete_logs/owner_delegate ajoutés le 13/10
+const CAP_DEFAULT_LEVELS = {
+  manage_troll:["OWNER"], owner_delegate:["OWNER"], delete_logs:["OWNER"],
+  view_roster:["MC","ADD","CD","D","DG","OWNER"],
+  manage_roster:["ADD","CD","D","DG","OWNER"],
+  manage_psychologue_category:["MC","ADD","CD","D","DG","OWNER"],
+  manage_formateur_category:["MC","ADD","CD","D","DG","OWNER"],
+  propose_signalement:["MC","ADD","CD","D","DG","OWNER"],
+  create_signalement:["ADD","CD","D","DG","OWNER"],
+  validate_signalement:["ADD","CD","D","DG","OWNER"],
+  manage_retrogradation:["MC","ADD","CD","D","DG","OWNER"],
+  sync_pillbox_complete:["MC","ADD","CD","D","DG","OWNER"],
+  view_logs:["MC","ADD","CD","D","DG","OWNER"],
+  modify_role_label:["D","DG","OWNER"],
+  manage_advanced_settings:["D","DG","OWNER"],
+  manage_permissions:["DG","OWNER"],
+  use_pillbox_terminal:["MC","ADD","CD","D","DG","OWNER"],
+  request_individual_permission:["MC","ADD","CD","D","DG","OWNER"],
+  cancel_lower_decisions:["D","DG","OWNER"],
+  manage_pay_weeks:["ADD","CD","D","DG","OWNER"],
+  manage_absences:["ADD","CD","D","DG","OWNER"],
+  manage_pay_rules:["D","DG","OWNER"],
+  force_logout:["ADD","CD","D","DG","OWNER"],
+  reset_activite_streak:["ADD","CD","D","DG","OWNER"],
+  reopen_roster_week:["ADD","CD","D","DG","OWNER"]
+} // (12/10) matrice réelle complète, repli tant que le serveur n'a pas répondu — delete_logs/owner_delegate ajoutés le 13/10
 function hasCap(name){
   if(userCaps && typeof userCaps[name] === "boolean") return userCaps[name];
   return (CAP_DEFAULT_LEVELS[name] || ["D","DG","OWNER"]).includes(currentUserLevel);
 }
 let currentUserDiscordId = null;
 let currentUserName = null;
-const PERMISSIONS_TAB_CAPS = ["manage_permissions","manage_individual_permissions","request_individual_permission","review_permission_requests","force_logout"];
+const PERMISSIONS_TAB_CAPS = ["manage_permissions","request_individual_permission","force_logout"];
 function applyCapsUi(){
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = PERMISSIONS_TAB_CAPS.some(hasCap) ? "" : "none";
