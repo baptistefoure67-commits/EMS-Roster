@@ -1,0 +1,52 @@
+RAPPORT DE TESTS — PERMISSIONS REGROUPÉES + SUPPRESSION DES DEMANDES
+Date : 21/10/2026
+
+Résultat global : 28 tests réussis, 0 échec.
+
+Ajout testé :
+- Une demande ACCEPTÉE / REFUSÉE / ANNULÉE peut être supprimée de l'historique des demandes par une personne disposant de « Gérer les permissions ».
+- Une demande encore EN ATTENTE ne peut pas être supprimée : elle doit d'abord être traitée ou annulée.
+- La suppression d'une demande acceptée ne retire PAS la permission individuelle déjà appliquée à la personne.
+- Un utilisateur sans « Gérer les permissions » ne peut pas supprimer une demande.
+- Le bouton 🗑️ Supprimer n'est proposé que pour les demandes déjà traitées.
+- La suppression passe par la fonction Netlify permission-requests.js, pas par une suppression Firebase directe depuis le navigateur.
+- Une trace d'audit « demande_permission_supprimee » est ajoutée aux logs.
+
+Contrôles techniques :
+- JavaScript frontend : syntaxe valide.
+- Fonctions Netlify : syntaxe valide.
+- Aucun ID HTML statique dupliqué.
+- Règles Firebase : JSON valide.
+- Compatibilité avec les animations Synchroniser/Sauvegarder conservée.
+
+Détail des tests :
+✅ Les nouvelles permissions regroupées existent
+✅ Les anciennes clés pointent vers les nouvelles
+✅ Matrice MC conforme au tableau fourni
+✅ Matrice ADD/CD conforme : semaines, absences, logout et activité
+✅ Matrice D conforme : réglages avancés mais pas gestion permissions par défaut
+✅ DG a toutes les permissions de grade
+✅ OWNER-only et permissions individuelles spéciales sont bien isolées
+✅ Droits OWNER délégués donnent tout sauf suppression des logs
+✅ Anciennes décisions individuelles restent comprises
+✅ Anciennes overrides de semaine migrent vers manage_pay_weeks
+✅ Un niveau ne peut éditer que son niveau ou inférieur
+✅ D délégué manage_permissions ne peut pas modifier DG
+✅ D délégué peut attribuer à ADD un droit qu’il possède
+✅ Un non-OWNER ne peut pas modifier manage_permissions par grade
+✅ MC délégué manage_permissions ne peut pas attribuer un droit D+
+✅ Gestion individuelle : delete_logs est impossible à proposer
+✅ Gestion individuelle : DG ne peut pas accorder owner_delegate
+✅ Gestion individuelle : OWNER peut accorder owner_delegate
+✅ Gestion individuelle : MC manager ne peut attribuer que ses propres droits
+✅ Demande : owner_delegate et manage_troll ne sont pas demandables
+✅ Demande normale reste possible pour MC
+✅ Suppression : une demande acceptée peut être supprimée par Gérer les permissions
+✅ Suppression : une demande en attente ne peut pas être supprimée
+✅ Suppression : sans Gérer les permissions elle est refusée
+✅ Suppression : effacer l’historique ne retire pas la permission déjà appliquée
+✅ Interface affiche une corbeille pour les demandes traitées
+✅ Interface actuelle contient seulement les libellés regroupés
+✅ Règles Firebase renforcées pour permissions et logs
+
+Résultat : 28 test(s) réussi(s), 0 échec(s).
