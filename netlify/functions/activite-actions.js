@@ -6,9 +6,9 @@
 // qui (MC compris) pouvait appeler l'adresse Firebase directement.
 //
 // Vérifie précisément (point 14 du cahier des charges) :
-//   - scope "formateur"  → exige send_pillbox_formation
-//   - scope "psychologue" → exige send_pillbox_psychologie
-//   - scope "all" (ADD+ uniquement) → exige send_pillbox_all
+//   - scope "formateur"  → exige sync_pillbox_complete
+//   - scope "psychologue" → exige sync_pillbox_complete
+//   - scope "all" (ADD+ uniquement) → exige sync_pillbox_complete
 //
 // Ne fait JAMAIS confiance à une copie complète envoyée par le
 // navigateur — relit toujours le cloud actuel et ne fusionne QUE les
@@ -25,9 +25,9 @@ const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fire
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 
 const SCOPE_PERMISSION = {
-  formateur: "send_pillbox_formation",
-  psychologue: "send_pillbox_psychologie",
-  all: "send_pillbox_all",
+  formateur: "sync_pillbox_complete",
+  psychologue: "sync_pillbox_complete",
+  all: "sync_pillbox_complete",
 };
 const SCOPE_GRADES = {
   formateur: ["MF", "RF"],
