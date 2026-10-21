@@ -1,0 +1,37 @@
+ROSTER EMS / PILLBOX — TESTS SPÉCIALITÉS v2
+Date : 22/10/2026
+
+Objectif
+- Le Tableau de bord Pillbox doit utiliser le grade ACTUEL du Roster comme source de vérité.
+- Seuls MF/RF (Formateur) et MP/RP (Psychologue) sont actifs dans ce bloc.
+- Les anciens grades/spécialités ne doivent plus apparaître.
+- Les doubles clés name:<nom> / id:<idUnique> doivent être dédoublonnées.
+- Le Roster doit nettoyer les anciennes entrées au prochain enregistrement d'activité.
+
+Tests ajoutés : 10/10 réussis
+1. Seuls MF/RF/MP/RP actifs restent.
+2. Les anciens MC/M et licenciés sont supprimés du cloud nettoyé.
+3. La clé id: canonique gagne sur le doublon name:.
+4. Les champs de l'ancienne spécialité sont retirés.
+5. Une ancienne clé name: est migrée vers id:, streak compris.
+6. Une clôture Pillbox ne réinjecte pas les vieilles entrées.
+7. Chaque spécialiste actif est affiché une seule fois dans Pillbox.
+8. Les anciens MC/M ne sont pas dans la liste active.
+9. Les valeurs canoniques Ava/Djam/Leto sont utilisées.
+10. Les pôles Formateur et Psychologue sont séparés clairement.
+
+Tests existants également relancés :
+- Permissions : 28/28
+- Sauvegarde / synchronisation : 18/18
+
+TOTAL CIBLÉ : 56/56 réussis.
+
+Vérifications statiques :
+- 28 fonctions Netlify : syntaxe JavaScript OK.
+- JavaScript inline Roster : OK.
+- JavaScript inline Pillbox : OK.
+- Aucun ID HTML réel en doublon dans les deux index.
+
+Limite du test :
+- Aucun write réel n'a été effectué sur la Firebase de production.
+- Les tests simulent les données représentatives, y compris l'exemple MC/M anciens et les doublons Ava/Djam/Leto.
