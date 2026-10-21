@@ -25,6 +25,7 @@ const { logAction } = require("./logs");
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 const DISCORD_IDS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
+const ROSTER_SYNC_META_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPillboxSyncMeta.json";
 const ACTIVITE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
 const ABSENCES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsences.json";
 const ABSENCE_ALERT_DECISIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterAbsenceAlertDecisions.json";
@@ -268,9 +269,10 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, syncMetaRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
+      fetch(`${ROSTER_SYNC_META_URL}?auth=${idToken}`),
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
       fetch(PAY_RULES_URL), // lecture publique, comme rosterGradeLabels — pas besoin du jeton
       fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
@@ -279,6 +281,7 @@ exports.handler = async function (event) {
     const animPref = animPrefRes.ok ? await animPrefRes.json() : null;
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
+    const rosterSyncMeta = syncMetaRes.ok ? await syncMetaRes.json() : null;
     let absences = absencesRes.ok ? await absencesRes.json() : null;
     // (10/10, demandé) Même nettoyage automatique que côté Roster
     // (absences-actions.js GET) — pour que Pillbox ne voie jamais une
@@ -359,7 +362,7 @@ exports.handler = async function (event) {
     }
 
     return json(200, {
-      roster, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
+      roster, rosterSyncMeta, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
