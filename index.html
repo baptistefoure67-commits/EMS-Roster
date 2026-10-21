@@ -1052,8 +1052,40 @@ body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doo
 .liaison-overlay.scene-paused .sync-monitor-led,.liaison-overlay.scene-paused .sync-hospital-doorlight,.liaison-overlay.scene-paused .sync-person:after,.liaison-overlay.scene-paused .sync-person.me img,.liaison-overlay.scene-paused .sync-person.colleague img,.liaison-overlay.scene-paused .sync-folder-sheet,.liaison-overlay.scene-paused .sync-folder-owner,.liaison-overlay.scene-paused .sync-handoff-seal,.liaison-overlay.scene-paused .sync-step-pill[data-status="active"]:before{animation-play-state:paused!important}
 
 </style>
+
+<style id="roster-save-review-safety-v1">
+/* Confirmation de sauvegarde Roster — sécurité anti-écrasement (21/10/2026). */
+.save-review-overlay{position:fixed;inset:0;z-index:12050;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(2,7,15,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.save-review-overlay[hidden]{display:none!important}.save-review-dialog{width:min(760px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid rgba(96,190,255,.28);border-radius:20px;background:linear-gradient(155deg,#101d2b,#08111d);box-shadow:0 30px 110px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.025) inset;color:var(--text);padding:22px}
+.save-review-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}.save-review-icon{width:46px;height:46px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);font-size:24px}.save-review-title{font-size:1.08rem;font-weight:900;margin:0 0 4px}.save-review-sub{font-size:.82rem;color:var(--text-dim);line-height:1.45}
+.save-review-danger{display:none;margin:12px 0 16px;padding:13px 14px;border-radius:14px;border:1px solid rgba(248,113,113,.55);background:linear-gradient(180deg,rgba(127,29,29,.36),rgba(69,10,10,.2));color:#fecaca;box-shadow:0 0 22px rgba(248,113,113,.08) inset}.save-review-overlay[data-risk="high"] .save-review-danger{display:block}.save-review-danger strong{display:block;color:#fff;margin-bottom:4px;font-size:.92rem}.save-review-risk-check{display:none;margin:12px 0;padding:10px 12px;border-radius:12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.18);font-size:.8rem;color:#fecaca}.save-review-overlay[data-risk="high"] .save-review-risk-check{display:flex;gap:9px;align-items:flex-start}.save-review-risk-check input{margin-top:2px}
+.save-review-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:11px 0 16px}.save-review-count{padding:9px 10px;border-radius:12px;background:rgba(15,30,47,.82);border:1px solid rgba(125,211,252,.12);font-size:.73rem;color:var(--text-dim)}.save-review-count b{display:block;color:#fff;font-size:1rem;margin-top:2px}
+.save-review-section{margin:10px 0;padding:12px 13px;border-radius:13px;background:rgba(7,17,30,.7);border:1px solid rgba(148,163,184,.12)}.save-review-section h3{margin:0 0 8px;font-size:.82rem;color:#d7f3ff}.save-review-list{margin:0;padding-left:18px;font-size:.79rem;line-height:1.55;color:var(--text-dim)}.save-review-list li+li{margin-top:2px}.save-review-empty{font-size:.78rem;color:var(--text-faint)}.save-review-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.save-review-footer{position:sticky;bottom:-22px;margin:18px -22px -22px;padding:14px 22px;background:linear-gradient(180deg,rgba(8,17,29,.9),#08111d 35%);border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:flex-end;gap:9px}.save-review-footer button{min-width:118px}.save-review-confirm[disabled]{opacity:.45;cursor:not-allowed}
+.save-review-compare-error{padding:10px 12px;border-radius:12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);font-size:.79rem;color:#fde68a;margin:10px 0}
+.roster-unsaved-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 9px rgba(251,191,36,.35);margin-right:5px;vertical-align:1px}
+@media(max-width:620px){.save-review-dialog{padding:16px;border-radius:16px}.save-review-counts{grid-template-columns:repeat(2,1fr)}.save-review-grid{grid-template-columns:1fr}.save-review-footer{margin:16px -16px -16px;padding:12px 16px;flex-direction:column-reverse}.save-review-footer button{width:100%}}
+@media(prefers-reduced-motion:reduce){.save-review-overlay *{animation:none!important;transition:none!important}}
+</style>
+
 </head>
 <body>
+
+<div id="rosterSaveReviewOverlay" class="save-review-overlay" role="dialog" aria-modal="true" aria-labelledby="rosterSaveReviewTitle" hidden data-risk="normal">
+  <div class="save-review-dialog">
+    <div class="save-review-head">
+      <div class="save-review-icon">🛡️</div>
+      <div><h2 id="rosterSaveReviewTitle" class="save-review-title" tabindex="-1">Vérifier avant de sauvegarder</h2><div class="save-review-sub">Compare l'état actuel avec la dernière version réellement enregistrée dans Firebase. Rien n'est envoyé tant que tu n'as pas confirmé.</div></div>
+    </div>
+    <div id="rosterSaveReviewCompareError" class="save-review-compare-error" hidden></div>
+    <div id="rosterSaveReviewDanger" class="save-review-danger"><strong>⚠️ Changement anormalement important détecté</strong><span id="rosterSaveReviewDangerText"></span></div>
+    <div id="rosterSaveReviewCounts" class="save-review-counts"></div>
+    <div id="rosterSaveReviewContent"></div>
+    <label class="save-review-risk-check"><input id="rosterSaveReviewRiskAck" type="checkbox"> <span>J'ai vérifié cette baisse importante et je confirme qu'elle est volontaire.</span></label>
+    <div class="save-review-footer"><button type="button" class="btn-ghost" id="rosterSaveReviewCancel">Annuler</button><button type="button" class="btn-primary save-review-confirm" id="rosterSaveReviewConfirm">Confirmer la sauvegarde</button></div>
+  </div>
+</div>
+
 
 <div id="syncPillboxOverlay" class="sync-overlay" role="dialog" aria-modal="true" aria-labelledby="syncOverlayTitle" aria-describedby="syncOverlaySubtitle" hidden data-state="loading">
   <div class="sync-dialog">
@@ -1923,10 +1955,11 @@ let rosterLastUpdatedAt = null;
 function renderLastUpdated(){
   const el = document.getElementById("rosterLastUpdated");
   if(!el) return;
-  if(!rosterLastUpdatedAt){ el.textContent = ""; return; }
+  const dirty = rosterEmployeesDirty ? " • ⚠ non sauvegardé" : "";
+  if(!rosterLastUpdatedAt){ el.textContent = rosterEmployeesDirty ? "⚠ Modifications du Roster non sauvegardées" : ""; return; }
   const d = new Date(rosterLastUpdatedAt);
   const pad = n => String(n).padStart(2,"0");
-  el.textContent = `🕐 Dernière mise à jour : ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} à ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  el.textContent = `🕐 Dernière mise à jour : ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} à ${pad(d.getHours())}:${pad(d.getMinutes())}${dirty}`;
 }
 
 async function loadState(){
@@ -1943,6 +1976,7 @@ async function loadState(){
         if(data && Array.isArray(data.employees) && data.employees.length){
           employees = data.employees;
           rosterLastUpdatedAt = data.savedAt || null;
+          rosterEmployeesDirty = false;
           renderLastUpdated();
           return;
         }
@@ -1955,24 +1989,26 @@ async function loadState(){
   employees = SEED_EMPLOYEES.map(e=>({...e}));
 }
 
-// (10/10, demandé) Sauvegarde cloud automatique et permanente — chaque
-// appel à saveState() programme un envoi (groupé sur 1.2s, pour éviter
-// une écriture Firebase à chaque petit changement si plusieurs arrivent
-// d'affilée) ; remplace l'ancien enregistrement local, qui n'existe
-// plus pour employees. Les 18 endroits qui appelaient déjà saveState()
-// après une modification bénéficient de ce changement sans y toucher.
-let _saveStateTimer = null;
+// (21/10) Sécurité anti-écrasement : les modifications du Roster restent
+// locales jusqu'au clic explicite sur « Sauvegarder ». L'ancien envoi
+// automatique pouvait pousser une liste vidée par un bug avant que la
+// personne ne voie le problème. saveState() marque maintenant le Roster
+// comme modifié sans écrire dans Firebase.
+let _saveStateTimer = null; // conservé pour compatibilité avec les anciens tests/appels
+let rosterEmployeesDirty = false;
+let rosterSaveReviewOpen = false;
+let rosterSaveInProgress = false;
 function saveState(){
-  if(!currentFirebaseIdToken) return; // pas encore connecté — rien à pousser pour l'instant, loadState() reprendra au login
-  if(_saveStateTimer) clearTimeout(_saveStateTimer);
-  _saveStateTimer = setTimeout(pushStateToCloudNow, 1200);
+  rosterEmployeesDirty = true;
+  if(_saveStateTimer){ clearTimeout(_saveStateTimer); _saveStateTimer = null; }
+  renderLastUpdated();
+  const statusEl=document.getElementById("saveAllStatus");
+  if(statusEl && !rosterSaveInProgress){
+    statusEl.innerHTML = `<span class="roster-unsaved-dot"></span>Modifications du Roster non sauvegardées`;
+    statusEl.style.color = "var(--amber)";
+  }
 }
-// (16/10) Avant d'écrire : Firebase valide TOUT le tableau employees à
-// chaque sauvegarde (pas seulement la fiche qu'on vient de modifier) —
-// une seule fiche avec un champ manquant/vide (souvent un vieil import
-// sans ID Discord renseigné) fait échouer TOUTE sauvegarde suivante,
-// en silence, sans que rien ne le signale. Vérifié ici nous-mêmes pour
-// donner une vraie erreur visible plutôt qu'un échec muet.
+// Validation locale avant toute écriture réelle.
 function findInvalidEmployees(){
   const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
   const bad = [];
@@ -1985,53 +2021,142 @@ function findInvalidEmployees(){
   });
   return bad;
 }
+function employeeDiffKey(e){
+  if(!e) return "";
+  const did=String(e.discordId||"").trim(); if(did) return `discord:${did}`;
+  const uid=String(e.idUnique||"").trim(); if(uid) return `unique:${uid}`;
+  const id=String(e.id||"").trim(); if(id) return `id:${id}`;
+  return `name:${String(e.name||"").trim().toLowerCase()}`;
+}
+function matchEmployeeForDiff(source, candidates, used){
+  const keys=[
+    source?.discordId ? ["discordId",String(source.discordId)] : null,
+    source?.idUnique ? ["idUnique",String(source.idUnique)] : null,
+    source?.id ? ["id",String(source.id)] : null,
+    source?.name ? ["name",String(source.name).trim().toLowerCase()] : null,
+  ].filter(Boolean);
+  for(let i=0;i<candidates.length;i++){
+    if(used.has(i)) continue;
+    const c=candidates[i];
+    if(keys.some(([k,v])=> k==="name" ? String(c?.name||"").trim().toLowerCase()===v : String(c?.[k]||"")===v)) return i;
+  }
+  return -1;
+}
+function computeRosterEmployeeDiff(previousEmployees,currentEmployees){
+  const prev=Array.isArray(previousEmployees)?previousEmployees:[];
+  const cur=Array.isArray(currentEmployees)?currentEmployees:[];
+  const used=new Set(); const added=[]; const removed=[]; const licensed=[]; const reactivated=[]; const gradeChanges=[]; const nameChanges=[]; const discordChanges=[];
+  for(const oldE of prev){
+    const idx=matchEmployeeForDiff(oldE,cur,used);
+    if(idx<0){ removed.push(oldE); continue; }
+    used.add(idx); const now=cur[idx];
+    if(!oldE.licencie && !!now.licencie) licensed.push(now);
+    if(!!oldE.licencie && !now.licencie) reactivated.push(now);
+    if(String(oldE.grade||"")!==String(now.grade||"")) gradeChanges.push({name:now.name||oldE.name,from:oldE.grade||"?",to:now.grade||"?"});
+    if(String(oldE.name||"")!==String(now.name||"")) nameChanges.push({from:oldE.name||"?",to:now.name||"?"});
+    if(String(oldE.discordId||"")!==String(now.discordId||"")) discordChanges.push({name:now.name||oldE.name,from:oldE.discordId||"—",to:now.discordId||"—"});
+  }
+  cur.forEach((e,i)=>{ if(!used.has(i)) added.push(e); });
+  const prevActive=prev.filter(e=>!e?.licencie).length, currActive=cur.filter(e=>!e?.licencie).length;
+  const prevTotal=prev.length, currTotal=cur.length;
+  const activeDropPct=prevActive>0 ? Math.max(0,Math.round(((prevActive-currActive)/prevActive)*1000)/10) : 0;
+  const abnormal = (prevActive>=4 && currActive < prevActive*0.5) || (prevActive>=15 && currActive<=5) || (prevTotal>=4 && currTotal===0);
+  return {added,removed,licensed,reactivated,gradeChanges,nameChanges,discordChanges,prevActive,currActive,prevTotal,currTotal,activeDropPct,abnormal};
+}
+function stableJson(value){
+  if(value===null || typeof value!=="object") return JSON.stringify(value);
+  if(Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+stableJson(value[k])).join(",")}}`;
+}
+function selectedEmployeeKeysFromCurrent(){
+  return employees.filter(e=>!e.licencie && specialSelected.has(e.id)).map(employeeDiffKey).sort();
+}
+function selectedEmployeeKeysFromCloud(data){
+  return (data && Array.isArray(data.selectedEmployees)?data.selectedEmployees:[]).map(employeeDiffKey).sort();
+}
+function activityDisplayName(key){
+  try{
+    const emp=typeof resolveActiviteIdentity==="function" ? resolveActiviteIdentity(key,employees) : null;
+    if(emp?.name) return emp.name;
+  }catch(e){}
+  const raw=String(key||""); return raw.startsWith("name:") ? raw.slice(5) : raw.startsWith("id:") ? `ID ${raw.slice(3)}` : raw || "Entrée inconnue";
+}
+function computeActivityChanges(remoteData,localData){
+  const a=remoteData&&typeof remoteData==="object"?remoteData:{}; const b=localData&&typeof localData==="object"?localData:{};
+  const keys=[...new Set([...Object.keys(a),...Object.keys(b)])];
+  return keys.filter(k=>stableJson(a[k]||{})!==stableJson(b[k]||{})).map(k=>activityDisplayName(k));
+}
+async function fetchSaveReviewSnapshot(){
+  const result={compareError:null,roster:null,selection:null,activity:null};
+  try{ const r=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL)); if(!r.ok) throw new Error(`Roster ${r.status}`); result.roster=await r.json(); }catch(e){ result.compareError=e.message; }
+  try{ const r=await fetch(SPECIAL_SELECTION_CLOUD_URL); if(r.ok) result.selection=await r.json(); }catch(e){}
+  try{ const r=await fetch(ACTIVITE_CLOUD_URL); if(r.ok) result.activity=await r.json(); }catch(e){}
+  return result;
+}
+async function buildRosterSaveReview(){
+  const snap=await fetchSaveReviewSnapshot();
+  const previousEmployees=Array.isArray(snap.roster?.employees)?snap.roster.employees:[];
+  const employeeDiff=computeRosterEmployeeDiff(previousEmployees,employees);
+  const currentSel=selectedEmployeeKeysFromCurrent(), cloudSel=selectedEmployeeKeysFromCloud(snap.selection);
+  const selectionChanged=stableJson(currentSel)!==stableJson(cloudSel);
+  const activityChanges=computeActivityChanges(snap.activity?.data||{},activiteData||{});
+  const hasRosterChanges=employeeDiff.added.length||employeeDiff.removed.length||employeeDiff.licensed.length||employeeDiff.reactivated.length||employeeDiff.gradeChanges.length||employeeDiff.nameChanges.length||employeeDiff.discordChanges.length;
+  const hasChanges=!!(hasRosterChanges||selectionChanged||activityChanges.length||activiteDirty);
+  return {snap,employeeDiff,selectionChanged,currentSelectionCount:currentSel.length,cloudSelectionCount:cloudSel.length,activityChanges,hasRosterChanges:!!hasRosterChanges,hasChanges,compareError:snap.compareError,previousSavedAt:snap.roster?.savedAt||null};
+}
+function saveReviewList(title,items,formatter){
+  const safe=Array.isArray(items)?items:[];
+  return `<div class="save-review-section"><h3>${esc(title)} <span style="color:var(--text-faint);font-weight:700;">(${safe.length})</span></h3>${safe.length?`<ul class="save-review-list">${safe.map(x=>`<li>${formatter(x)}</li>`).join("")}</ul>`:`<div class="save-review-empty">Aucun changement</div>`}</div>`;
+}
+function showRosterSaveReview(review){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById("rosterSaveReviewOverlay"), content=document.getElementById("rosterSaveReviewContent"), counts=document.getElementById("rosterSaveReviewCounts"), dangerText=document.getElementById("rosterSaveReviewDangerText"), compareErr=document.getElementById("rosterSaveReviewCompareError"), ack=document.getElementById("rosterSaveReviewRiskAck"), confirmBtn=document.getElementById("rosterSaveReviewConfirm"), cancelBtn=document.getElementById("rosterSaveReviewCancel");
+    const d=review.employeeDiff; const risk=!!(d.abnormal||review.compareError);
+    overlay.dataset.risk=risk?"high":"normal"; ack.checked=false; confirmBtn.disabled=risk;
+    counts.innerHTML=`<div class="save-review-count">Employés avant<b>${d.prevActive}</b></div><div class="save-review-count">Employés maintenant<b>${d.currActive}</b></div><div class="save-review-count">Total fiches avant<b>${d.prevTotal}</b></div><div class="save-review-count">Total fiches maintenant<b>${d.currTotal}</b></div>`;
+    dangerText.textContent=review.compareError?`Impossible de charger correctement la version précédente (${review.compareError}). La comparaison n'est donc pas garantie.`:`Le nombre d'employés actifs chute de ${d.activeDropPct}% (${d.prevActive} → ${d.currActive}). Vérifie impérativement la liste avant de confirmer.`;
+    compareErr.hidden=!review.compareError; compareErr.textContent=review.compareError?`⚠ Comparaison partielle : ${review.compareError}`:"";
+    const rosterHtml=`<div class="save-review-grid">${saveReviewList("➕ Nouveaux employés",d.added,x=>esc(x.name||"Sans nom"))}${saveReviewList("🚪 Employés licenciés",d.licensed,x=>esc(x.name||"Sans nom"))}${saveReviewList("⬆️ Changements de grade",d.gradeChanges,x=>`${esc(x.name)} : <b>${esc(x.from)}</b> → <b>${esc(x.to)}</b>`)}${saveReviewList("🗑️ Fiches supprimées",d.removed,x=>esc(x.name||"Sans nom"))}</div>`;
+    const extras=[];
+    if(d.reactivated.length) extras.push(saveReviewList("↩️ Réactivations",d.reactivated,x=>esc(x.name||"Sans nom")));
+    if(d.nameChanges.length) extras.push(saveReviewList("✏️ Changements de nom",d.nameChanges,x=>`${esc(x.from)} → ${esc(x.to)}`));
+    if(d.discordChanges.length) extras.push(saveReviewList("🆔 Changements d'ID Discord",d.discordChanges,x=>`${esc(x.name)} : ${esc(x.from)} → ${esc(x.to)}`));
+    const other=[];
+    if(review.selectionChanged) other.push(`<li>Formation Opération : <b>${review.cloudSelectionCount}</b> → <b>${review.currentSelectionCount}</b> sélectionné(s)</li>`);
+    if(review.activityChanges.length) other.push(`<li>Suivi d'activité modifié pour <b>${review.activityChanges.length}</b> membre(s) : ${review.activityChanges.slice(0,8).map(esc).join(", ")}${review.activityChanges.length>8?` (+${review.activityChanges.length-8})`:""}</li>`);
+    content.innerHTML=rosterHtml+extras.join("")+`<div class="save-review-section"><h3>📦 Autres données du bouton Sauvegarder</h3>${other.length?`<ul class="save-review-list">${other.join("")}</ul>`:`<div class="save-review-empty">Sélection Formation Opération et suivi d'activité identiques à la dernière version cloud.</div>`}</div>`;
+    rosterSaveReviewOpen=true; overlay.hidden=false; document.getElementById("rosterSaveReviewTitle")?.focus({preventScroll:true});
+    const cleanup=(value)=>{ rosterSaveReviewOpen=false; overlay.hidden=true; ack.onchange=null; confirmBtn.onclick=null; cancelBtn.onclick=null; resolve(value); };
+    ack.onchange=()=>{ confirmBtn.disabled=risk&&!ack.checked; };
+    confirmBtn.onclick=()=>cleanup(true); cancelBtn.onclick=()=>cleanup(false);
+  });
+}
+async function pushRosterSnapshotConfirmed(review){
+  if(!hasCap("manage_roster")) return {skipped:true};
+  const invalid=findInvalidEmployees();
+  if(invalid.length){ const detail=invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; "); throw new Error(`Sauvegarde Roster bloquée : ${invalid.length} fiche(s) invalide(s) — ${detail}`); }
+  // Vérifie que personne n'a modifié le cloud pendant que la fenêtre de confirmation était ouverte.
+  const latestRes=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
+  if(!latestRes.ok) throw new Error(`Impossible de revérifier le Roster cloud (${latestRes.status}).`);
+  const latest=await latestRes.json();
+  const latestSavedAt=latest?.savedAt||null;
+  if((review.previousSavedAt||null)!==latestSavedAt){ throw new Error("Le Roster a été modifié par quelqu'un d'autre pendant ta confirmation. Relance Sauvegarder pour revoir les changements."); }
+  const savedAt=Date.now();
+  const res=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employees,savedAt})});
+  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error(`Roster refusé (${res.status}) ${t.slice(0,120)}`); }
+  rosterLastUpdatedAt=savedAt; rosterEmployeesDirty=false; renderLastUpdated(); return {savedAt};
+}
+// Compatibilité : si un ancien appel direct tente encore d'envoyer le Roster,
+// il est volontairement refusé et renvoyé vers le bouton avec confirmation.
 async function pushStateToCloudNow(){
-  _saveStateTimer = null;
-  if(!currentFirebaseIdToken) return;
-  const invalid = findInvalidEmployees();
-  if(invalid.length){
-    const detail = invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; ");
-    toast(`✕ Sauvegarde cloud bloquée : ${invalid.length} fiche(s) invalide(s) ailleurs dans le roster — ${detail}${invalid.length>5?` (+${invalid.length-5} autre(s))`:""}. Corrige-les, sinon AUCUNE modification ne sera sauvegardée tant que ça reste comme ça.`);
-    return;
-  }
-  try{
-    const savedAt = Date.now();
-    const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
-      method: "PUT", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ employees, savedAt }),
-    });
-    if(res.ok){ rosterLastUpdatedAt = savedAt; renderLastUpdated(); }
-    else{
-      const t = await res.text().catch(()=> "");
-      toast(`✕ Sauvegarde cloud refusée (${res.status}) — rien n'a été enregistré. ${t.slice(0,150)}`);
-      console.warn("Sauvegarde cloud refusée :", res.status, t);
-    }
-  }catch(e){
-    toast(`✕ Sauvegarde cloud impossible (réseau) — rien n'a été enregistré : ${e.message}`);
-    console.warn("Sauvegarde cloud impossible :", e);
-  }
+  _saveStateTimer=null;
+  rosterEmployeesDirty=true; renderLastUpdated();
+  toast("⚠ Sauvegarde automatique du Roster bloquée par sécurité — utilise le bouton « Sauvegarder » pour vérifier les changements.");
+  return {blocked:true};
 }
+function autoSaveOnLeave(){ /* volontairement aucune écriture silencieuse */ }
+window.addEventListener("beforeunload",(event)=>{ if(rosterEmployeesDirty){ event.preventDefault(); event.returnValue=""; } });
 
-// Sauvegarde automatique en quittant la page (fermeture d'onglet,
-// navigation ailleurs) — demandé le 09/09, conservé : le regroupement
-// sur 1.2s de saveState() pourrait sinon perdre la toute dernière
-// modification si la page se ferme avant que le délai expire. Utilise
-// fetch avec keepalive:true, conçu pour survivre à la fermeture de la
-// page (contrairement à un fetch normal, qui serait interrompu).
-function autoSaveOnLeave(){
-  if(!currentFirebaseIdToken) return;
-  if(_saveStateTimer){ clearTimeout(_saveStateTimer); _saveStateTimer = null; }
-  try{
-    fetch(withFirebaseAuth(ROSTER_CLOUD_URL), {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({employees, savedAt: Date.now()}),
-      keepalive: true,
-    });
-  }catch(e){ /* échec silencieux — on quitte de toute façon */ }
-}
-window.addEventListener("pagehide", autoSaveOnLeave);
-window.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") autoSaveOnLeave(); });
 function uid(){ return "emp-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); }
 
 // ═══════════════════════════ HISTORIQUE DES CHANGEMENTS ═══════════════════════════
@@ -3142,7 +3267,7 @@ async function refreshSpecialSelectionFromCloud(){
     // mis à jour ici dès qu'une sauvegarde plus récente que la sienne
     // est détectée, pas seulement juste après son propre clic.
     const statusEl = document.getElementById("saveAllStatus");
-    if(statusEl && !statusEl.textContent.startsWith("⚠")){
+    if(statusEl && !rosterEmployeesDirty && !statusEl.textContent.startsWith("⚠")){
       statusEl.textContent = `✓ Dernière sauvegarde : ${new Date(data.savedAt).toLocaleString("fr-FR")}`;
       statusEl.style.color = "var(--text-dim)";
     }
@@ -3157,6 +3282,7 @@ async function refreshSpecialSelectionFromCloud(){
 // que Pillbox attend dans son champ ID Discord, donc aucune conversion
 // n'est nécessaire ici : on envoie le texte brut directement.
 const CLOUD_DB_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
+const ROSTER_PILLBOX_SYNC_META_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPillboxSyncMeta.json";
 
 // Parseur identique à celui utilisé côté Pillbox (parseDiscordIds), pour
 // comparer les deux côtés avec exactement la même logique de lecture.
@@ -3630,6 +3756,20 @@ async function syncWithPillbox(){
         method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
       });
       if(!res.ok) throw new Error(`${res.status}`);
+      // Métadonnée dédiée à Pillbox : vraie date de réception + nombre d'employés actifs,
+      // avec comparaison à la synchronisation précédente.
+      const activeEmployeeCount = employees.filter(e=>!e.licencie).length;
+      let previousMeta = null;
+      try{ const mr=await fetch(withFirebaseAuth(ROSTER_PILLBOX_SYNC_META_URL)); if(mr.ok) previousMeta=await mr.json(); }catch(e){}
+      const previousEmployeeCount = Number.isFinite(Number(previousMeta?.employeeCount)) ? Number(previousMeta.employeeCount) : null;
+      const dropPercent = previousEmployeeCount>0 && activeEmployeeCount<previousEmployeeCount ? Math.round(((previousEmployeeCount-activeEmployeeCount)/previousEmployeeCount)*1000)/10 : 0;
+      const syncMeta = {
+        lastSyncAt: Date.now(), employeeCount: activeEmployeeCount,
+        previousEmployeeCount, previousSyncAt: previousMeta?.lastSyncAt||null, dropPercent,
+        syncedByDiscordId: String(currentUserDiscordId||""), syncedByName: currentUserName||""
+      };
+      const metaRes = await fetch(withFirebaseAuth(ROSTER_PILLBOX_SYNC_META_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(syncMeta)});
+      if(!metaRes.ok) throw new Error(`métadonnées ${metaRes.status}`);
       done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
       setLiaisonStep(stepIdx, "done");
     }catch(err){ failed.push(`Roster (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
@@ -4698,7 +4838,6 @@ async function loadActiviteFromCloud(silent){
 // refreshSpecialSelectionFromCloud et le rafraîchissement silencieux
 // déjà existant de l'activité), sans bouton "Charger" nulle part.
 // Animation d’interface raccordée aux opérations cloud déjà existantes.
-let rosterSaveInProgress = false;
 let rosterOperationTrigger = null;
 let rosterNavigationDismissTimer = null;
 let rosterNavigationDismissAt = 0;
@@ -4761,84 +4900,61 @@ if(openPillboxTerminalLink){
   });
 }
 
+
+document.addEventListener("keydown",event=>{
+  const overlay=document.getElementById("rosterSaveReviewOverlay");
+  if(!overlay||overlay.hidden) return;
+  if(event.key==="Escape"){ event.preventDefault(); document.getElementById("rosterSaveReviewCancel")?.click(); }
+});
+
 document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
-  if(rosterSaveInProgress) return;
-  const btn = e.currentTarget;
-  if(btn.disabled) return;
-  const statusEl = document.getElementById("saveAllStatus");
-  const original = btn.textContent;
-  const startedAt = Date.now();
-  showLiaisonOverlay("save", "Sauvegarde Roster", ["Sélection Formation Opération", "Suivi d'activité"], btn);
-  const saveAbortController = typeof AbortController !== "undefined" ? new AbortController() : null;
-  let saveTimedOut = false;
-  const saveTimeoutId = window.setTimeout(()=>{
-    saveTimedOut = true;
-    if(saveAbortController) saveAbortController.abort();
-  }, 30000);
-  rosterSaveInProgress = true;
-  btn.disabled = true;
-  btn.textContent = "☁️ Sauvegarde…";
-  if(statusEl) statusEl.textContent = "";
-  const done = []; const failed = [];
-  let finalState = "error";
-  let finalMessage = "Échec de la sauvegarde";
-  try{
-    setLiaisonStep(0, "active", "Envoi de la sélection…");
-    try{
-      const count = await saveSpecialSelectionToCloud(saveAbortController ? saveAbortController.signal : undefined);
-      specialSelectionLastSavedAt = Date.now();
-      done.push(`Sélection (${count})`);
-      setLiaisonStep(0, "done");
-    }catch(err){ failed.push("Sélection"); setLiaisonStep(0, "failed"); }
-
-    setLiaisonStep(1, "active", "Écriture du suivi d'activité…");
-    try{
-      // saveActiviteToCloud absorbe ses propres erreurs : son objet de réponse
-      // est utilisé ici pour ne pas confondre un échec avec une sauvegarde réussie.
-      const activityResult = await saveActiviteToCloud("all", undefined, {signal: saveAbortController ? saveAbortController.signal : undefined});
-      if(!activityResult || typeof activityResult !== "object") throw new Error("Réponse de sauvegarde manquante");
-      activiteDirty = false; // L’activité n’est marquée propre qu’après confirmation du serveur.
-      done.push("Activité");
-      setLiaisonStep(1, "done");
-    }catch(err){ failed.push("Activité"); setLiaisonStep(1, "failed"); }
-  }catch(err){
-    failed.push("Opération inattendue");
-  }finally{
-    window.clearTimeout(saveTimeoutId);
+  if(rosterSaveInProgress || rosterSaveReviewOpen) return;
+  const btn=e.currentTarget; if(btn.disabled) return;
+  const statusEl=document.getElementById("saveAllStatus"); const original=btn.textContent;
+  btn.disabled=true; btn.textContent="🔎 Vérification…"; if(statusEl){statusEl.textContent="Comparaison avec la dernière sauvegarde…";statusEl.style.color="var(--text-dim)";}
+  let review;
+  try{ review=await buildRosterSaveReview(); }
+  catch(err){ review={compareError:err.message,employeeDiff:computeRosterEmployeeDiff([],employees),selectionChanged:true,currentSelectionCount:specialSelected.size,cloudSelectionCount:0,activityChanges:[],hasRosterChanges:true,hasChanges:true,previousSavedAt:null}; }
+  btn.disabled=false; btn.textContent=original;
+  if(review.hasChanges || review.compareError){
+    const confirmed=await showRosterSaveReview(review);
+    if(!confirmed){ if(statusEl){statusEl.textContent="Sauvegarde annulée — aucune donnée envoyée.";statusEl.style.color="var(--text-dim)";} return; }
   }
-
+  // Si absolument rien n'a changé, on n'affiche pas la fenêtre et on exécute
+  // directement les opérations existantes comme demandé.
+  const startedAt=Date.now();
+  const canSaveRoster=hasCap("manage_roster");
+  const steps=canSaveRoster?["Roster des employés","Sélection Formation Opération","Suivi d'activité"]:["Sélection Formation Opération","Suivi d'activité"];
+  showLiaisonOverlay("save","Sauvegarde Roster",steps,btn);
+  const saveAbortController=typeof AbortController!=="undefined"?new AbortController():null;
+  let saveTimedOut=false; const saveTimeoutId=window.setTimeout(()=>{saveTimedOut=true;if(saveAbortController)saveAbortController.abort();},30000);
+  rosterSaveInProgress=true; btn.disabled=true; btn.textContent="☁️ Sauvegarde…"; if(statusEl)statusEl.textContent="";
+  const done=[]; const failed=[]; let step=0; let finalState="error",finalMessage="Échec de la sauvegarde";
   try{
-    // La sauvegarde réelle est déjà terminée avant cet éventuel complément de durée minimale.
-    await liaisonMinDelay(startedAt, liaisonCurrentMinMs);
-    if(!failed.length){ finalState = "success"; finalMessage = "Sauvegarde réussie"; }
-    else if(done.length){ finalState = "partial"; finalMessage = "Sauvegarde partielle"; }
-    else { finalState = "error"; finalMessage = "Échec de la sauvegarde"; }
-    finishLiaisonOverlay(finalState, finalMessage, saveTimedOut
-      ? "Le délai d’attente de 30 secondes est dépassé. Vérifie la connexion avant de réessayer."
-      : finalState === "success"
-        ? "Toutes les opérations de sauvegarde sont terminées."
-        : finalState === "partial" ? "Certaines opérations ont échoué." : "Aucune opération de sauvegarde n’a abouti.");
-    const when = new Date().toLocaleString("fr-FR");
-    if(statusEl){
-      statusEl.textContent = finalState === "success"
-        ? `✓ Dernière sauvegarde : ${when}`
-        : finalState === "partial"
-          ? `⚠ Sauvegarde partielle — réussi : ${done.join(", ")}; échec : ${failed.join(", ")}.`
-          : `✕ Échec de la sauvegarde — ${failed.join(", ") || "aucune opération confirmée"}.`;
-      statusEl.style.color = finalState === "success" ? "var(--green)" : finalState === "partial" ? "var(--amber)" : "var(--red)";
+    if(canSaveRoster){
+      setLiaisonStep(step,"active","Écriture du Roster vérifié…");
+      try{ await pushRosterSnapshotConfirmed(review); done.push("Roster"); setLiaisonStep(step,"done"); }
+      catch(err){ failed.push(`Roster (${err.message})`); setLiaisonStep(step,"failed"); }
+      step++;
     }
-    toast(finalState === "success" ? "✓ Sauvegarde réussie" : finalState === "partial" ? "⚠ Sauvegarde partielle" : "✕ Échec de la sauvegarde");
-    if(!liaisonSkipped && !liaisonReduced()) await waitForSyncOverlay(900);
-  }catch(err){
-    // Le nettoyage de la fenêtre est garanti même si un problème d’interface survient.
-    finishLiaisonOverlay("error", "Échec de la sauvegarde");
-    if(statusEl){ statusEl.textContent = "✕ Échec de la sauvegarde."; statusEl.style.color = "var(--red)"; }
-  }finally{
-    hideLiaisonOverlay(true);
-    btn.disabled = false;
-    btn.textContent = original;
-    rosterSaveInProgress = false;
-  }
+    setLiaisonStep(step,"active","Envoi de la sélection…");
+    try{ const count=await saveSpecialSelectionToCloud(saveAbortController?saveAbortController.signal:undefined); specialSelectionLastSavedAt=Date.now(); done.push(`Sélection (${count})`); setLiaisonStep(step,"done"); }
+    catch(err){ failed.push("Sélection"); setLiaisonStep(step,"failed"); }
+    step++;
+    setLiaisonStep(step,"active","Écriture du suivi d'activité…");
+    try{ const activityResult=await saveActiviteToCloud("all",undefined,{signal:saveAbortController?saveAbortController.signal:undefined}); if(!activityResult||typeof activityResult!=="object") throw new Error("Réponse de sauvegarde manquante"); activiteDirty=false; done.push("Activité"); setLiaisonStep(step,"done"); }
+    catch(err){ failed.push("Activité"); setLiaisonStep(step,"failed"); }
+  }catch(err){ failed.push("Opération inattendue"); } finally{ window.clearTimeout(saveTimeoutId); }
+  try{
+    await liaisonMinDelay(startedAt,liaisonCurrentMinMs);
+    if(!failed.length){finalState="success";finalMessage="Sauvegarde réussie";} else if(done.length){finalState="partial";finalMessage="Sauvegarde partielle";} else{finalState="error";finalMessage="Échec de la sauvegarde";}
+    finishLiaisonOverlay(finalState,finalMessage,saveTimedOut?"Le délai d’attente de 30 secondes est dépassé. Vérifie la connexion avant de réessayer.":finalState==="success"?"Toutes les opérations de sauvegarde sont terminées.":finalState==="partial"?"Certaines opérations ont échoué.":"Aucune opération de sauvegarde n’a abouti.");
+    const when=new Date().toLocaleString("fr-FR");
+    if(statusEl){statusEl.textContent=finalState==="success"?`✓ Dernière sauvegarde : ${when}`:finalState==="partial"?`⚠ Sauvegarde partielle — réussi : ${done.join(", ")}; échec : ${failed.join(", ")}.`:`✕ Échec de la sauvegarde — ${failed.join(", ")||"aucune opération confirmée"}.`;statusEl.style.color=finalState==="success"?"var(--green)":finalState==="partial"?"var(--amber)":"var(--red)";}
+    toast(finalState==="success"?"✓ Sauvegarde réussie":finalState==="partial"?"⚠ Sauvegarde partielle":"✕ Échec de la sauvegarde");
+    if(!liaisonSkipped&&!liaisonReduced()) await waitForSyncOverlay(900);
+  }catch(err){finishLiaisonOverlay("error","Échec de la sauvegarde");if(statusEl){statusEl.textContent="✕ Échec de la sauvegarde.";statusEl.style.color="var(--red)";}}
+  finally{hideLiaisonOverlay(true);btn.disabled=false;btn.textContent=original;rosterSaveInProgress=false;}
 });
 
 
@@ -6313,7 +6429,7 @@ async function rosterCheckKicked(){
 // rafraîchissement — pour ne pas re-rendre inutilement à chaque poll.
 async function refreshEmployeesFromCloud(){
   if(!currentFirebaseIdToken) return;
-  if(_saveStateTimer) return; // modification locale en attente d'envoi -- ne jamais l'écraser par une lecture
+  if(rosterEmployeesDirty || _saveStateTimer) return; // modifications locales non confirmées : ne jamais les écraser par une lecture
   try{
     const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
     if(!res.ok) return;
