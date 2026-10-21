@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // pillbox-delete-week.js — suppression d'une semaine de l'historique
-// (09/09). Réservé à can(level, "delete_week") — ADD et au-dessus par
+// (09/09). Réservé à can(level, "manage_pay_weeks") — ADD et au-dessus par
 // défaut, ajustable via les exceptions individuelles. Avant existait
 // un bouton "Supprimer" sans AUCUNE vérification — corrigé ici.
 // ═══════════════════════════════════════════════════════════════════
@@ -54,7 +54,7 @@ exports.handler = async function (event) {
       individualOverrides = indivRes.ok ? await indivRes.json() : null;
     } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
 
-    if (!can(session.level, "delete_week", null, session.discordId, individualOverrides)) {
+    if (!can(session.level, "manage_pay_weeks", null, session.discordId, individualOverrides)) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus (ou exception individuelle).` }, corsHeaders);
     }
 
