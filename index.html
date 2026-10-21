@@ -3929,10 +3929,9 @@ document.getElementById("btnClearHistory").addEventListener("click", ()=>{
 // ═══════════════════════════ SUIVI D'ACTIVITÉ (Formateur / Psychologue) ═══════════════════════════
 // Une seule donnée partagée entre les deux onglets ({recrutements,
 // formations} pour MF/RF, {testsPsy,ppa} pour MP/RP) — semaine en cours
-// uniquement, pas d'historique (décidé). Clé par idUnique si connu,
-// sinon par nom en minuscules. Lu silencieusement par Pillbox pour
-// enrichir la phrase d'avertissement quota, jamais affiché dans le
-// Tableau de bord (décidé).
+// uniquement. Clé par idUnique si connu, sinon par nom en minuscules.
+// Pillbox le lit pour les avertissements quota ET pour son Tableau de bord,
+// mais recroise toujours ces données avec les grades actuels du Roster.
 const ACTIVITE_KEY = "rosterActiviteSuivi_v1";
 const ACTIVITE_STREAK_KEY = "rosterActiviteStreak_v1";
 const ACTIVITE_CLOUD_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/activiteSuivi.json";
@@ -4757,6 +4756,15 @@ async function saveActiviteToCloud(scope, closeWeek, requestOptions){
     const res = await fetch("/.netlify/functions/activite-actions", requestInit);
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+    // Le serveur renvoie la version nettoyée/canonique (uniquement les SP
+    // actuelles MF/RF/MP/RP, sans doubles name:/id:). On la reprend ici
+    // pour que le cache local ne réinjecte pas de vieilles entrées au clic
+    // suivant sur Sauvegarder.
+    if(data && data.data && typeof data.data === "object") activiteData = data.data;
+    else if(data && Object.prototype.hasOwnProperty.call(data,"data")) activiteData = {};
+    if(data && data.streak && typeof data.streak === "object") activiteStreak = data.streak;
+    else if(data && Object.prototype.hasOwnProperty.call(data,"streak")) activiteStreak = {};
+    saveActiviteData(); saveActiviteStreak();
     toast("✓ Suivi d'activité envoyé vers Pillbox");
     return data;
   }catch(err){
