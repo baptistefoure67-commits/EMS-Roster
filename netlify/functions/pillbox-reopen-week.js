@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // pillbox-reopen-week.js — réouverture d'une semaine de paie clôturée
-// (09/09). Réservé à can(level, "reopen_week") — CD et au-dessus par
+// (09/09). Réservé à can(level, "manage_pay_weeks") — CD et au-dessus par
 // défaut, ajustable via les exceptions individuelles comme tout le
 // reste. Vérifié ici, jamais seulement caché côté interface.
 //
@@ -63,7 +63,7 @@ exports.handler = async function (event) {
       individualOverrides = indivRes.ok ? await indivRes.json() : null;
     } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
 
-    if (!can(session.level, "reopen_week", null, session.discordId, individualOverrides)) {
+    if (!can(session.level, "manage_pay_weeks", null, session.discordId, individualOverrides)) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus (ou exception individuelle).` }, corsHeaders);
     }
 
