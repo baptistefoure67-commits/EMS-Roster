@@ -48,6 +48,55 @@ async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, web
 
 function activiteKeyFor(e){ return e.idUnique ? `id:${e.idUnique}` : `name:${String(e.name || "").trim().toLowerCase()}`; }
 
+const SPECIALTY_BY_GRADE = {
+  MF: { scope: "formateur", fields: ["formations", "recrutements"] },
+  RF: { scope: "formateur", fields: ["formations", "recrutements"] },
+  MP: { scope: "psychologue", fields: ["consultations", "ppa", "testsPsy"] },
+  RP: { scope: "psychologue", fields: ["consultations", "ppa", "testsPsy"] },
+};
+
+function normalizeActivityRecord(record, grade){
+  const spec = SPECIALTY_BY_GRADE[String(grade || "").toUpperCase()];
+  if (!spec || !record || typeof record !== "object") return null;
+  const out = {};
+  for (const field of spec.fields) {
+    if (Object.prototype.hasOwnProperty.call(record, field)) out[field] = Math.max(0, Number(record[field]) || 0);
+  }
+  if (record.excused === true) out.excused = true;
+  // Une fiche d'activité suivie doit rester matérialisée même si elle ne
+  // contenait encore aucun compteur : initialise les compteurs de SA SP,
+  // jamais ceux d'un ancien pôle.
+  if (!Object.keys(out).length) spec.fields.forEach(field => { out[field] = 0; });
+  return out;
+}
+
+// Nettoie les reliquats historiques avant CHAQUE écriture :
+// - seuls les membres actifs dont le grade ACTUEL est MF/RF/MP/RP restent ;
+// - une vieille clé name:<nom> est migrée vers id:<idUnique> si l'ID existe ;
+// - si name: et id: existent en double, id: gagne et complète seulement les
+//   champs manquants depuis l'ancienne clé ;
+// - les champs d'une ancienne spécialité sont supprimés.
+function sanitizeActivityCloud(data, streak, employees){
+  const sourceData = (data && typeof data === "object") ? data : {};
+  const sourceStreak = (streak && typeof streak === "object") ? streak : {};
+  const cleanData = {};
+  const cleanStreak = {};
+  const active = (Array.isArray(employees) ? employees : []).filter(e => !e.licencie && SPECIALTY_BY_GRADE[String(e.grade || "").toUpperCase()]);
+
+  for (const emp of active) {
+    const canonical = activiteKeyFor(emp);
+    const nameKey = `name:${String(emp.name || "").trim().toLowerCase()}`;
+    const oldRec = sourceData[nameKey] && nameKey !== canonical ? sourceData[nameKey] : null;
+    const canonicalRec = sourceData[canonical] || null;
+    const mergedRec = oldRec || canonicalRec ? { ...(oldRec || {}), ...(canonicalRec || {}) } : null;
+    if (mergedRec) cleanData[canonical] = normalizeActivityRecord(mergedRec, emp.grade);
+
+    const st = sourceStreak[canonical] !== undefined ? sourceStreak[canonical] : sourceStreak[nameKey];
+    if (st !== undefined && st !== null) cleanStreak[canonical] = st;
+  }
+  return { data: cleanData, streak: cleanStreak };
+}
+
 exports.handler = async function (event) {
   const { SESSION_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
   if (!SESSION_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
@@ -75,13 +124,22 @@ exports.handler = async function (event) {
     }
     try {
       const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
+      const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+      const rosterData = rosterRes.ok ? await rosterRes.json() : null;
+      const employees = (rosterData && rosterData.employees) || [];
+      const grades = SCOPE_GRADES[scope];
+      const person = employees.find(e => !e.licencie && grades.includes((e.grade || "").toUpperCase()) && activiteKeyFor(e) === targetKey);
+      if (!person) return json(400, { error: "Personne introuvable dans ce pôle actuel." });
+
       const curRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`);
       const cur = curRes.ok ? await curRes.json().catch(()=>null) : null;
-      const mergedStreak = { ...((cur && cur.streak) || {}) };
+      const sanitized = sanitizeActivityCloud((cur && cur.data) || {}, (cur && cur.streak) || {}, employees);
+      const mergedStreak = { ...sanitized.streak };
       mergedStreak[targetKey] = { streak: 0, lastSignaledThreshold: 0 };
+      const dataToSend = Object.keys(sanitized.data).length ? sanitized.data : null;
       const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: (cur && cur.data) || {}, streak: mergedStreak, savedAt: Date.now() }),
+        body: JSON.stringify({ data: dataToSend, streak: mergedStreak, savedAt: Date.now() }),
       });
       if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de la réinitialisation (${saveRes.status}) : ${t.slice(0,200)}` }); }
 
@@ -127,7 +185,8 @@ exports.handler = async function (event) {
 
       const curRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`);
       const cur = curRes.ok ? await curRes.json().catch(() => null) : null;
-      const mergedData = { ...((cur && cur.data) || {}) };
+      const sanitized = sanitizeActivityCloud((cur && cur.data) || {}, (cur && cur.streak) || {}, employees);
+      const mergedData = { ...sanitized.data };
       const rec = { ...(mergedData[targetKey] || {}) };
       const before = rec.excused === true;
       if (excused) rec.excused = true; else delete rec.excused;
@@ -135,10 +194,11 @@ exports.handler = async function (event) {
       if (!Object.keys(rec).length) rec.recrutements = 0;
       mergedData[targetKey] = rec;
 
-      const streakToSend = (cur && cur.streak && Object.keys(cur.streak).length) ? cur.streak : null;
+      const dataToSend = Object.keys(mergedData).length ? mergedData : null;
+      const streakToSend = Object.keys(sanitized.streak).length ? sanitized.streak : null;
       const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: mergedData, streak: streakToSend, savedAt: Date.now() }),
+        body: JSON.stringify({ data: dataToSend, streak: streakToSend, savedAt: Date.now() }),
       });
       if (!saveRes.ok) { const t = await saveRes.text().catch(() => ""); return json(502, { error: `Echec de l'enregistrement (${saveRes.status}) : ${t.slice(0, 200)}` }); }
 
@@ -181,12 +241,15 @@ exports.handler = async function (event) {
       employees.filter(e => !e.licencie && grades.includes((e.grade || "").toUpperCase())).map(activiteKeyFor)
     );
 
-    // Relit le cloud actuel et ne fusionne QUE les clés autorisées pour
-    // ce scope précis — jamais un écrasement complet.
+    // Relit le cloud actuel, puis le NETTOIE selon les spécialités
+    // ACTUELLES du Roster avant toute fusion. Ainsi un ancien MF devenu MC,
+    // ou un ancien MP devenu M, ne reste pas éternellement dans Pillbox.
+    // Même chose pour les doubles clés name:/id: d'une seule personne.
     const curRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`);
     const cur = curRes.ok ? await curRes.json().catch(()=>null) : null;
-    const mergedData = { ...((cur && cur.data) || {}) };
-    const mergedStreak = { ...((cur && cur.streak) || {}) };
+    const sanitized = sanitizeActivityCloud((cur && cur.data) || {}, (cur && cur.streak) || {}, employees);
+    const mergedData = { ...sanitized.data };
+    const mergedStreak = { ...sanitized.streak };
 
     // Instantané AVANT écrasement (09/09) — sert uniquement si
     // closeWeek est demandé, pour garder une vraie trace consultable
@@ -198,8 +261,12 @@ exports.handler = async function (event) {
       });
     }
 
+    const employeeByKey = new Map(
+      employees.filter(e => !e.licencie && SPECIALTY_BY_GRADE[String(e.grade || "").toUpperCase()]).map(e => [activiteKeyFor(e), e])
+    );
     relevantKeys.forEach(key => {
-      if (activiteData[key] !== undefined) mergedData[key] = activiteData[key];
+      const person = employeeByKey.get(key);
+      if (activiteData[key] !== undefined && person) mergedData[key] = normalizeActivityRecord(activiteData[key], person.grade);
       if (activiteStreak && activiteStreak[key] !== undefined) mergedStreak[key] = activiteStreak[key];
     });
 
@@ -208,10 +275,11 @@ exports.handler = async function (event) {
     // vide {}, car la règle Firebase exige l'un OU l'autre (jamais un
     // objet sans aucune clé). "data" reste toujours tel quel : la règle
     // du dessus exige qu'il existe, jamais null (09/09).
+    const dataToSend = Object.keys(mergedData).length ? mergedData : null;
     const streakToSend = Object.keys(mergedStreak).length ? mergedStreak : null;
     const saveRes = await fetch(`${ACTIVITE_URL}?auth=${idToken}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: mergedData, streak: streakToSend, savedAt: Date.now() }),
+      body: JSON.stringify({ data: dataToSend, streak: streakToSend, savedAt: Date.now() }),
     });
     if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
 
@@ -268,6 +336,8 @@ exports.handler = async function (event) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
   }
 };
+
+exports._test = { activiteKeyFor, normalizeActivityRecord, sanitizeActivityCloud, SPECIALTY_BY_GRADE };
 
 function json(statusCode, obj) {
   return { statusCode, headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) };
