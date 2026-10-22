@@ -1,0 +1,44 @@
+const fs=require('fs'), path=require('path'), assert=require('assert');
+const root=path.resolve(__dirname,'..');
+const roster=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const pill=fs.readFileSync(path.resolve(root,'../../pillbox/index.html'),'utf8');
+const proxy=fs.readFileSync(path.join(root,'netlify/functions/pillbox-proxy.js'),'utf8');
+const gemini=fs.readFileSync(path.join(root,'netlify/functions/gemini-ocr-proxy.js'),'utf8');
+const protectedWrite=fs.readFileSync(path.join(root,'netlify/functions/protected-write.js'),'utf8');
+const perms=fs.readFileSync(path.join(root,'netlify/functions/permissions.js'),'utf8');
+const indiv=fs.readFileSync(path.join(root,'netlify/functions/manage-individual-permissions.js'),'utf8');
+const rules=JSON.parse(fs.readFileSync(path.join(root,'firebase-rules.permissions-regroupees.json'),'utf8')).rules;
+let ok=0,fail=0;
+function test(name,fn){try{fn();ok++;console.log('✅',name)}catch(e){fail++;console.error('❌',name,'\n ',e.message)}}
+function fnBody(src,name){
+ const marker=`function ${name}`; let start=src.indexOf(marker); if(start<0){start=src.indexOf(`async function ${name}`)}; assert(start>=0,`${name} absent`);
+ const open=src.indexOf('{',start); let d=0,q=null,esc=false,line=false,block=false;
+ for(let i=open;i<src.length;i++){const c=src[i],n=src[i+1]; if(line){if(c==='\n')line=false;continue} if(block){if(c==='*'&&n==='/'){block=false;i++}continue} if(q){if(esc){esc=false;continue} if(c==='\\'){esc=true;continue} if(c===q)q=null;continue} if(c==='/'&&n==='/'){line=true;i++;continue} if(c==='/'&&n==='*'){block=true;i++;continue} if(c==='"'||c==="'"||c==='`'){q=c;continue} if(c==='{')d++; else if(c==='}'&&--d===0)return src.slice(start,i+1)} throw Error('fin absente');
+}
+const hardened=['discordIdsList','formationOperationList','pillboxWeekHistory','pillboxWeekHistoryArchive','rosterEmsSpecialSelection','signalements','signalements_test','activiteSuivi','rosterGradeLabels','rosterActiviteWeekHistory','rosterActiviteWeekHistoryArchive','pillboxLiveUpDecisions','pillboxLiveUpSessions','rosterEmsData','rosterPillboxSyncMeta','rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests'];
+test('La racine Firebase ne court-circuite aucune règle enfant',()=>{assert.strictEqual(rules['.read'],false);assert.strictEqual(rules['.write'],false)});
+test('Les écritures sensibles Firebase sont serveur uniquement',()=>hardened.forEach(k=>{assert(rules[k],k);assert(String(rules[k]['.write']).includes('auth.token.server'),k)}));
+test('Aucun sous-chemin activiteSuivi ne rouvre l’écriture client',()=>assert(String(rules.activiteSuivi.weekFinishedAt['.write']).includes('auth.token.server')));
+test("Les jetons Firebase remis au navigateur n\'ont jamais le claim server",()=>{const cb=fs.readFileSync(path.join(root,'netlify/functions/discord-callback.js'),'utf8');const rf=fs.readFileSync(path.join(root,'netlify/functions/refresh-firebase-token.js'),'utf8');assert(cb.includes('claims: { level }'));assert(rf.includes('claims: { level: session.level }'));assert(!/claims:\s*\{\s*level[^}]*server:\s*true/.test(cb.slice(cb.indexOf('// 6) Jeton Firebase authentique'))));});
+test('Le secret Pillbox fixe a disparu du client et des proxies',()=>{for(const s of [pill,proxy,gemini]){assert(!s.includes('PILLBOX_SERVICE_SECRET'));assert(!s.includes('X-Pillbox-Secret'))}});
+test('Gemini exige session Discord + permission Terminal Paie',()=>{assert(gemini.includes('verifyDetailed'));assert(gemini.includes('X-Pillbox-Session'));assert(gemini.includes('canFor(verification.payload, "use_pillbox_terminal")'))});
+test('Le proxy Pillbox revérifie la permission fine à chaque appel',()=>{assert(proxy.includes('loadPermissionContext(idToken)'));assert(proxy.includes('Accès au Terminal Paie refusé'))});
+test('canFor est fail-closed si les permissions fines sont indisponibles',()=>{const b=fnBody(perms,'canFor');assert(b.includes('if(!tok) return false'));assert(/catch\(e\)\{\s*return false;/.test(b));assert(!b.includes('return can(session.level, permissionName);'))});
+test('computeSignalementGroups est pur (aucun fetch/DELETE)',()=>{const b=fnBody(pill,'computeSignalementGroups');assert(!b.includes('fetch('));assert(!b.includes('DELETE'));});
+test('Nettoyage signalements uniquement lors de la finalisation explicite',()=>{const b=fnBody(pill,'finalizeSignalementDecisions');assert(b.includes('collectObsoleteSignalementKeys'));assert(b.includes('finalizeSignalements'))});
+test('Finalisation des signalements en une seule PATCH multi-chemins',()=>{const i=proxy.indexOf('body.action === "finalizeSignalements"');const e=proxy.indexOf('body.action === "weekFinished"',i);const b=proxy.slice(i,e);assert(b.includes('const updates = {}'));assert(b.includes('method:"PATCH"'));assert(!b.includes('method:"DELETE"'))});
+test('Historique : archive obligatoire avant écrasement',()=>{const i=proxy.indexOf('body.action === "saveWeekHistory"');const e=proxy.indexOf('body.action === "finalizeSignalements"',i);const b=proxy.slice(i,e);assert(b.includes('archiveRes'));assert(b.includes("l'ancienne semaine n'a PAS été écrasée"));assert(b.indexOf('archiveRes')<b.indexOf('const saveRes'))});
+test('Historique : CAS Firebase + conflit 409',()=>{const i=proxy.indexOf('body.action === "saveWeekHistory"');const e=proxy.indexOf('body.action === "finalizeSignalements"',i);const b=proxy.slice(i,e);assert(b.includes('X-Firebase-ETag'));assert(b.includes('if-match'));assert(b.includes('saveRes.status === 412'));});
+test('Historique : relance identique est idempotente',()=>assert(proxy.includes('alreadySaved:true')));
+test('Clôture : historique avant décisions signalements',()=>{const i=pill.indexOf('else if(action==="finishWeek")');const e=pill.indexOf('// (11/10) Clôture Formateur',i);const b=pill.slice(i,e);assert(b.indexOf('saveWeekToHistory')>=0);assert(b.indexOf('finalizeSignalementDecisions')>b.indexOf('saveWeekToHistory'))});
+test('OWNER est une couche distincte au-dessus de DG',()=>{assert(perms.includes('["OWNER", "DG", "D", "CD"]'));assert(indiv.includes('["CD", "D", "DG", "OWNER"]'));assert(roster.includes('["OWNER","DG","D","CD"]'))});
+test('Plusieurs transitions de grade d’une même personne sont conservées',()=>{const b=fnBody(pill,'buildWeekHistoryChanges');assert(b.includes('person}|${transition}'));assert(!/weekHistoryUniqueByEmployee\(\[\.\.\.forced/.test(b));});
+test('protected-write utilise ETag/if-match pour sauvegarde ET edit/licencier',()=>{const count=(protectedWrite.match(/X-Firebase-ETag/g)||[]).length;assert(count>=2,`ETag count=${count}`);assert((protectedWrite.match(/if-match/g)||[]).length>=2);assert(protectedWrite.includes('saveRes.status === 412'))});
+test('Le navigateur Roster passe les écritures sensibles par protectedAction',()=>{for(const a of ['replaceRosterSnapshot','saveSpecialSelection','syncPillboxRoster','syncFormationOperation'])assert(roster.includes(`protectedAction("${a}"`),a)});
+test('Retrait de signalement passe par le serveur',()=>assert(roster.includes('signalementServerAction("withdrawSignalementByCode"')));
+test('Lecture activité Pillbox passe par le proxy signé',()=>{const b=fnBody(pill,'fetchActiviteSuivi');assert(b.includes('fetchViaPillboxProxy'));assert(!b.includes('fetch(ACTIVITE_CLOUD_URL'))});
+test('Statut d’auth Pillbox rendu par textContent',()=>assert(pill.includes('pillboxAuthStatus").textContent')));
+test('Questions lancement utilisent sessionStorage, pas localStorage',()=>{assert(pill.includes('sessionStorage.getItem(LAUNCH_QUESTIONS_KEY)'));assert(pill.includes('sessionStorage.setItem(LAUNCH_QUESTIONS_KEY'));assert(!pill.includes('localStorage.getItem(LAUNCH_QUESTIONS_KEY)'));});
+test('Aucun contenu après </html>',()=>assert(/^\s*$/.test(pill.slice(pill.lastIndexOf('</html>')+7))));
+test('Anciennes copies exécutables supprimées du projet',()=>{assert(!fs.existsSync(path.join(root,'all-scripts.js')));assert(!fs.existsSync(path.join(root,'index.pre_cinematic.html')))});
+console.log(`\nSécurité/audit : ${ok} réussi(s), ${fail} échec(s).`); if(fail)process.exit(1);
