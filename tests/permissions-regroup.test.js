@@ -301,13 +301,13 @@ async function call(handler, method, body={}, query={}){
   });
 
   await test('Interface affiche une corbeille pour les demandes traitées', ()=>{
-    const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8') + '\n' + fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
+    const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
     assert(html.includes('data-req-delete'));
     assert(html.includes('La permission déjà appliquée ne sera PAS retirée'));
   });
 
   await test('Interface actuelle contient seulement les libellés regroupés', ()=>{
-    const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8') + '\n' + fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
+    const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
     for(const label of ['Gérer la catégorie Psychologue','Gérer la catégorie Formateur','Synchronisation complète avec Pillbox','Gérer les semaines de paie (réouvrir / supprimer)']) assert(html.includes(label),label);
     const activeSection=html.slice(html.indexOf('const PERMISSION_LABEL = {'),html.indexOf('const EDITABLE_LEVELS ='));
     for(const old of ['Gérer les PPA','Gérer le suivi Psychologue','Envoyer Formation vers Pillbox','Envoyer Psychologie vers Pillbox','Envoyer TOUT vers Pillbox','Consulter l\'historique d\'un membre','Supprimer une semaine de paie']) assert(!activeSection.includes(old),old);
