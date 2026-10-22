@@ -9,7 +9,7 @@
 
 const OWNER_DISCORD_ID = "861557966083850250";
 const LEVELS = ["MC", "ADD", "CD", "D", "DG", "OWNER"];
-const INDIVIDUAL_DECISION_AUTHORITY_ORDER = ["DG", "D", "CD"];
+const INDIVIDUAL_DECISION_AUTHORITY_ORDER = ["OWNER", "DG", "D", "CD"];
 
 // Permissions affichées dans la matrice par grade.
 const GRADE_PERMISSION_KEYS = [
@@ -279,7 +279,7 @@ async function serviceIdTokenFor(session){
   const { FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
   if(!FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) return null;
   const { createFirebaseCustomToken } = require("./firebase-token");
-  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(session.discordId), claims: { level: session.level } });
+  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(session.discordId), claims: { level: session.level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -291,14 +291,18 @@ async function serviceIdTokenFor(session){
 async function canFor(session, permissionName, idToken){
   if(!session) return false;
   if(session.level === "OWNER") return true;
+  // Sécurité fail-closed : une exception individuelle retirant un droit ne
+  // doit jamais être contournée simplement parce que Firebase est
+  // momentanément indisponible. Si le contexte fin ne peut pas être relu,
+  // l'action sensible est refusée et pourra être retentée ensuite.
   try{
     const tok = idToken || await serviceIdTokenFor(session);
-    if(tok){
-      const ctx = await loadPermissionContext(tok);
-      return can(session.level, permissionName, ctx.custom, session.discordId, ctx.individual);
-    }
-  }catch(e){}
-  return can(session.level, permissionName);
+    if(!tok) return false;
+    const ctx = await loadPermissionContext(tok);
+    return can(session.level, permissionName, ctx.custom, session.discordId, ctx.individual);
+  }catch(e){
+    return false;
+  }
 }
 
 async function effectivePermissionsFor(session, idToken){
