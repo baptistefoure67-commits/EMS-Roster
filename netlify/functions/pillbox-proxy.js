@@ -19,7 +19,7 @@
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { computeAbsenceSignalements, computeStgAbsenceSignalements, computeLongAbsenceSignalements, attachAlertDecisions, pruneExpiredAbsences } = require("./absences-actions");
 const { verifyDetailed } = require("./session-token");
-const { can, loadPermissionContext } = require("./permissions");
+const { can, loadPermissionContext, resolveIndividualDecision } = require("./permissions");
 const { closeActiviteWeekServer } = require("./activite-close");
 const { logAction } = require("./logs");
 
@@ -340,6 +340,12 @@ exports.handler = async function (event) {
     // à chaque appel, donc une révocation prend effet immédiatement.
     const permCtx = await loadPermissionContext(idToken).catch(()=>({custom:null, individual:null}));
     const isOwnerOrDelegate = can(session.level, "owner_delegate", permCtx.custom, session.discordId, permCtx.individual) || session.level === "OWNER";
+    // Exclusion globale des personnages d'animation : même source individuelle
+    // que le panneau Permissions du Roster. Cela vaut pour les deux outils.
+    const animationExcludedIds = Object.keys(permCtx.individual || {}).filter(id =>
+      resolveIndividualDecision(id, "exclude_animations", permCtx.individual) === true
+    );
+    const animExcludedSelf = animationExcludedIds.includes(String(session.discordId));
 
     // (13/10, section 6) Décisions UP en direct pour la semaine en cours
     // — lues à chaque appel (polling côté Pillbox, ~3s) pour que la
@@ -366,6 +372,7 @@ exports.handler = async function (event) {
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
+      animExcludedSelf, animationExcludedIds,
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
