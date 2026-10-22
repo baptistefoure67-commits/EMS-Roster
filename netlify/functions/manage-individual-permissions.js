@@ -16,6 +16,27 @@ const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.
 const GRADE_OVERRIDE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPermissionsOverride.json";
 const DECISION_LEVELS = ["CD", "D", "DG", "OWNER"];
 
+// Les seuls personnages qui disposent actuellement des DEUX visuels
+// (dessin IA + photo RP détourée). Le choix de style est un réglage
+// individuel OWNER-only, stocké à côté des permissions sans devenir
+// lui-même une permission booléenne.
+const ANIMATION_CHARACTER_IDS = new Set([
+  "408669016039882752", // Tio
+  "701698983466106903", // Moussa
+  "873209274023690303", // Aaron
+  "861557966083850250", // Baptiste
+  "881570935679909918", // Cloé
+  "227444055594893312", // Aiden
+  "451073171194511370", // Eliot
+  "51487127135243469",  // Papy (clé historique)
+  "1339800960637075547",// Leyah
+]);
+const ANIMATION_CHARACTER_ALIASES = { "514871271352434699": "51487127135243469" };
+function canonicalAnimationCharacterId(id){
+  const raw=String(id||"");
+  return ANIMATION_CHARACTER_ALIASES[raw] || raw;
+}
+
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
@@ -111,9 +132,44 @@ exports.handler = async function (event) {
     if (event.httpMethod !== "POST") return json(405, { error: "Méthode non autorisée." }, corsHeaders);
     let body;
     try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }, corsHeaders); }
-    const { action, targetDiscordId, permissionName, value, cancelLayer } = body;
+    const { action, targetDiscordId, permissionName, value, cancelLayer, animationStyle } = body;
 
     if (!targetDiscordId) return json(400, { error: "Paramètres manquants." }, corsHeaders);
+
+    // Réglage visuel spécial : OWNER uniquement. Contrairement aux exceptions
+    // de permission, OWNER peut aussi cibler sa propre fiche ici puisque ce
+    // choix ne donne ni ne retire aucun droit.
+    if (action === "setAnimationStyle") {
+      if (session.level !== "OWNER") return json(403, { error: "Seul l'OWNER peut choisir le style des animations d'une personne." }, corsHeaders);
+      const canonicalTarget = canonicalAnimationCharacterId(targetDiscordId);
+      if (!ANIMATION_CHARACTER_IDS.has(canonicalTarget)) return json(400, { error: "Cette personne n'a pas les deux portraits nécessaires aux animations." }, corsHeaders);
+      if (animationStyle !== "illustration" && animationStyle !== "real") return json(400, { error: "Style invalide : 'illustration' ou 'real' attendu." }, corsHeaders);
+
+      const authedUrl = `${INDIVIDUAL_URL}?auth=${idToken}`;
+      const res = await fetch(authedUrl);
+      const current = (res.ok ? (await res.json()) : null) || {};
+      // On conserve l'ID réellement utilisé par le Roster pour éviter de
+      // fabriquer une seconde fiche Papy si l'alias long est reçu.
+      const storageId = Object.prototype.hasOwnProperty.call(current, targetDiscordId) ? String(targetDiscordId) : canonicalTarget;
+      current[storageId] = current[storageId] || {};
+      const previous = current[storageId].animation_portrait_style || null;
+      current[storageId].animation_portrait_style = animationStyle;
+
+      const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current) });
+      if (!saveRes.ok) {
+        const t = await saveRes.text().catch(()=>"");
+        return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders);
+      }
+      await logAction({
+        action: "style_animation_individuel_modifie",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        targetDiscordId: storageId,
+        details: `Style animation -> ${animationStyle === "real" ? "Personnage RP" : "Dessin IA"}`,
+        oldValue: JSON.stringify(previous), newValue: JSON.stringify(animationStyle), idToken,
+      }).catch(()=>{});
+      return json(200, { ok:true, animationStyle, person: normalizePersonForDisplay(current[storageId]) }, corsHeaders);
+    }
+
     if (targetDiscordId === OWNER_DISCORD_ID) return json(403, { error: "OWNER ne peut jamais être la cible d'une exception individuelle." }, corsHeaders);
     if (String(targetDiscordId) === String(session.discordId) && session.level !== "OWNER") {
       return json(403, { error: "Tu ne peux pas modifier tes propres permissions." }, corsHeaders);
