@@ -1,0 +1,7 @@
+FIX RESTAURATION 401 — 22/10/2026
+
+Cause isolée : rosterAnimPrefs ne possédait pas de règle .write au niveau de la branche, alors que la restauration catastrophe utilise un PATCH multi-emplacements depuis la racine. Firebase refusait donc l'opération complète avec Permission denied (401).
+
+Correction : ajout d'une écriture globale rosterAnimPrefs réservée strictement à OWNER / DG / D. Les utilisateurs ordinaires conservent leur écriture limitée à leur propre $discordId via la règle enfant existante.
+
+Aucun .write global à la racine Firebase n'a été ajouté.
