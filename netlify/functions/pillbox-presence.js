@@ -38,7 +38,7 @@ exports.handler = async function (event) {
   try {
     const firebaseToken = createFirebaseCustomToken({
       clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY,
-      uid: `pillbox-presence:${session.discordId}`, claims: { level: session.level },
+      uid: `pillbox-presence:${session.discordId}`, claims: { level: session.level, server: true },
     });
     const exch = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
