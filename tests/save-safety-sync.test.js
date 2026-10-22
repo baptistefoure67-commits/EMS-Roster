@@ -4,6 +4,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root,'index.html'),'utf8');
 const proxy = fs.readFileSync(path.join(root,'netlify/functions/pillbox-proxy.js'),'utf8');
+const protectedWrite = fs.readFileSync(path.join(root,'netlify/functions/protected-write.js'),'utf8');
 const rules = JSON.parse(fs.readFileSync(path.join(root,'firebase-rules.permissions-regroupees.json'),'utf8'));
 
 let passed=0;
@@ -73,8 +74,8 @@ test('Une baisse risquée exige un acquittement supplémentaire',()=>assert(html
 test('saveState ne fait plus de fetch Firebase automatique',()=>{ const body=functionBody('saveState'); assert(!body.includes('fetch(')); assert(body.includes('rosterEmployeesDirty = true')); });
 test('pushStateToCloudNow bloque les anciens appels automatiques',()=>{ const body=functionBody('pushStateToCloudNow'); assert(body.includes('blocked:true')); assert(!body.includes('method:"PUT"')); });
 test('Aucun pagehide ne pousse silencieusement le Roster',()=>assert(!html.includes('addEventListener("pagehide", autoSaveOnLeave)')));
-test('La sauvegarde confirmée revérifie le savedAt avant PUT',()=>{ const body=functionBody('pushRosterSnapshotConfirmed'); assert(body.includes('review.previousSavedAt')); assert(body.includes('latestSavedAt')); assert(body.includes('method:"PUT"')); });
-test('La synchro Roster écrit les métadonnées Pillbox',()=>assert(html.includes('ROSTER_PILLBOX_SYNC_META_URL') && html.includes('previousEmployeeCount') && html.includes('dropPercent')));
+test('La sauvegarde confirmée passe par le serveur avec expectedSavedAt + CAS',()=>{ const body=functionBody('pushRosterSnapshotConfirmed'); assert(body.includes('replaceRosterSnapshot')); assert(body.includes('review.previousSavedAt')); assert(protectedWrite.includes('X-Firebase-ETag')); assert(protectedWrite.includes('if-match')); assert(protectedWrite.includes('status === 412')); });
+test('La synchro Roster écrit les métadonnées Pillbox côté serveur',()=>assert(html.includes('syncPillboxRoster') && protectedWrite.includes('previousEmployeeCount') && protectedWrite.includes('dropPercent') && protectedWrite.includes('SYNC_META_URL')));
 test('Les règles Firebase contiennent rosterPillboxSyncMeta',()=>assert(rules.rules.rosterPillboxSyncMeta));
 test('Le proxy transmet rosterSyncMeta à Pillbox',()=>assert(proxy.includes('rosterSyncMeta') && proxy.includes('ROSTER_SYNC_META_URL')));
 
