@@ -1,0 +1,26 @@
+CORRECTIF IMPORT FORMATIONS DISCORD — FORMAT MARKDOWN
+Date : 22/10/2026
+
+Format ajouté :
+### [RF] Djam Mas18/10/2026 22:05
+**@[A] Jean Troudeau** Formation Opération Validée [✅](https://discord.com/assets/...svg)
+
+Corrections :
+- accepte les titres Markdown Discord commençant par ### ;
+- accepte une date collée directement au nom du formateur ;
+- accepte toujours les anciens séparateurs — / – / - ;
+- nettoie le gras/italique/code Markdown autour des noms ;
+- ignore sans risque les lignes de liste comme "1." ;
+- conserve la détection Opération / Co-Pilote / Pilote / MUP ;
+- conserve l'anti-doublon.
+
+Test du cas exact :
+- Formateur détecté : Djam Mas ;
+- Employé détecté : Jean Troudeau ;
+- Type : Opération ;
+- Date : 18/10/2026 22:05 ;
+- Jean est ajouté au bloc Opération ;
+- Djam reçoit +1 formation s'il est éligible au suivi Formateur.
+
+Résultat : 36 tests spécifiques import réussis, 0 échec.
+Toutes les autres suites du Roster passent également.
