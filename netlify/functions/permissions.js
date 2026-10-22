@@ -247,11 +247,13 @@ function resolveUserLevel(discordId, rosterGrade){
 }
 
 const PERM_FIREBASE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
-async function loadPermissionContext(idToken){
+async function loadPermissionContext(idToken, options={}){
+  const strict = !!options.strict;
   let custom = null, individual = null;
   try{
     const r = await fetch(`${PERM_FIREBASE_BASE}/rosterPermissionsOverride.json?auth=${idToken}`);
-    if(r.ok){
+    if(!r.ok){ if(strict) throw new Error(`Lecture permissions par grade refusée (${r.status}).`); }
+    else{
       const d = await r.json();
       if(d && typeof d === "object"){
         custom = {};
@@ -260,11 +262,12 @@ async function loadPermissionContext(idToken){
         }
       }
     }
-  }catch(e){}
+  }catch(e){ if(strict) throw e; }
   try{
     const r = await fetch(`${PERM_FIREBASE_BASE}/rosterIndividualPermissions.json?auth=${idToken}`);
-    individual = r.ok ? await r.json() : null;
-  }catch(e){}
+    if(!r.ok){ if(strict) throw new Error(`Lecture permissions individuelles refusée (${r.status}).`); }
+    else individual = await r.json();
+  }catch(e){ if(strict) throw e; }
   return { custom, individual };
 }
 
