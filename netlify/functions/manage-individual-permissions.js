@@ -52,17 +52,22 @@ function effectiveLayerFor(session){
   return session.level === "OWNER" ? "DG" : (DECISION_LEVELS.includes(session.level) ? session.level : "CD");
 }
 
-async function grantableKeys(session, idToken){
+async function grantableKeys(session, idToken, canManagePermissions){
   if(session.level === "OWNER") return [...INDIVIDUAL_PERMISSION_KEYS];
-  const ctx = await loadPermissionContext(idToken).catch(()=>({custom:null,individual:null}));
   const list = [];
-  for(const p of GRADE_PERMISSION_KEYS){
-    if(can(session.level, p, ctx.custom, session.discordId, ctx.individual)) list.push(p);
+  if(canManagePermissions){
+    const ctx = await loadPermissionContext(idToken).catch(()=>({custom:null,individual:null}));
+    for(const p of GRADE_PERMISSION_KEYS){
+      if(can(session.level, p, ctx.custom, session.discordId, ctx.individual)) list.push(p);
+    }
+    // Mode troll est accordable uniquement si le gestionnaire le possède déjà.
+    if(can(session.level, "manage_troll", ctx.custom, session.discordId, ctx.individual)) list.push("manage_troll");
   }
-  // Mode troll est accordable uniquement si le gestionnaire le possède déjà.
-  if(can(session.level, "manage_troll", ctx.custom, session.discordId, ctx.individual)) list.push("manage_troll");
+  // L'exclusion des animations est un réglage individuel de Direction : D/DG/OWNER.
+  // Elle reste dans ce panneau, mais ne donne aucune autre permission à la personne ciblée.
+  if(["D","DG"].includes(session.level)) list.push("exclude_animations");
   // owner_delegate n'est jamais accordable par un non-OWNER.
-  return list;
+  return [...new Set(list)];
 }
 
 exports.handler = async function (event) {
@@ -79,13 +84,15 @@ exports.handler = async function (event) {
     : (()=>{ try{return JSON.parse(event.body||"{}").token||"";}catch(e){return "";} })();
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée." }, corsHeaders);
-  if (!(await canFor(session, "manage_permissions"))) {
-    return json(403, { error: `Permission refusée (${session.level}) — il faut « Gérer les permissions ».` }, corsHeaders);
+  const canManagePermissions = await canFor(session, "manage_permissions");
+  const canManageAnimationExclusion = ["D","DG","OWNER"].includes(session.level);
+  if (!canManagePermissions && !canManageAnimationExclusion) {
+    return json(403, { error: `Permission refusée (${session.level}) — accès insuffisant aux permissions individuelles.` }, corsHeaders);
   }
 
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
-    const allowed = await grantableKeys(session, idToken);
+    const allowed = await grantableKeys(session, idToken, canManagePermissions);
 
     if (event.httpMethod === "GET") {
       const res = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
@@ -119,6 +126,15 @@ exports.handler = async function (event) {
     }
     if (!isBatch && !allowed.includes(canonical)) {
       return json(403, { error: `Tu ne peux pas gérer « ${canonical} » : cette permission dépasse tes propres droits.` }, corsHeaders);
+    }
+    if (isBatch && !canManagePermissions) {
+      return json(403, { error: "Le réglage d'exclusion des animations se modifie individuellement, pas avec les actions Tout sélectionner/Tout retirer." }, corsHeaders);
+    }
+    if (!isBatch && canonical !== "exclude_animations" && !canManagePermissions) {
+      return json(403, { error: "Tu peux uniquement gérer l'exclusion des animations sans la permission « Gérer les permissions »." }, corsHeaders);
+    }
+    if (!isBatch && canonical === "exclude_animations" && !canManageAnimationExclusion) {
+      return json(403, { error: "Seuls D, DG et OWNER peuvent exclure quelqu'un des animations." }, corsHeaders);
     }
     if (!isBatch && canonical === "owner_delegate" && session.level !== "OWNER") {
       return json(403, { error: "Seul l'OWNER peut accorder ou retirer les droits OWNER délégués." }, corsHeaders);
