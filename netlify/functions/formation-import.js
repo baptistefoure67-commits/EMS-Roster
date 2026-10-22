@@ -17,9 +17,10 @@ const ROSTER_URL = `${BASE}/rosterEmsData.json`;
 const HISTORY_URL = `${BASE}/rosterFormationExperience.json`;
 const ACTIVITY_URL = `${BASE}/activiteSuivi.json`;
 const SPECIAL_URL = `${BASE}/rosterEmsSpecialSelection.json`;
+const FORMATION_OPERATION_URL = `${BASE}/formationOperationList.json`;
 const MAX_TEXT = 200000;
 const TRAINER_GRADES = new Set(['MF','RF']);
-const TYPE_LABELS = { operation:'Opération', copilote:'Co-Pilote', pilote:'Pilote', mup:'MUP' };
+const TYPE_LABELS = { operation:'Opération', copilote:'Co-Pilote', pilote:'Pilote', mup:'MUP', unknown:'Formation non reconnue' };
 
 function json(statusCode, obj){ return { statusCode, headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj) }; }
 
@@ -70,11 +71,26 @@ function parseDateLabel(label, nowMs=Date.now()){
 function formationTypeFromLine(line){
   const s=norm(line).replace(/-/g,' ');
   if(!s.includes('formation') || !/\bvalid/.test(s)) return null;
-  if(/\bco\s*pilote\b/.test(s) || /\bcopilote\b/.test(s)) return 'copilote';
-  if(/\bmup\b/.test(s)) return 'mup';
-  if(/\boperation\b/.test(s)) return 'operation';
-  if(/\bpilote\b/.test(s)) return 'pilote';
-  return null;
+  // On regarde d'abord ce qui suit le mot « formation ». Le but est
+  // volontairement conservateur : plusieurs écritures usuelles de
+  // Formation Opération sont acceptées, mais un typo douteux devient
+  // « unknown » au lieu d'être pris à tort pour une Opération.
+  const after=(s.split(/\bformation\b/,2)[1]||'').replace(/'/g,' ').trim();
+  if(/^(?:d\s+)?(?:operations?|ope|ops|op)\b/.test(after)) return 'operation';
+  if(/^(?:co\s*pilote|copilote)\b/.test(after)) return 'copilote';
+  if(/^mup\b/.test(after)) return 'mup';
+  if(/^pilote\b/.test(after)) return 'pilote';
+  // Une ligne « Formation … Validée » reste une vraie formation à compter
+  // pour le formateur, même si son libellé n'est pas reconnu. Elle ne doit
+  // simplement JAMAIS cocher la Formation Opération automatiquement.
+  return 'unknown';
+}
+function formationKeyFromLine(line,type){
+  if(type!=='unknown') return type;
+  const s=norm(line).replace(/-/g,' ');
+  const m=s.match(/\bformation\b\s*(.*?)\s*\bvalid\w*/);
+  const label=(m&&m[1]?m[1]:'inconnue').replace(/\s+/g,' ').trim();
+  return `unknown:${label||'inconnue'}`;
 }
 function parseDiscordFormationText(text, nowMs=Date.now()){
   const lines=String(text||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -102,7 +118,7 @@ function parseDiscordFormationText(text, nowMs=Date.now()){
     if(!author){ ignored.push({lineNumber:i+1,raw:line,reason:'missing_author'}); continue; }
     if(!trainee){ ignored.push({lineNumber:i+1,raw:line,reason:'missing_trainee'}); continue; }
     records.push({
-      lineNumber:i+1, trainerName:author.name, traineeName:trainee, type, typeLabel:TYPE_LABELS[type],
+      lineNumber:i+1, trainerName:author.name, traineeName:trainee, type, typeLabel:TYPE_LABELS[type], formationKey:formationKeyFromLine(line,type),
       dateLabel:author.dateLabel, occurredAt:author.timestamp, rawAuthorLine:author.raw, rawFormationLine:line,
     });
   }
@@ -118,8 +134,9 @@ function matchEmployee(name, employees){
   if(candidates.length===1) return {employee:candidates[0],ambiguous:false,candidates};
   return {employee:null,ambiguous:candidates.length>1,candidates};
 }
-function fingerprintFor(trainer, trainee, type){
-  const raw=`${employeeIdentity(trainer)}|${employeeIdentity(trainee)}|${type}`.toLowerCase();
+function fingerprintFor(trainer, trainee, type, formationKey=''){
+  const key=type==='unknown' ? (formationKey||type) : type;
+  const raw=`${employeeIdentity(trainer)}|${employeeIdentity(trainee)}|${key}`.toLowerCase();
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0,32);
 }
 function enrichParsed(parsed, employees, history){
@@ -128,7 +145,7 @@ function enrichParsed(parsed, employees, history){
     const trainerMatch=matchEmployee(r.trainerName,employees);
     const traineeMatch=matchEmployee(r.traineeName,employees);
     const trainer=trainerMatch.employee, trainee=traineeMatch.employee;
-    const fingerprint=(trainer&&trainee)?fingerprintFor(trainer,trainee,r.type):null;
+    const fingerprint=(trainer&&trainee)?fingerprintFor(trainer,trainee,r.type,r.formationKey):null;
     const duplicate=!!(fingerprint&&hist[fingerprint]);
     const importable=!!(trainer&&trainee&&!duplicate);
     const activityEligible=!!(trainer&&TRAINER_GRADES.has(String(trainer.grade||'').toUpperCase()));
@@ -152,7 +169,7 @@ function historyStats(history){
   for(const r of Object.values((history&&typeof history==='object')?history:{})){
     if(!r||!r.trainerName||!r.type) continue;
     const key=String(r.trainerDiscordId||r.trainerId||norm(r.trainerName));
-    const cur=groups.get(key)||{trainerName:r.trainerName,trainerDiscordId:r.trainerDiscordId||'',total:0,operation:0,copilote:0,pilote:0,mup:0,latestAt:0};
+    const cur=groups.get(key)||{trainerName:r.trainerName,trainerDiscordId:r.trainerDiscordId||'',total:0,operation:0,copilote:0,pilote:0,mup:0,unknown:0,latestAt:0};
     cur.total++; if(Object.prototype.hasOwnProperty.call(cur,r.type)) cur[r.type]++;
     cur.latestAt=Math.max(cur.latestAt,Number(r.occurredAt)||Number(r.importedAt)||0); groups.set(key,cur);
   }
@@ -165,12 +182,37 @@ function summarize(enriched){
     duplicates:enriched.filter(r=>r.duplicate).length,
     unresolved:enriched.filter(r=>!r.trainer||!r.trainee).length,
     operations:enriched.filter(r=>r.importable&&r.type==='operation').length,
+    unrecognized:enriched.filter(r=>r.importable&&r.type==='unknown').length,
     activityCredits:enriched.filter(r=>r.importable&&r.activityEligible).length,
     historyOnlyCredits:enriched.filter(r=>r.importable&&!r.activityEligible).length,
   };
 }
 
-function buildCommitPatch(enriched, history, currentActivity, currentSpecial, session, now=Date.now()){
+function parseFormationOperationText(text){
+  return String(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+    const idx=line.indexOf(':');
+    if(idx>=0) return {name:line.slice(0,idx).trim(),idUnique:line.slice(idx+1).trim()};
+    if(/^\d+$/.test(line)) return {name:'',idUnique:line};
+    return {name:line,idUnique:''};
+  });
+}
+function matchFormationOperationEmployee(entry,employees){
+  if(entry?.idUnique){
+    const byId=(employees||[]).find(e=>!e.licencie&&e.idUnique&&String(e.idUnique)===String(entry.idUnique));
+    if(byId) return byId;
+  }
+  if(entry?.name){
+    const n=norm(entry.name);
+    const candidates=(employees||[]).filter(e=>!e.licencie&&norm(e.name)===n);
+    if(candidates.length===1) return candidates[0];
+  }
+  return null;
+}
+function buildFormationOperationText(selectedEmployees){
+  return [...selectedEmployees].filter(e=>e&&!e.licencie).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')).map(e=>e.idUnique?`${e.name} : ${e.idUnique}`:e.name).filter(Boolean).join('\n');
+}
+
+function buildCommitPatch(enriched, history, currentActivity, currentSpecial, currentFormationOperation, employees, session, now=Date.now()){
   const newRecords=(enriched||[]).filter(r=>r.importable);
   const nextHistory={...((history&&typeof history==='object')?history:{})};
   const activityData={...((currentActivity&&currentActivity.data)||{})};
@@ -178,12 +220,18 @@ function buildCommitPatch(enriched, history, currentActivity, currentSpecial, se
   const selectedMap=new Map();
   const existingSelected=Array.isArray(currentSpecial?.selectedEmployees)?currentSpecial.selectedEmployees:[];
   existingSelected.forEach(e=>selectedMap.set(employeeIdentity(e),e));
+  // Préserve aussi la liste réellement utilisée par Pillbox, même si la
+  // sélection Roster était momentanément en retard sur le cloud.
+  parseFormationOperationText(currentFormationOperation?.text||'').forEach(entry=>{
+    const emp=matchFormationOperationEmployee(entry,employees);
+    if(emp) selectedMap.set(employeeIdentity(emp),pickEmployee(emp));
+  });
   const trainerCredits={};
   for(const r of newRecords){
     nextHistory[r.fingerprint]={
       trainerId:r.trainer.id,trainerName:r.trainer.name,trainerDiscordId:r.trainer.discordId||'',trainerGrade:r.trainer.grade||'',
       traineeId:r.trainee.id,traineeName:r.trainee.name,traineeDiscordId:r.trainee.discordId||'',traineeGrade:r.trainee.grade||'',
-      type:r.type,typeLabel:r.typeLabel,dateLabel:r.dateLabel||'',occurredAt:r.occurredAt||null,
+      type:r.type,typeLabel:r.typeLabel,formationKey:r.formationKey||r.type,dateLabel:r.dateLabel||'',occurredAt:r.occurredAt||null,
       importedAt:now,importedByDiscordId:String(session?.discordId||''),importedByName:session?.name||'',
     };
     if(r.type==='operation') selectedMap.set(employeeIdentity(r.trainee),r.trainee);
@@ -201,7 +249,14 @@ function buildCommitPatch(enriched, history, currentActivity, currentSpecial, se
     if(currentActivity?.weekFinishedAt) nextActivity.weekFinishedAt=currentActivity.weekFinishedAt;
     patch.activiteSuivi=nextActivity;
   }
-  if(newRecords.some(r=>r.type==='operation')) patch.rosterEmsSpecialSelection={selectedEmployees:[...selectedMap.values()],savedAt:now};
+  if(newRecords.some(r=>r.type==='operation')){
+    const selectedEmployees=[...selectedMap.values()];
+    patch.rosterEmsSpecialSelection={selectedEmployees,savedAt:now};
+    // C'est CETTE branche que Pillbox lit dans hasFormationOperation().
+    // L'import Opération la met donc à jour immédiatement : aucun besoin
+    // d'attendre le prochain clic « Synchroniser avec Pillbox ».
+    patch.formationOperationList={text:buildFormationOperationText(selectedEmployees),savedAt:now};
+  }
   return {patch,newRecords,activityData,trainerCredits};
 }
 
@@ -218,28 +273,29 @@ exports.handler=async function(event){
   try{
     const idToken=await getFirebaseIdToken(session.discordId,session.level,FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY,FIREBASE_WEB_API_KEY);
     const auth=url=>`${url}?auth=${idToken}`;
-    const [rosterRes,histRes,activityRes,specialRes]=await Promise.all([
-      fetch(auth(ROSTER_URL)),fetch(auth(HISTORY_URL)),fetch(auth(ACTIVITY_URL)),fetch(auth(SPECIAL_URL)),
+    const [rosterRes,histRes,activityRes,specialRes,formationOperationRes]=await Promise.all([
+      fetch(auth(ROSTER_URL)),fetch(auth(HISTORY_URL)),fetch(auth(ACTIVITY_URL)),fetch(auth(SPECIAL_URL)),fetch(auth(FORMATION_OPERATION_URL)),
     ]);
     if(!rosterRes.ok) return json(502,{error:`Roster illisible (${rosterRes.status}).`});
     const roster=await rosterRes.json().catch(()=>null); const employees=Array.isArray(roster?.employees)?roster.employees:[];
     const history=histRes.ok?(await histRes.json().catch(()=>null)||{}):{};
     const currentActivity=activityRes.ok?(await activityRes.json().catch(()=>null)||{}):{};
     const currentSpecial=specialRes.ok?(await specialRes.json().catch(()=>null)||{}):{};
+    const currentFormationOperation=formationOperationRes.ok?(await formationOperationRes.json().catch(()=>null)||{}):{};
     if(action==='history') return json(200,{ok:true,recent:recentHistory(history,50),stats:historyStats(history)});
     const parsed=parseDiscordFormationText(rawText);
     const enriched=enrichParsed(parsed,employees,history);
     const summary=summarize(enriched);
     if(action==='preview') return json(200,{ok:true,summary,records:enriched,ignored:parsed.ignored,recent:recentHistory(history,20),stats:historyStats(history)});
     if(action!=='commit') return json(400,{error:'Action inconnue.'});
-    const built=buildCommitPatch(enriched,history,currentActivity,currentSpecial,session,Date.now());
+    const built=buildCommitPatch(enriched,history,currentActivity,currentSpecial,currentFormationOperation,employees,session,Date.now());
     const {patch,newRecords,activityData,trainerCredits}=built;
     if(!newRecords.length) return json(200,{ok:true,summary,imported:0,records:enriched,recent:recentHistory(history,20)});
     const saveRes=await fetch(`${BASE}/.json?auth=${idToken}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});
     if(!saveRes.ok){const t=await saveRes.text().catch(()=>'');return json(502,{error:`Import Firebase refusé (${saveRes.status}) : ${t.slice(0,180)}`});}
     await logAction({action:'import_formations_discord',authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`${newRecords.length} formation(s) importée(s), ${summary.operations} opération(s), ${summary.activityCredits} crédit(s) Formateur`,idToken}).catch(()=>{});
-    return json(200,{ok:true,summary,imported:newRecords.length,records:enriched,operationEmployeeIds:newRecords.filter(r=>r.type==='operation').map(r=>r.trainee.id),activityData:Object.keys(trainerCredits).length?activityData:null,recent:recentHistory(patch.rosterFormationExperience,30),stats:historyStats(patch.rosterFormationExperience)});
+    return json(200,{ok:true,summary,imported:newRecords.length,records:enriched,operationEmployeeIds:newRecords.filter(r=>r.type==='operation').map(r=>r.trainee.id),activityData:Object.keys(trainerCredits).length?activityData:null,importResults:newRecords.map(r=>({type:r.type,typeLabel:r.typeLabel,trainerName:r.trainer.name,traineeName:r.trainee.name,activityCredited:r.activityEligible,operationAdded:r.type==='operation',unrecognized:r.type==='unknown'})),recent:recentHistory(patch.rosterFormationExperience,30),stats:historyStats(patch.rosterFormationExperience)});
   }catch(err){ return json(500,{error:err.message||String(err)}); }
 };
 
-exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,parseDiscordFormationText,matchEmployee,fingerprintFor,enrichParsed,summarize,employeeKey,buildCommitPatch,historyStats,TYPE_LABELS};
+exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,parseDiscordFormationText,matchEmployee,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,buildCommitPatch,historyStats,TYPE_LABELS};
