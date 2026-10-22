@@ -89,7 +89,7 @@ function formationKeyFromLine(line,type){
   if(type!=='unknown') return type;
   const s=norm(line).replace(/-/g,' ');
   const m=s.match(/\bformation\b\s*(.*?)\s*\bvalid\w*/);
-  const label=(m&&m[1]?m[1]:'inconnue').replace(/\s+/g,' ').trim();
+  const label=(m&&m[1]?m[1]:'inconnue').replace(/\s+/g,' ').trim().slice(0,180);
   return `unknown:${label||'inconnue'}`;
 }
 function parseDiscordFormationText(text, nowMs=Date.now()){
