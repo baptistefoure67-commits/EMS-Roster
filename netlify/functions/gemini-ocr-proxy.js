@@ -7,15 +7,17 @@
 // relais se contente de transmettre tel quel le corps de la requête
 // que Pillbox construit déjà (prompt + image) vers l'API Google.
 //
-// Protégé par le même secret partagé que pillbox-proxy.js
-// (PILLBOX_SERVICE_SECRET) — seul Pillbox (qui connaît ce secret, lui
-// aussi jamais affiché nulle part) peut appeler ce relais, pour éviter
-// que n'importe qui ne découvre l'URL et ne consomme le quota gratuit
-// à la place du serveur.
+// Protégé par la vraie session Discord signée de Pillbox. Aucun secret fixe
+// n'est présent dans le navigateur : le jeton de session est vérifié côté
+// serveur avec SESSION_SECRET avant tout appel à Gemini.
+
+
+const { verifyDetailed } = require("./session-token");
+const { canFor } = require("./permissions");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Secret",
+  "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Session",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -23,14 +25,18 @@ exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: corsHeaders, body: "" };
   if (event.httpMethod !== "POST") return json(405, { error: "Méthode non autorisée." });
 
-  const { GEMINI_API_KEY, PILLBOX_SERVICE_SECRET } = process.env;
-  if (!GEMINI_API_KEY || !PILLBOX_SERVICE_SECRET) {
-    return json(500, { error: "Configuration manquante côté serveur (GEMINI_API_KEY ou PILLBOX_SERVICE_SECRET absente sur Netlify)." });
+  const { GEMINI_API_KEY, SESSION_SECRET } = process.env;
+  if (!GEMINI_API_KEY || !SESSION_SECRET) {
+    return json(500, { error: "Configuration manquante côté serveur (GEMINI_API_KEY ou SESSION_SECRET absente sur Netlify)." });
   }
 
-  const provided = (event.headers && (event.headers["x-pillbox-secret"] || event.headers["X-Pillbox-Secret"])) || "";
-  if (provided !== PILLBOX_SERVICE_SECRET) {
-    return json(403, { error: "Secret invalide." });
+  const sessionToken = (event.headers && (event.headers["x-pillbox-session"] || event.headers["X-Pillbox-Session"])) || "";
+  const verification = verifyDetailed(sessionToken, SESSION_SECRET);
+  if (!verification.payload) {
+    return json(401, { error: "Session Discord invalide ou expirée.", code: verification.reason });
+  }
+  if (!(await canFor(verification.payload, "use_pillbox_terminal"))) {
+    return json(403, { error: "Accès au Terminal Paie refusé." });
   }
 
   let body;
