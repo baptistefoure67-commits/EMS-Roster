@@ -15,7 +15,7 @@ const REQUESTS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fi
 const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -26,8 +26,7 @@ async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, web
 }
 
 function reviewLayer(level){
-  if(level === "OWNER") return "DG";
-  if(["CD","D","DG"].includes(level)) return level;
+  if(["CD","D","DG","OWNER"].includes(level)) return level;
   return "CD";
 }
 
@@ -90,7 +89,7 @@ exports.handler = async function (event) {
       // Même règle que l'édition directe : le réviseur ne peut approuver
       // qu'une permission qu'il possède lui-même (OWNER excepté).
       if(session.level !== "OWNER"){
-        const ctx = await loadPermissionContext(idToken).catch(()=>({custom:null,individual:null}));
+        const ctx = await loadPermissionContext(idToken);
         if(!can(session.level, canonical, ctx.custom, session.discordId, ctx.individual)){
           return json(403, { error: `Tu ne peux pas approuver « ${canonical} » : cette permission dépasse tes propres droits.` }, corsHeaders);
         }
@@ -101,7 +100,7 @@ exports.handler = async function (event) {
         const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
         const current = indivRes.ok ? (await indivRes.json()) || {} : {};
         current[reqData.targetDiscordId] = current[reqData.targetDiscordId] || {};
-        current[reqData.targetDiscordId][canonical] = current[reqData.targetDiscordId][canonical] || { CD: null, D: null, DG: null };
+        current[reqData.targetDiscordId][canonical] = current[reqData.targetDiscordId][canonical] || { CD: null, D: null, DG: null, OWNER: null };
         current[reqData.targetDiscordId][canonical][layer] = reqData.requestedValue;
         const saveIndivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(current) });
         if (!saveIndivRes.ok) { const t = await saveIndivRes.text().catch(()=>""); return json(502, { error: `Échec de l'application (${saveIndivRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
