@@ -448,6 +448,20 @@ exports.handler = async function (event) {
     );
     const animExcludedSelf = animationExcludedIds.includes(String(session.discordId));
 
+    // Style de portrait choisi par OWNER pour chaque personnage illustré.
+    // Ce réglage est volontairement distinct des permissions booléennes :
+    // il ne change aucun droit, seulement le rendu visuel des scènes.
+    const animationPortraitStyles = {};
+    const animationIdAliases = { "514871271352434699": "51487127135243469" };
+    Object.entries(permCtx.individual || {}).forEach(([id, person]) => {
+      const style = person && person.animation_portrait_style;
+      if(style !== "illustration" && style !== "real") return;
+      const key = animationIdAliases[String(id)] || String(id);
+      animationPortraitStyles[key] = style;
+    });
+    const selfAnimationId = animationIdAliases[String(session.discordId)] || String(session.discordId);
+    const animPortraitStyleSelf = animationPortraitStyles[selfAnimationId] || null;
+
     // (13/10, section 6) Décisions UP en direct pour la semaine en cours
     // — lues à chaque appel (polling côté Pillbox, ~3s) pour que la
     // session active ET le panneau "Modification OWNER" restent
@@ -474,6 +488,7 @@ exports.handler = async function (event) {
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
       animExcludedSelf, animationExcludedIds,
+      animPortraitStyleSelf, animationPortraitStyles,
     }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
