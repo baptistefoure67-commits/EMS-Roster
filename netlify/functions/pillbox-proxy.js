@@ -40,7 +40,6 @@ const LIVE_UP_DECISIONS_BASE = "https://paie-terminal-pillbox-default-rtdb.europ
 const LIVE_UP_SESSIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxLiveUpSessions.json";
 const PAY_RULES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfig.json";
 const FORMATION_OPERATION_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/formationOperationList.json";
-const DISCORD_ROLES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxDiscordRoles.json";
 const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistory";
 const WEEK_HISTORY_ARCHIVE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistoryArchive";
 const SIGNALEMENTS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
@@ -239,22 +238,6 @@ exports.handler = async function (event) {
         }
         return json(200,{ok:true,deleted:deleteKeys.size-obsoleteSet.size,deferred:deferByKey.size,cleaned:obsoleteSet.size},corsHeaders);
       }
-      if (body.action === "saveDiscordRoles") {
-        if (session.level !== "OWNER") return json(403,{error:"Seul OWNER peut modifier les rôles Discord."},corsHeaders);
-        const raw = body.roles && typeof body.roles === "object" ? body.roles : {};
-        const clean = {};
-        for (const [name,id] of Object.entries(raw)) {
-          const n=String(name||"").trim().replace(/^@+/,"").slice(0,80);
-          const v=String(id||"").trim();
-          if(!n || !/^\d{5,30}$/.test(v)) return json(400,{error:`Rôle invalide : ${n||"(sans nom)"}`},corsHeaders);
-          if(/[.#$\[\]\/]/.test(n)) return json(400,{error:`Le nom du rôle « ${n} » contient un caractère non compatible avec Firebase (. # $ [ ] /).`},corsHeaders);
-          clean[n.toLowerCase()] = v;
-        }
-        if(Object.keys(clean).length>100) return json(400,{error:"100 rôles maximum."},corsHeaders);
-        const rr=await fetch(`${DISCORD_ROLES_URL}?auth=${idToken}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(clean)});
-        if(!rr.ok) return json(502,{error:`Enregistrement des rôles impossible (${rr.status}).`},corsHeaders);
-        return json(200,{ok:true,roles:clean},corsHeaders);
-      }
       if (body.action === "weekFinished") {
         // (11/10) La clôture Formateur/Psy est maintenant faite ICI, par
         // le serveur, au moment même du clic dans Pillbox — plus un
@@ -377,7 +360,7 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, syncMetaRes, activiteRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes, formationOperationRes, weekHistoryRes, signalementsRes, signalementsTestRes, discordRolesRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, syncMetaRes, activiteRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes, formationOperationRes, weekHistoryRes, signalementsRes, signalementsTestRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
       fetch(`${ROSTER_SYNC_META_URL}?auth=${idToken}`),
@@ -390,7 +373,6 @@ exports.handler = async function (event) {
       fetch(`${WEEK_HISTORY_BASE}.json?auth=${idToken}`),
       fetch(`${SIGNALEMENTS_BASE}/signalements.json?auth=${idToken}`),
       fetch(`${SIGNALEMENTS_BASE}/signalements_test.json?auth=${idToken}`),
-      fetch(`${DISCORD_ROLES_URL}?auth=${idToken}`),
     ]);
     const animPref = animPrefRes.ok ? await animPrefRes.json() : null;
     const roster = rosterRes.ok ? await rosterRes.json() : null;
@@ -398,7 +380,6 @@ exports.handler = async function (event) {
     const rosterSyncMeta = syncMetaRes.ok ? await syncMetaRes.json() : null;
     const activite = activiteRes.ok ? await activiteRes.json() : null;
     const formationOperation = formationOperationRes.ok ? await formationOperationRes.json() : null;
-    const discordRoles = discordRolesRes.ok ? ((await discordRolesRes.json()) || {}) : {};
     const weekHistory = weekHistoryRes.ok ? ((await weekHistoryRes.json()) || {}) : {};
     const signalements = signalementsRes.ok ? ((await signalementsRes.json()) || {}) : {};
     const signalementsTest = signalementsTestRes.ok ? ((await signalementsTestRes.json()) || {}) : {};
@@ -502,7 +483,7 @@ exports.handler = async function (event) {
     }
 
     return json(200, {
-      roster, rosterSyncMeta, activite, formationOperation, weekHistory, signalements, signalementsTest, discordRoles, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
+      roster, rosterSyncMeta, activite, formationOperation, weekHistory, signalements, signalementsTest, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
