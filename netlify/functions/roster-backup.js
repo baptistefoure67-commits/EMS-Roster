@@ -12,7 +12,7 @@ const VERSION=1;
 
 // État persistant réellement utile à une reprise du Roster.
 const RESTORE_PATHS=[
-  'rosterEmsData','rosterAbsences','rosterEmsSpecialSelection','activiteSuivi',
+  'rosterEmsData','rosterAbsences','rosterEmsSpecialSelection','rosterFormationExperience','activiteSuivi',
   'rosterActiviteClosures','rosterActiviteLastClosure','rosterActiviteWeekHistory','rosterActiviteWeekHistoryArchive',
   'rosterAbsenceAlertDecisions','signalementPropositions','signalements','rosterGradeLabels',
   'rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests',
