@@ -61,6 +61,20 @@ test('Nettoie le @ et le grade autour de la personne formée',()=>assert.strictE
 test('Reconnaît MUP',()=>assert.strictEqual(parsed.records[0].type,'mup'));
 test('Reconnaît Co-Pilote avec tiret et Validé au masculin',()=>assert.strictEqual(parsed.records[3].type,'copilote'));
 test('Reconnaît Opération avec accent',()=>assert.strictEqual(parsed.records[4].type,'operation'));
+[
+ 'Formation Opération Validée ✅',
+ 'Formation operation validée ✅',
+ 'Formation Opérations Validée ✅',
+ 'Formation OP Validée ✅',
+ 'Formation OPE Validée ✅',
+ 'Formation Opé Validée ✅',
+ 'Formation OPS Validée ✅',
+ "Formation d'opération Validée ✅",
+].forEach(label=>test(`Reconnaît la variante Opération : ${label}`,()=>assert.strictEqual(imp.formationTypeFromLine(`@[A] Jean Troudeau ${label}`),'operation')));
+test('Une formation validée au libellé inconnu est signalée au lieu d’être ignorée',()=>{
+ const p=imp.parseDiscordFormationText('[RF] Djam Mas — 18/10/2026 22:05\n@[A] Jean Troudeau Formation Operatoin Validée ✅');
+ assert.strictEqual(p.records.length,1); assert.strictEqual(p.records[0].type,'unknown'); assert.strictEqual(p.records[0].typeLabel,'Formation non reconnue');
+});
 test('Reconnaît Pilote sans confondre avec Co-Pilote',()=>assert.strictEqual(parsed.records[5].type,'pilote'));
 test('Convertit “Hier à 22:40” en date de la veille',()=>{
  const d=new Date(parsed.records[5].occurredAt); assert.strictEqual(d.getDate(),21); assert.strictEqual(d.getHours(),22); assert.strictEqual(d.getMinutes(),40);
@@ -89,10 +103,24 @@ test('Le format Markdown exact résout Djam Mas et Jean Troudeau dans le Roster'
  assert.strictEqual(markdownEnriched[0].trainee.name,'Jean Troudeau');
  assert.strictEqual(markdownEnriched[0].importable,true);
 });
-test('Le format Markdown exact ajoute Jean au bloc Opération et +1 formation à Djam',()=>{
- const built=imp.buildCommitPatch(markdownEnriched,{}, {data:{'id:108':{formations:7,recrutements:0}}}, {}, {discordId:'owner',name:'Test'},1800000000000);
+test('Le format Markdown exact ajoute Jean au bloc Opération, à la liste Pillbox et +1 formation à Djam',()=>{
+ const built=imp.buildCommitPatch(markdownEnriched,{}, {data:{'id:108':{formations:7,recrutements:0}}}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.ok(built.patch.rosterEmsSpecialSelection.selectedEmployees.some(e=>e.name==='Jean Troudeau'));
+ assert.ok(built.patch.formationOperationList.text.includes('Jean Troudeau : 111'));
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,8);
+});
+test('L’import Opération préserve les personnes déjà présentes dans formationOperationList',()=>{
+ const built=imp.buildCommitPatch(markdownEnriched,{}, {data:{'id:108':{formations:0,recrutements:0}}}, {}, {text:'Léa Salvatore : 109',savedAt:1}, employees, {discordId:'owner',name:'Test'},1800000000000);
+ assert.ok(built.patch.formationOperationList.text.includes('Léa Salvatore : 109'));
+ assert.ok(built.patch.formationOperationList.text.includes('Jean Troudeau : 111'));
+});
+test('Une formation non reconnue crédite quand même le formateur mais ne touche jamais la liste Opération',()=>{
+ const p=imp.parseDiscordFormationText('[RF] Djam Mas — 18/10/2026 22:05\n@[A] Jean Troudeau Formation Operatoin Validée ✅');
+ const e=imp.enrichParsed(p,employees,{});
+ const built=imp.buildCommitPatch(e,{}, {data:{'id:108':{formations:7,recrutements:0}}}, {}, {text:'Léa Salvatore : 109'}, employees, {discordId:'owner',name:'Test'},1800000000000);
+ assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,8);
+ assert.ok(!built.patch.rosterEmsSpecialSelection);
+ assert.ok(!built.patch.formationOperationList);
 });
 
 test('Seul le RF actuel est créditable dans le compteur hebdo Formateur',()=>{
@@ -106,34 +134,34 @@ test('Un historique existant transforme la même formation en doublon',()=>{
  const fp=imp.fingerprintFor(employees[0],employees[1],'mup'); const e=imp.enrichParsed(parsed,employees,{[fp]:{type:'mup'}}); assert.strictEqual(e[0].duplicate,true); assert.strictEqual(e[0].importable,false);
 });
 test('Le résumé sépare nouvelles, doublons, opérations et crédits',()=>{
- const sum=imp.summarize(enriched); assert.strictEqual(sum.detected,6); assert.strictEqual(sum.importable,6); assert.strictEqual(sum.operations,1); assert.strictEqual(sum.activityCredits,2); assert.strictEqual(sum.historyOnlyCredits,4);
+ const sum=imp.summarize(enriched); assert.strictEqual(sum.detected,6); assert.strictEqual(sum.importable,6); assert.strictEqual(sum.operations,1); assert.strictEqual(sum.activityCredits,2); assert.strictEqual(sum.historyOnlyCredits,4); assert.strictEqual(sum.unrecognized,0);
 });
 test('employeeKey préfère l’ID unique pour survivre à un changement de nom',()=>assert.strictEqual(imp.employeeKey(employees[7]),'id:108'));
 
 test('Le patch final conserve les sélections Opération déjà présentes',()=>{
  const currentSpecial={selectedEmployees:[employees[1]],savedAt:1};
  const currentActivity={data:{'id:108':{formations:4,recrutements:2}},streak:{'id:108':{streak:0,lastSignaledThreshold:0}}};
- const built=imp.buildCommitPatch(enriched,{},currentActivity,currentSpecial,{discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(enriched,{},currentActivity,currentSpecial,{},employees,{discordId:'owner',name:'Test'},1800000000000);
  const selected=built.patch.rosterEmsSpecialSelection.selectedEmployees.map(e=>e.name);
  assert.ok(selected.includes('Pablo Akada')); assert.ok(selected.includes('Léa Salvatore'));
 });
 test('Le patch final ajoute exactement les crédits Formateur attendus',()=>{
- const built=imp.buildCommitPatch(enriched,{}, {data:{'id:108':{formations:4,recrutements:2}}}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(enriched,{}, {data:{'id:108':{formations:4,recrutements:2}}}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,6);
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].recrutements,2);
  assert.strictEqual(Object.values(built.trainerCredits).reduce((a,b)=>a+b,0),2);
 });
 test('Les formations faites par un haut-gradé non MF/RF restent dans l’expérience sans polluer le compteur hebdo',()=>{
- const built=imp.buildCommitPatch(enriched,{}, {}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(enriched,{}, {}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.ok(Object.values(built.patch.rosterFormationExperience).some(r=>r.trainerName==='Aaron Stopenski'));
  assert.ok(!built.patch.activiteSuivi || !built.patch.activiteSuivi.data['id:101']);
 });
 test('Chaque nouvelle formation crée une entrée d’expérience distincte',()=>{
- const built=imp.buildCommitPatch(enriched,{}, {}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(enriched,{}, {}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.strictEqual(Object.keys(built.patch.rosterFormationExperience).length,6);
 });
 test('Les statistiques d’expérience attribuent bien les formations au formateur auteur',()=>{
- const built=imp.buildCommitPatch(enriched,{}, {}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(enriched,{}, {}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  const stats=imp.historyStats(built.patch.rosterFormationExperience);
  const aaron=stats.find(x=>x.trainerName==='Aaron Stopenski');
  const djam=stats.find(x=>x.trainerName==='Djam Mas');
@@ -141,7 +169,7 @@ test('Les statistiques d’expérience attribuent bien les formations au formate
 });
 test('Une ligne déjà marquée doublon n’est jamais écrite ni recréditée',()=>{
  const clone=enriched.map((r,i)=>i===4?{...r,duplicate:true,importable:false}:r);
- const built=imp.buildCommitPatch(clone,{}, {data:{'id:108':{formations:0,recrutements:0}}}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ const built=imp.buildCommitPatch(clone,{}, {data:{'id:108':{formations:0,recrutements:0}}}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.strictEqual(Object.keys(built.patch.rosterFormationExperience).length,5);
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,1);
  assert.ok(!built.patch.rosterEmsSpecialSelection);
@@ -152,9 +180,13 @@ test('Le bloc Opération contient la zone d’import Discord',()=>assert.ok(html
 test('La zone contient prévisualisation, import et historique expérience',()=>['formationDiscordImportPreview','btnFormationDiscordImport','formationExperienceHistory'].forEach(x=>assert.ok(html.includes(x),x)));
 test('Le client appelle la fonction serveur pour preview et commit',()=>{assert.ok(html.includes('formationDiscordRequest("preview"'));assert.ok(html.includes('formationDiscordRequest("commit"'));});
 test('Le collage déclenche automatiquement une prévisualisation temporisée',()=>assert.ok(html.includes('formationDiscordPreviewTimer=setTimeout')));
+test('La prévisualisation affiche +1 formation pour le formateur et Formation non reconnue si nécessaire',()=>{assert.ok(html.includes('+1 formation pour ${trainer}'));assert.ok(html.includes('Formation non reconnue'));});
+test('Le message après import sait afficher Formation Opération validée sans modifier la phrase UP de Pillbox',()=>assert.ok(html.includes('Formation Opération validée pour ${r.traineeName}')));
+test('Le message de réussite reste affiché après la re-prévisualisation anti-doublon',()=>assert.ok(html.includes('status.textContent=successText;')));
 
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'..','firebase-rules.permissions-regroupees.json'),'utf8')).rules;
 test('Firebase possède une branche serveur dédiée à l’historique formations',()=>{assert.ok(rules.rosterFormationExperience);assert.strictEqual(rules.rosterFormationExperience['.write'],'auth != null && auth.token.server == true');});
+test('La liste Formation Opération déjà utilisée par Pillbox reste écrivable uniquement côté serveur',()=>assert.strictEqual(rules.formationOperationList['.write'],'auth != null && auth.token.server == true'));
 const backup=require('../netlify/functions/roster-backup.js');
 test('L’historique formations est inclus dans les backups catastrophe',()=>assert.ok(backup.RESTORE_PATHS.includes('rosterFormationExperience')));
 
