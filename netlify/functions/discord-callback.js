@@ -14,10 +14,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
-const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 const { sign, TOKEN_LIFETIME_MS } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
-const { resolveUserLevel, can, LEVEL_LABEL } = require("./permissions");
+const { resolveUserLevel, can, LEVEL_LABEL, loadPermissionContext } = require("./permissions");
 const { logAction } = require("./logs");
 
 exports.handler = async function (event) {
@@ -124,12 +123,10 @@ exports.handler = async function (event) {
     // plus par une liste codée en dur (09/09). Réutilise le jeton
     // jetable déjà obtenu plus haut pour lire les exceptions.
     if (origin === "pillbox") {
-      let individualOverrides = null;
-      try {
-        const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${throwawayData.idToken}`);
-        individualOverrides = indivRes.ok ? await indivRes.json() : null;
-      } catch (e) { /* si injoignable, on retombe simplement sur la permission de grade */ }
-      if (!can(level, "use_pillbox_terminal", null, discordId, individualOverrides)) {
+      let permCtx;
+      try{ permCtx = await loadPermissionContext(throwawayData.idToken, {strict:true}); }
+      catch(e){ return redirectWithError(targetSiteUrl, "Permissions Pillbox momentanément indisponibles — réessaie dans un instant."); }
+      if (!can(level, "use_pillbox_terminal", permCtx.custom, discordId, permCtx.individual)) {
         return redirectWithError(targetSiteUrl, `${displayName} (${level}) — accès au Terminal Paie refusé.`);
       }
     }
@@ -139,7 +136,7 @@ exports.handler = async function (event) {
     // restent affichables mais ne suffisent plus à agir). Le niveau
     // (pas le grade brut) est ce qui compte désormais pour can().
     const token = sign(
-      { discordId, name: displayName, level, exp: Date.now() + TOKEN_LIFETIME_MS },
+      { discordId, name: displayName, level, origin, exp: Date.now() + TOKEN_LIFETIME_MS },
       SESSION_SECRET
     );
 
@@ -183,7 +180,6 @@ exports.handler = async function (event) {
       discord_level: level,
       discord_level_label: LEVEL_LABEL[level],
       discord_token: token,
-      firebase_token: firebaseToken,
     });
     return {
       statusCode: 302,
