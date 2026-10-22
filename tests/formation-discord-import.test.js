@@ -186,6 +186,29 @@ test('Le message de réussite reste affiché après la re-prévisualisation anti
 
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'..','firebase-rules.permissions-regroupees.json'),'utf8')).rules;
 test('Firebase possède une branche serveur dédiée à l’historique formations',()=>{assert.ok(rules.rosterFormationExperience);assert.strictEqual(rules.rosterFormationExperience['.write'],'auth != null && auth.token.server == true');});
+test('Les règles Firebase autorisent le champ formationKey réellement écrit par l’import',()=>{
+ const r=rules.rosterFormationExperience['$formationId'];
+ assert.ok(r.formationKey); assert.ok(String(r.formationKey['.validate']).includes('newData.isString()'));
+});
+test('Les règles Firebase autorisent aussi le type unknown prévu par le parseur',()=>{
+ const typeRule=String(rules.rosterFormationExperience['$formationId'].type['.validate']);
+ assert.ok(typeRule.includes("newData.val() == 'unknown'"));
+});
+test('Tous les champs d’une entrée importée sont déclarés dans les règles Firebase',()=>{
+ const p=imp.parseDiscordFormationText('[RF] Djam Mas — 18/10/2026 22:05\n@[A] Jean Troudeau Formation Co-Pilote Validée ✅');
+ const e=imp.enrichParsed(p,employees,{});
+ const built=imp.buildCommitPatch(e,{}, {data:{'id:108':{formations:1,recrutements:0}}}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
+ const rec=Object.values(built.patch.rosterFormationExperience)[0];
+ const rr=rules.rosterFormationExperience['$formationId'];
+ const missing=Object.keys(rec).filter(k=>!Object.prototype.hasOwnProperty.call(rr,k));
+ assert.deepStrictEqual(missing,[]);
+});
+test('Une formation inconnue produit une formationKey bornée compatible Firebase',()=>{
+ const veryLong='X'.repeat(1000);
+ const p=imp.parseDiscordFormationText(`[RF] Djam Mas — 18/10/2026 22:05\n@[A] Jean Troudeau Formation ${veryLong} Validée ✅`);
+ assert.strictEqual(p.records[0].type,'unknown');
+ assert.ok(p.records[0].formationKey.length<200);
+});
 test('La liste Formation Opération déjà utilisée par Pillbox reste écrivable uniquement côté serveur',()=>assert.strictEqual(rules.formationOperationList['.write'],'auth != null && auth.token.server == true'));
 const backup=require('../netlify/functions/roster-backup.js');
 test('L’historique formations est inclus dans les backups catastrophe',()=>assert.ok(backup.RESTORE_PATHS.includes('rosterFormationExperience')));
