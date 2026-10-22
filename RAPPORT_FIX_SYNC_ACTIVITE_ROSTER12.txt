@@ -1,0 +1,25 @@
+ROSTER 12 — Correctif synchronisation Formation / Psychologie
+Date : 22/10/2026
+
+Base : Roster 11.
+
+PROBLÈME
+saveActiviteToCloud() affichait un toast d'erreur en cas d'échec Netlify/Firebase mais absorbait ensuite l'exception. Les appels depuis « Synchroniser avec Pillbox » pouvaient donc continuer et afficher ✓ Formation / ✓ Psychologie alors que l'envoi avait échoué. Une session Discord expirée faisait également un simple return, donc pouvait être interprétée comme un succès.
+
+CORRECTION
+- Session expirée : saveActiviteToCloud() lance maintenant une erreur « Session Discord expirée » après l'affichage du message/reconnexion.
+- Erreur réseau / HTTP / Netlify / Firebase : le catch affiche toujours le toast d'échec puis relance la même erreur (`throw err`).
+- Le gestionnaire de synchronisation existant reçoit donc réellement l'échec et place Formation/Psychologie dans `failed` au lieu de `done`.
+- Aucun changement de Pillbox ni des règles Firebase nécessaire.
+
+VALIDATION
+- Test succès normal : OK.
+- Test erreur HTTP 500 : l'erreur remonte au caller : OK.
+- Test session expirée : l'erreur remonte au caller : OK.
+- Vérification des try/catch Formation et Psychologie : OK.
+- Suites existantes : 113/113 OK.
+- Tests dédiés ajoutés : 4/4 OK.
+- Total exécuté : 117/117.
+- Syntaxe JavaScript inline Roster : OK.
+- Syntaxe des 28 fonctions Netlify : OK.
+- Diff fonctionnel Roster 11 -> Roster 12 : uniquement les deux propagations d'erreur ci-dessus (hors ajout du test/rapport).
