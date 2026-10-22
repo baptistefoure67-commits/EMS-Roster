@@ -1,0 +1,218 @@
+RAPPORT — CORRECTIONS COMPLÈTES ROSTER EMS / PILLBOX
+====================================================
+Base de travail : Roster 6 + Pillbox Terminal Paie 7
+Sorties : Roster 7 + Pillbox Terminal Paie 8
+
+IMPORTANT — ORDRE DE DÉPLOIEMENT
+--------------------------------
+1. Déployer Roster 7 sur Netlify EN PREMIER (il contient les nouvelles fonctions serveur).
+2. Déployer Pillbox Terminal Paie 8.
+3. Appliquer les nouvelles règles Firebase EN DERNIER.
+
+Pourquoi : les nouvelles règles bloquent les écritures navigateur directes. Les nouvelles versions utilisent les fonctions serveur ; les anciennes versions peuvent encore dépendre d'accès directs. Appliquer les règles avant les nouveaux déploiements pourrait donc interrompre temporairement certaines actions.
+
+PRIORITÉ 1 — RÈGLES FIREBASE
+-----------------------------
+FAIT.
+
+Principe retenu : Firebase Realtime Database ne peut pas exécuter la logique JavaScript complexe de permissions.js (héritage par grade, anciennes clés, exceptions individuelles, couches OWNER/DG/D/CD). Pour les écritures sensibles, la solution réaliste est donc :
+- navigateur -> fonction Netlify avec session Discord signée ;
+- fonction Netlify -> relecture des permissions fines ;
+- fonction Netlify -> jeton Firebase avec claim server:true ;
+- règle Firebase -> écriture uniquement si auth.token.server == true.
+
+La racine Firebase est désormais :
+  .read  = false
+  .write = false
+Cela évite qu'une permission accordée à la racine (notamment OWNER) court-circuite les règles plus strictes des enfants.
+
+Chemins durcis :
+- discordIdsList : lecture authentifiée ; écriture serveur uniquement.
+- formationOperationList : lecture authentifiée ; écriture serveur uniquement.
+- pillboxWeekHistory : lecture + écriture serveur uniquement.
+- pillboxWeekHistoryArchive : lecture + écriture serveur uniquement.
+- rosterEmsSpecialSelection : lecture authentifiée ; écriture serveur uniquement.
+- signalements : lecture + écriture serveur uniquement.
+- signalements_test : lecture + écriture serveur uniquement.
+- activiteSuivi : lecture authentifiée ; écriture serveur uniquement.
+- activiteSuivi/weekFinishedAt : ne rouvre plus l'écriture côté client.
+- rosterGradeLabels : lecture publique conservée volontairement ; écriture serveur uniquement.
+- rosterActiviteWeekHistory : lecture authentifiée ; écriture serveur uniquement.
+- rosterActiviteWeekHistoryArchive : lecture authentifiée ; écriture serveur uniquement.
+- pillboxLiveUpDecisions : lecture + écriture serveur uniquement.
+- pillboxLiveUpSessions : lecture + écriture serveur uniquement.
+- rosterEmsData : lecture authentifiée ; écriture serveur uniquement.
+- rosterPillboxSyncMeta : lecture authentifiée ; écriture serveur uniquement.
+
+Durcissement supplémentaire cohérent avec le même système :
+- rosterPermissionsOverride : lecture authentifiée ; écriture serveur uniquement.
+- rosterIndividualPermissions : lecture authentifiée ; écriture serveur uniquement.
+- rosterPermissionRequests : lecture authentifiée ; écriture serveur uniquement.
+
+Toutes les fonctions Netlify qui écrivent sur ces chemins utilisent un jeton serveur server:true. Les jetons Firebase remis au navigateur par discord-callback.js et refresh-firebase-token.js NE possèdent volontairement PAS ce claim.
+
+Permissions fines : permissions.js/canFor() est maintenant fail-closed. Si le contexte des permissions individuelles ne peut pas être relu, une action sensible est refusée au lieu de retomber silencieusement sur les seuls droits du grade.
+
+Flux Roster déplacés côté serveur :
+- sauvegarde complète rosterEmsData -> protected-write / replaceRosterSnapshot ;
+- sélection Formation Opération -> protected-write / saveSpecialSelection ;
+- synchro Roster vers Pillbox -> protected-write / syncPillboxRoster ;
+- Formation Opération -> protected-write / syncFormationOperation ;
+- création/lecture/suppression/retrait par code des signalements -> signalement-actions.js.
+
+Flux Pillbox déplacés/centralisés côté proxy signé :
+- historique semaines ;
+- signalements ;
+- formation opération ;
+- suivi activité ;
+- sessions/décisions UP live.
+
+PRIORITÉ 2 — SECRET PILLBOX EXPOSÉ
+----------------------------------
+FAIT.
+
+Suppression de PILLBOX_SERVICE_SECRET et de X-Pillbox-Secret dans le client et les proxies concernés.
+
+gemini-ocr-proxy.js :
+- exige X-Pillbox-Session ;
+- vérifie la signature via verifyDetailed() ;
+- revérifie aussi la permission effective use_pillbox_terminal via canFor().
+
+pillbox-proxy.js :
+- même authentification par session Discord signée ;
+- recharge le contexte de permissions fines à chaque appel ;
+- refuse l'appel si « Accéder au Terminal Paie » a été retiré individuellement ;
+- en cas d'impossibilité de charger les permissions, réponse 503 et aucune action exécutée.
+
+PRIORITÉ 3 — computeSignalementGroups()
+--------------------------------------
+FAIT.
+
+computeSignalementGroups(actifs) est maintenant un calcul d'affichage pur : aucun fetch, DELETE ou PATCH Firebase.
+
+Le nettoyage des entrées devenues obsolètes est calculé séparément par collectObsoleteSignalementKeys() et appliqué uniquement lors de la clôture explicite via finalizeSignalementDecisions().
+
+Le Roster n'utilise plus de DELETE Firebase direct pour retirer un signalement par code : l'action passe par signalement-actions.js / withdrawSignalementByCode.
+
+PRIORITÉ 4 — CLÔTURE PILLBOX NON ATOMIQUE
+-----------------------------------------
+FAIT.
+
+Nouvel ordre :
+1. construire le résumé ;
+2. sauvegarder pillboxWeekHistory ;
+3. seulement ensuite finaliser les décisions de signalements ;
+4. continuer la clôture du Roster / passage à la semaine suivante.
+
+Si l'historique échoue : aucune décision de signalement n'est appliquée.
+
+La finalisation des signalements est maintenant une SEULE PATCH Firebase multi-chemins : plus de boucle pouvant supprimer quelques signalements puis échouer au milieu. Suppressions, reports et nettoyage sont appliqués ensemble ou pas du tout.
+
+Si l'historique est déjà sauvegardé et qu'une étape ultérieure échoue, une relance avec le même résumé/snapshot est reconnue comme identique et ne crée pas une archive artificielle supplémentaire.
+
+PRIORITÉ 5 — GARANTIE D'ARCHIVE
+-------------------------------
+FAIT.
+
+saveWeekHistory côté pillbox-proxy :
+- relit l'entrée avec ETag ;
+- si une ancienne entrée existe, archive obligatoire AVANT écrasement ;
+- si l'archive échoue, l'entrée principale n'est pas modifiée ;
+- l'écriture finale utilise if-match ;
+- conflit Firebase 412 -> réponse 409 claire demandant de recharger/réessayer.
+
+PRIORITÉ 6 — VIEUX FICHIERS ROSTER
+----------------------------------
+FAIT.
+
+Vérifié : index.html actuel ne chargeait ni :
+- index.pre_cinematic.html
+- all-scripts.js
+
+Ces deux anciennes copies exécutables ont été supprimées de Roster 7. L'ancienne logique de sauvegarde automatique dangereuse n'est donc plus livrée à côté de l'application actuelle.
+
+PRIORITÉ 7 — COUCHE OWNER DISTINCTE
+-----------------------------------
+FAIT.
+
+Ordre effectif : OWNER > DG > D > CD.
+
+Modifications cohérentes dans :
+- permissions.js ;
+- manage-individual-permissions.js ;
+- permission-requests.js ;
+- interface des exceptions individuelles ;
+- lecture de l'exclusion des animations.
+
+Une décision OWNER est stockée dans la clé OWNER et un DG ne peut pas l'annuler.
+
+PRIORITÉ 8 — PLUSIEURS CHANGEMENTS DE GRADE
+-------------------------------------------
+FAIT.
+
+buildWeekHistoryChanges() ne dédoublonne plus uniquement par personne. La clé de dédoublonnage tient compte de :
+  personne + ancienGrade -> nouveauGrade
+
+Une même personne peut donc conserver plusieurs transitions distinctes pendant la même semaine. Une même transition identique présente dans plusieurs sources reste dédoublonnée.
+
+PRIORITÉ 9 — CONCURRENCE GET -> PUT
+-----------------------------------
+FAIT sur les flux prioritaires demandés.
+
+protected-write.js :
+- replaceRosterSnapshot : ETag + expectedSavedAt + if-match ;
+- editEmployee / licencier : lecture ETag + PUT conditionnel if-match ;
+- conflit 412 -> 409, aucun écrasement silencieux ;
+- journalisation effectuée seulement après une écriture réussie.
+
+saveWeekHistory : ETag + if-match + 409 en cas de concurrence.
+
+Les opérations qui représentent volontairement un « dernier état complet envoyé » (ex. synchronisation Roster/Pillbox ou sélection envoyée explicitement) restent des écritures serveur idempotentes/last-write-wins ; elles ne font pas un GET-modification-PUT de la liste Roster et ne présentent pas le même risque d'écrasement concurrent du Roster principal.
+
+PRIORITÉ 10 — POINTS MINEURS
+----------------------------
+FAIT :
+- pillboxAuthStatus utilise textContent au lieu de innerHTML.
+- commentaires de force-logout / libellés mis en cohérence avec permissions.js.
+- commentaire de sécurité du proxy mis à jour (plus de faux « secret » client).
+- contenu Netlify qui se trouvait après </html> replacé avant </body>.
+- constantes client devenues inutiles après migration serveur supprimées.
+
+VOLONTAIREMENT LAISSÉ DE CÔTÉ :
+1. GRADE_ORDER / spécialités latérales.
+   Le prompt demandait de ne pas changer la règle métier sans validation. Proposition pour une future version : séparer un « niveau hiérarchique » numérique d'un champ « spécialité » (Formateur/Psychologue/Légiste), afin qu'un changement MF <-> MP ne soit ni un UP ni une rétrogradation. Aucun changement appliqué ici.
+
+2. Centralisation totale des DEFAULT_PAY_RULES.
+   Les copies vivent dans des contextes différents (client Pillbox + fonctions Netlify). Une centralisation complète implique de changer le mode de chargement/bundling ; ce n'était pas nécessaire pour le chantier sécurité et a été laissé intact pour éviter une régression de calcul de paie.
+
+3. Centralisation/bascule des URLs prod/test.
+   Aucune bascule d'environnement n'a été créée, conformément à la consigne. Les URLs codées en dur existantes ont été laissées telles quelles lorsqu'une refonte n'était pas indispensable à la correction.
+
+CHOIX ASSUMÉS NON TOUCHÉS (demande explicite)
+---------------------------------------------
+- persistance des sessions dans localStorage ;
+- polling fréquent Roster ;
+- taille générale des fichiers / portraits base64.
+
+TESTS EFFECTUÉS
+---------------
+Tests fonctionnels/statistiques : 99/99 réussis.
+- spécialités Formateur/Psychologue : 10/10 ;
+- doubles portraits / animations : 18/18 ;
+- permissions regroupées / exceptions : 28/28 ;
+- sécurité sauvegarde / synchronisation : 18/18 ;
+- nouveau chantier sécurité/audit : 25/25.
+
+Contrôles supplémentaires :
+- 28 fonctions Netlify : syntaxe JavaScript OK ;
+- JavaScript inline Roster : OK ;
+- JavaScript inline Pillbox : OK ;
+- JSON règles Firebase : valide ;
+- IDs HTML littéraux Roster : aucun doublon ;
+- IDs HTML littéraux Pillbox : aucun doublon ;
+- PILLBOX_SERVICE_SECRET / X-Pillbox-Secret : absent du code applicatif ;
+- index.pre_cinematic.html / all-scripts.js : absents du projet final.
+
+LIMITES DES TESTS
+-----------------
+Aucun déploiement Netlify réel et aucune écriture sur la Firebase de production n'ont été effectués. Les contrôles sont des tests unitaires/statiques et des vérifications de flux dans les sources. La dernière validation à faire après déploiement est un test fonctionnel avec de vrais comptes MC/ADD/D/DG/OWNER et une sauvegarde de test non critique.
