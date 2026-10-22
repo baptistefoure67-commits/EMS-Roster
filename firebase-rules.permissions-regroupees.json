@@ -1,10 +1,10 @@
 {
   "rules": {
-    ".read": "auth != null && auth.token.level == 'OWNER'",
-    ".write": "auth != null && auth.token.level == 'OWNER'",
+    ".read": false,
+    ".write": false,
     "discordIdsList": {
       ".read": "auth != null",
-      ".write": true,
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['text','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
       "text": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 50000)"
@@ -17,8 +17,8 @@
       }
     },
     "formationOperationList": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['text','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
       "text": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 50000)"
@@ -32,7 +32,7 @@
     },
     "rosterEmsData": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'DG' || auth.token.level == 'D' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['employees','savedAt']) && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
       "employees": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())",
@@ -81,7 +81,7 @@
     },
     "rosterPillboxSyncMeta": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'MC' || auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "newData.hasChildren(['lastSyncAt','employeeCount','dropPercent'])",
       "lastSyncAt": {
         ".validate": "newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000"
@@ -382,8 +382,8 @@
       }
     },
     "pillboxWeekHistory": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true",
       "$weekKey": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || ($weekKey.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['processedAt'])))",
         "processedAt": {
@@ -398,8 +398,8 @@
       }
     },
     "rosterEmsSpecialSelection": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('savedAt') && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
       "selectedEmployees": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.exists())"
@@ -412,8 +412,8 @@
       }
     },
     "signalements": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true",
       "$signalementId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','createdAt']))",
         "personName": {
@@ -470,8 +470,8 @@
       }
     },
     "signalements_test": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true",
       "$signalementId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','createdAt']))",
         "personName": {
@@ -528,8 +528,8 @@
       }
     },
     "activiteSuivi": {
-      ".read": true,
-      ".write": "auth != null",
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('savedAt') && (!data.exists() || newData.child('savedAt').val() >= data.child('savedAt').val()))",
       "data": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())"
@@ -541,7 +541,7 @@
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren())"
       },
       "weekFinishedAt": {
-        ".write": true,
+        ".write": "auth != null && auth.token.server == true",
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
       },
       "$other": {
@@ -681,22 +681,22 @@
     },
     "rosterPermissionsOverride": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)"
+      ".write": "auth != null && auth.token.server == true"
     },
     "rosterGradeLabels": {
       ".read": true,
-      ".write": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       "$grade": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length > 0 && newData.val().length <= 60)"
       }
     },
     "rosterIndividualPermissions": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)"
+      ".write": "auth != null && auth.token.server == true"
     },
     "rosterPermissionRequests": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.permissionsWrite == true)",
+      ".write": "auth != null && auth.token.server == true",
       "$requestId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['targetDiscordId','permissionName','requestedValue','status','requestedByDiscordId','requestedAt']))",
         "targetDiscordId": {
@@ -744,16 +744,16 @@
       }
     },
     "pillboxWeekHistoryArchive": {
-      ".read": true,
-      ".write": true
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true"
     },
     "rosterActiviteWeekHistory": {
       ".read": "auth != null",
-      ".write": "auth != null"
+      ".write": "auth != null && auth.token.server == true"
     },
     "rosterActiviteWeekHistoryArchive": {
       ".read": "auth != null",
-      ".write": "auth != null"
+      ".write": "auth != null && auth.token.server == true"
     },
     "rosterPresence": {
       ".read": "auth != null",
@@ -810,8 +810,8 @@
       }
     },
     "pillboxLiveUpDecisions": {
-      ".read": "auth != null",
-      ".write": "auth != null",
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true",
       "$weekKey": {
         "$employeeKey": {
           ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChild('updatedAt'))",
@@ -834,8 +834,8 @@
       }
     },
     "pillboxLiveUpSessions": {
-      ".read": "auth != null",
-      ".write": "auth != null",
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true",
       "$weekKey": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['operatorDiscordId','operatorName','updatedAt']))",
         "operatorDiscordId": {
