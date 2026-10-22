@@ -39,7 +39,7 @@ const GRADE_PERMISSION_KEYS = [
 
 // Permissions qui ne doivent JAMAIS apparaître dans la matrice par grade.
 // Elles sont accordables individuellement seulement.
-const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll"];
+const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll", "exclude_animations"];
 
 // Suppression de logs : OWNER réel uniquement. Cette permission n'est ni
 // proposée par grade ni accordable individuellement.
