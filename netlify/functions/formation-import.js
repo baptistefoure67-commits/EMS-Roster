@@ -42,6 +42,11 @@ function norm(value){
 }
 function cleanDisplayName(value){
   let s=String(value||'').normalize('NFKC').trim();
+  // Exports Discord/Markdown : titres ###, gras **nom**, italique _nom_, code `nom`.
+  s=s.replace(/^#{1,6}\s*/,'').trim();
+  // Si le nom lui-même est un lien Markdown, conserver uniquement le libellé.
+  s=s.replace(/^\[([^\]]+)\]\([^)]*\)$/,'$1').trim();
+  s=s.replace(/^(?:\*{1,3}|_{1,3}|~{2}|`)+|(?:\*{1,3}|_{1,3}|~{2}|`)+$/g,'').trim();
   s=s.replace(/^@+\s*/,'');
   s=s.replace(/^\[[^\]]+\]\s*/,''); // grade/role devant le nom
   s=s.replace(/\s*\[[^\]]+\]\s*,?\s*$/,''); // tag serveur après le nom
@@ -77,8 +82,12 @@ function parseDiscordFormationText(text, nowMs=Date.now()){
   let author=null;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
-    // En-tête Discord : auteur — 06/09/2026 17:30 / auteur — Hier à 22:40
-    const hm=line.match(/^(.+?)\s+[—–-]\s+((?:\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2})|(?:Hier\s+[àa]\s+\d{1,2}:\d{2}))\s*$/i);
+    // En-tête Discord : accepte plusieurs exports :
+    //   [RF] Djam Mas — 18/10/2026 22:05
+    //   ### [RF] Djam Mas18/10/2026 22:05  (Markdown, date collée au nom)
+    //   [RF] Djam Mas — Hier à 22:40
+    const headerLine=line.replace(/^#{1,6}\s*/,'').trim();
+    const hm=headerLine.match(/^(.+?)(?:\s*[,;]?\s*[—–-]\s*|\s*)?((?:\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2})|(?:Hier\s+[àa]\s+\d{1,2}:\d{2}))\s*$/i);
     if(hm){
       const name=cleanDisplayName(hm[1]);
       author=name?{name,dateLabel:hm[2].trim(),timestamp:parseDateLabel(hm[2],nowMs),raw:line}:null;
