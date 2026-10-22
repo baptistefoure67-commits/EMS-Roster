@@ -1,0 +1,22 @@
+FIX 14.3 — IMPORT FORMATIONS DISCORD / FIREBASE 401
+Date : 22/10/2026
+
+Cause du 401 :
+- formation-import.js enregistre un champ formationKey dans rosterFormationExperience.
+- Les règles Firebase 14.2 avaient $other:false mais ne déclaraient pas formationKey.
+- Firebase refusait donc l'intégralité du PATCH avec Permission denied.
+
+Deuxième incohérence corrigée :
+- Le parseur sait produire type="unknown" pour "Formation non reconnue".
+- Les règles Firebase n'autorisaient que operation/copilote/pilote/mup.
+- Le type unknown est désormais explicitement autorisé.
+
+Durcissement :
+- formationKey des formations inconnues est borné à moins de 200 caractères.
+- Test automatique vérifiant que tous les champs réellement écrits dans
+  rosterFormationExperience sont déclarés dans les règles Firebase.
+
+Pillbox : AUCUNE MODIFICATION.
+La logique A -> INF et hasFormationOperation() reste inchangée.
+
+Tests : 11 suites / 203 vérifications réussies, 0 échec.
