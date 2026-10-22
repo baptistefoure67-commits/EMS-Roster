@@ -16,12 +16,11 @@ const RESTORE_PATHS=[
   'rosterActiviteClosures','rosterActiviteLastClosure','rosterActiviteWeekHistory','rosterActiviteWeekHistoryArchive',
   'rosterAbsenceAlertDecisions','signalementPropositions','signalements','rosterGradeLabels',
   'rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests',
-  'payRulesConfig','payRulesConfigHistory','rosterAnimPrefs','formationOperationList','discordIdsList','rosterPillboxSyncMeta',
-  'trollJokes','trollMedia'
+  'payRulesConfig','payRulesConfigHistory','rosterAnimPrefs','formationOperationList','discordIdsList','rosterPillboxSyncMeta'
 ];
 // Conservé dans le fichier pour diagnostic, mais jamais réinjecté lors d'une restauration.
-const INFO_ONLY_PATHS=['rosterLogs'];
-const EXCLUDED_PATHS=['rosterPresence','pillboxPresence','rosterForcedLogouts','pillboxForcedLogouts','pillboxLiveUpDecisions','pillboxLiveUpSessions','signalements_test','pillboxWeekHistory','pillboxWeekHistoryArchive','pillboxDiscordRoles','rosterDisasterBackups'];
+const INFO_ONLY_PATHS=[];
+const EXCLUDED_PATHS=['rosterPresence','pillboxPresence','rosterForcedLogouts','pillboxForcedLogouts','pillboxLiveUpDecisions','pillboxLiveUpSessions','signalements_test','pillboxWeekHistory','pillboxWeekHistoryArchive','rosterDisasterBackups','rosterLogs','trollJokes','trollMedia'];
 
 function json(statusCode,obj){return {statusCode,headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)};}
 async function privilegedToken(){
@@ -37,12 +36,14 @@ async function readPath(path,idToken,etag=false){
   return {value:await r.json(),etag:r.headers.get('etag')};
 }
 async function readMany(paths,idToken,{strict=false}={}){
-  const out={};
-  for(const p of paths){
-    try{ out[p]=(await readPath(p,idToken)).value; }
-    catch(e){ if(strict) throw new Error(`Backup incomplet : ${e.message}`); out[p]={__backupReadError:e.message}; }
-  }
-  return out;
+  // IMPORTANT : les lectures sont faites en parallèle. La première version les
+  // faisait l'une après l'autre (20+ appels Firebase), ce qui pouvait dépasser
+  // le temps d'exécution Netlify et finir en 502 malgré un code valide.
+  const entries=await Promise.all(paths.map(async p=>{
+    try{return [p,(await readPath(p,idToken)).value];}
+    catch(e){if(strict) throw new Error(`Backup incomplet : ${e.message}`);return [p,{__backupReadError:e.message}];}
+  }));
+  return Object.fromEntries(entries);
 }
 function validBackup(b){return !!(b&&b.backupFormat===FORMAT&&Number(b.version)===VERSION&&b.sections&&typeof b.sections==='object');}
 function countObj(v){return Array.isArray(v)?v.length:(v&&typeof v==='object'?Object.keys(v).length:(v==null?0:1));}
@@ -83,7 +84,7 @@ exports.handler=async event=>{
       const restoreSections=await readMany(RESTORE_PATHS,idToken,{strict:true});
       const infoSections=await readMany(INFO_ONLY_PATHS,idToken);
       const sections={...restoreSections,...infoSections};
-      const backup={backupFormat:FORMAT,version:VERSION,createdAt:new Date().toISOString(),createdAtMs:Date.now(),createdBy:{discordId:String(session.discordId||''),name:session.name||'',level:session.level||''},sections,restorePaths:RESTORE_PATHS,infoOnlyPaths:INFO_ONLY_PATHS,excludedPaths:EXCLUDED_PATHS,notes:['Toutes les branches persistantes du Roster, y compris les médias du mode troll, sont incluses dans la restauration.','Les logs sont inclus à titre d’audit mais ne sont jamais réinjectés.','Présences, sessions, kicks, états temps réel, historiques Pillbox et sauvegardes de catastrophe précédentes sont volontairement exclus de la restauration.']};
+      const backup={backupFormat:FORMAT,version:VERSION,createdAt:new Date().toISOString(),createdAtMs:Date.now(),createdBy:{discordId:String(session.discordId||''),name:session.name||'',level:session.level||''},sections,restorePaths:RESTORE_PATHS,infoOnlyPaths:INFO_ONLY_PATHS,excludedPaths:EXCLUDED_PATHS,notes:['Les données persistantes nécessaires à la reprise du Roster sont incluses.','Les logs et le mode troll (blagues + médias) sont volontairement exclus : les médias sont stockés en morceaux pouvant dépasser la limite de réponse Netlify si on les regroupe dans un seul backup.','Présences, sessions, kicks, états temps réel, historiques Pillbox et sauvegardes de catastrophe précédentes sont volontairement exclus de la restauration.']};
       await logAction({action:'export_backup_roster',authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`Backup complet v${VERSION} exporté`,idToken}).catch(()=>{});
       return json(200,{ok:true,backup});
     }
@@ -111,8 +112,8 @@ exports.handler=async event=>{
     const rr=await fetch(`${BASE}/.json?auth=${idToken}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(safeIncoming)});
     if(!rr.ok){const t=await rr.text().catch(()=>'');return json(502,{error:`Restauration Firebase refusée (${rr.status}) : ${t.slice(0,180)}`});}
     await logAction({action:'restauration_backup_roster',authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`Backup v${body.backup.version} restauré ; snapshot ${snapKey}`,idToken}).catch(()=>{});
-    return json(200,{ok:true,summary,snapshotKey,ownerLayerPreserved:session.level!=='OWNER'});
+    return json(200,{ok:true,summary,snapshotKey:snapKey,ownerLayerPreserved:session.level!=='OWNER'});
   }catch(err){return json(500,{error:err.message||String(err)});}
 };
 
-module.exports={RESTORE_PATHS,INFO_ONLY_PATHS,EXCLUDED_PATHS,FORMAT,VERSION,diffSummary,preserveOwnerAuthority};
+module.exports={handler:exports.handler,RESTORE_PATHS,INFO_ONLY_PATHS,EXCLUDED_PATHS,FORMAT,VERSION,diffSummary,preserveOwnerAuthority};
