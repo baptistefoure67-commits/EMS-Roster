@@ -2,7 +2,7 @@
 // manage-labels.js — lecture publique des libellés de grade
 // personnalisés (tout le monde doit pouvoir les VOIR pour que
 // l'affichage reste cohérent), écriture réservée à
-// can(level, "modify_role_label") — CD, D, OWNER (voir permissions.js).
+// canFor(session, "modify_role_label") — D+ par défaut, avec exceptions individuelles (voir permissions.js).
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
@@ -14,7 +14,7 @@ const LABELS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fire
 const VALID_GRADES = ["DG","D","CD","ADD","MC","RL","RF","RP","MLP","MP","MF","M","INF","A","WDV","STG"];
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -27,7 +27,7 @@ async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, web
 exports.handler = async function (event) {
   if (event.httpMethod === "GET") {
     // Lecture publique — tout le monde doit voir les mêmes libellés,
-    // sans avoir besoin d'être ADD+ juste pour AFFICHER le Roster.
+    // sans avoir besoin d'un droit de modification juste pour AFFICHER le Roster.
     try {
       const res = await fetch(LABELS_URL);
       const overrides = res.ok ? (await res.json()) : {};
