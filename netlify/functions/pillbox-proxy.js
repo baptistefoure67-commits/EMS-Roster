@@ -185,6 +185,15 @@ exports.handler = async function (event) {
         }
         return json(200, { ok:true, archived:!!existing }, corsHeaders);
       }
+      if (body.action === "listSignalements") {
+        const targetRoot = body.sandbox ? "signalements_test" : "signalements";
+        const readRes = await fetch(`${SIGNALEMENTS_BASE}/${targetRoot}.json?auth=${idToken}`);
+        if (!readRes.ok) {
+          const tx = await readRes.text().catch(()=>"");
+          return json(502,{error:`Lecture des signalements impossible (${readRes.status}) : ${tx.slice(0,160)}`},corsHeaders);
+        }
+        return json(200,{ok:true,signalements:(await readRes.json())||{}},corsHeaders);
+      }
       if (body.action === "finalizeSignalements") {
         const permCtx = requestPermCtx;
         if (!can(session.level, "use_pillbox_terminal", permCtx.custom, session.discordId, permCtx.individual)) {
