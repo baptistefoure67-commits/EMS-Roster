@@ -5,15 +5,11 @@
 // Discord ne doivent plus être récupérables juste en connaissant
 // l'adresse Firebase).
 //
-// Pillbox n'a pas de connexion Discord (décision volontaire, 09/09 plus
-// tôt) — il s'authentifie donc ici avec un simple secret partagé
-// (PILLBOX_SERVICE_SECRET, variable d'environnement), pas un vrai
-// compte. C'est plus léger qu'une vraie connexion, mais ferme quand
-// même la porte à "n'importe qui qui connaît juste l'adresse du site" —
-// le but exact demandé. Ce n'est PAS une protection parfaite contre
-// quelqu'un qui inspecterait spécifiquement le code de Pillbox pour y
-// trouver ce secret, mais ça ferme le scénario visé (accès direct via
-// l'URL Firebase brute, ou l'URL du Roster).
+// Pillbox possède désormais une vraie session Discord signée. Toutes les
+// lectures/écritures sensibles passent par ce relais avec X-Pillbox-Session ;
+// aucun secret fixe n'est embarqué dans le navigateur. La session est
+// revérifiée ici à chaque appel, puis les permissions fines sont relues
+// côté serveur lorsque l'action l'exige.
 // ═══════════════════════════════════════════════════════════════════
 
 const { createFirebaseCustomToken } = require("./firebase-token");
@@ -43,6 +39,10 @@ const LIVE_UP_DECISIONS_BASE = "https://paie-terminal-pillbox-default-rtdb.europ
 // la semaine ni l'employé à l'avance.
 const LIVE_UP_SESSIONS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxLiveUpSessions.json";
 const PAY_RULES_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/payRulesConfig.json";
+const FORMATION_OPERATION_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/formationOperationList.json";
+const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistory";
+const WEEK_HISTORY_ARCHIVE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistoryArchive";
+const SIGNALEMENTS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 
 // Valeurs par défaut — copie EXACTE de celles de pay-rules-actions.js
 // (jamais réimportées directement, ce fichier et celui-là sont deux
@@ -77,42 +77,28 @@ const DEFAULT_PAY_RULES = {
 exports.handler = async function (event) {
   // CORS : Pillbox est sur un autre domaine Netlify — sans ces en-têtes,
   // le navigateur bloquerait la réponse avant même que le code de
-  // Pillbox ne la voie. Ouvert à tous les domaines volontairement (ce
-  // n'est qu'un relais protégé par secret, pas une action sensible en
-  // elle-même) — le secret est la vraie protection, pas l'origine.
+  // Pillbox ne la voie. L'origine CORS n'est pas une barrière de sécurité :
+  // chaque requête est protégée par la session Discord signée vérifiée ci-dessous.
   // POST ajouté le 03/10 : signaler "semaine terminée" au Roster (voir
   // plus bas) exige d'écrire sur activiteSuivi, qui demande une
   // authentification Firebase — Pillbox n'en a pas en direct, donc ça
   // doit obligatoirement passer par ce relais, comme le reste.
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Secret, X-Pillbox-Session",
+    "Access-Control-Allow-Headers": "Content-Type, X-Pillbox-Session",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   };
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  const { SESSION_SECRET, PILLBOX_SERVICE_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
-  if (!SESSION_SECRET || !PILLBOX_SERVICE_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
+  const { SESSION_SECRET, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
+  if (!SESSION_SECRET || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY || !FIREBASE_WEB_API_KEY) {
     return json(500, { error: "Configuration manquante côté serveur." }, corsHeaders);
   }
 
-  const provided = (event.headers && (event.headers["x-pillbox-secret"] || event.headers["X-Pillbox-Secret"])) || "";
-  if (provided !== PILLBOX_SERVICE_SECRET) {
-    return json(403, { error: "Secret invalide." }, corsHeaders);
-  }
-  // (11/10 — audit de sécurité) Le secret ci-dessus est visible dans le
-  // code source de Pillbox (il doit l'être, Pillbox n'a pas de backend à
-  // lui) — il ne protège donc que contre "quelqu'un qui tombe sur
-  // l'adresse par hasard", pas contre quelqu'un qui inspecte le code de
-  // Pillbox. En plus de ce secret, on exige maintenant aussi une vraie
-  // session Discord valide (Pillbox en a une depuis le 09/09) : sans
-  // elle, même en connaissant le secret, impossible de lire quoi que ce
-  // soit — il faut s'être réellement connecté avec Discord au moins une
-  // fois. Dégradation prévue et normale AVANT la connexion (les quatre
-  // appels côté Pillbox tombent déjà silencieusement sur leurs valeurs
-  // par défaut dans ce cas, comportement inchangé).
+  // Authentification unique : vraie session Discord signée, jamais une
+  // valeur fixe rejouable copiée depuis le code client.
   const sessionToken = (event.headers && (event.headers["x-pillbox-session"] || event.headers["X-Pillbox-Session"])) || "";
   const verification = verifyDetailed(sessionToken, SESSION_SECRET);
   const session = verification.payload;
@@ -127,7 +113,7 @@ exports.handler = async function (event) {
 
   try {
     const customToken = createFirebaseCustomToken({
-      clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: "service:pillbox", claims: {},
+      clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: "service:pillbox", claims: { server: true },
     });
     const exch = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -136,6 +122,20 @@ exports.handler = async function (event) {
     const exchData = await exch.json();
     if (!exch.ok) throw new Error(exchData.error?.message || `${exch.status}`);
     const idToken = exchData.idToken;
+
+    // Une session Roster signée n'implique pas automatiquement l'accès à
+    // Pillbox. Revalide à CHAQUE appel la permission fine Terminal Paie
+    // (grade + overrides + exception individuelle) avant toute lecture ou
+    // écriture du relais.
+    let requestPermCtx;
+    try{
+      requestPermCtx = await loadPermissionContext(idToken);
+    }catch(e){
+      return json(503, { error: "Permissions momentanément indisponibles — aucune action n'a été exécutée. Réessaie dans un instant." }, corsHeaders);
+    }
+    if (!can(session.level, "use_pillbox_terminal", requestPermCtx.custom, session.discordId, requestPermCtx.individual)) {
+      return json(403, { error: "Accès au Terminal Paie refusé." }, corsHeaders);
+    }
 
     // (03/10) Signal "semaine terminée" : Pillbox appelle ce relais en
     // POST juste après avoir validé sa semaine, pour que le Roster se
@@ -147,6 +147,88 @@ exports.handler = async function (event) {
     if (event.httpMethod === "POST") {
       let body = {};
       try { body = JSON.parse(event.body || "{}"); } catch (e) {}
+      if (body.action === "saveWeekHistory") {
+        const permCtx = requestPermCtx;
+        if (!can(session.level, "use_pillbox_terminal", permCtx.custom, session.discordId, permCtx.individual)) {
+          return json(403, { error: "Permission Terminal Paie refusée." }, corsHeaders);
+        }
+        const { weekKey, entry } = body;
+        if (!weekKey || !/^\d{4}-\d{2}-\d{2}$/.test(weekKey) || !entry || typeof entry !== "object" || !Number.isFinite(Number(entry.processedAt))) {
+          return json(400, { error: "Paramètres d'historique invalides." }, corsHeaders);
+        }
+        const weekUrl = `${WEEK_HISTORY_BASE}/${weekKey}.json?auth=${idToken}`;
+        const existingRes = await fetch(weekUrl, { headers: { "X-Firebase-ETag": "true" } });
+        if (!existingRes.ok) return json(502, { error: `Lecture historique impossible (${existingRes.status}).` }, corsHeaders);
+        const etag = existingRes.headers.get("etag");
+        const existing = await existingRes.json();
+        // Relance idempotente après un échec sur une étape suivante : si le
+        // résumé + snapshot sont déjà exactement ceux qu'on veut sauver, ne
+        // crée pas une archive artificielle et ne réécrit pas processedAt.
+        if (existing && stableStringify({summary:existing.summary||null,sessionSnapshot:existing.sessionSnapshot||null}) === stableStringify({summary:entry.summary||null,sessionSnapshot:entry.sessionSnapshot||null})) {
+          return json(200,{ok:true,archived:false,alreadySaved:true},corsHeaders);
+        }
+        if (existing) {
+          const archiveUrl = `${WEEK_HISTORY_ARCHIVE_BASE}/${weekKey}/${Date.now()}.json?auth=${idToken}`;
+          const archiveRes = await fetch(archiveUrl, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(existing) });
+          if (!archiveRes.ok) {
+            const tx = await archiveRes.text().catch(()=>"");
+            return json(502, { error:`Archive impossible (${archiveRes.status}) — l'ancienne semaine n'a PAS été écrasée. ${tx.slice(0,120)}` }, corsHeaders);
+          }
+        }
+        const headers = { "Content-Type":"application/json" };
+        if (etag) headers["if-match"] = etag;
+        const saveRes = await fetch(weekUrl, { method:"PUT", headers, body:JSON.stringify(entry) });
+        if (saveRes.status === 412) return json(409, { error:"La semaine a été modifiée par une autre session. Recharge l'historique puis réessaie." }, corsHeaders);
+        if (!saveRes.ok) {
+          const tx = await saveRes.text().catch(()=>"");
+          return json(502, { error:`Sauvegarde historique impossible (${saveRes.status}) : ${tx.slice(0,120)}` }, corsHeaders);
+        }
+        return json(200, { ok:true, archived:!!existing }, corsHeaders);
+      }
+      if (body.action === "finalizeSignalements") {
+        const permCtx = requestPermCtx;
+        if (!can(session.level, "use_pillbox_terminal", permCtx.custom, session.discordId, permCtx.individual)) {
+          return json(403, { error: "Permission Terminal Paie refusée." }, corsHeaders);
+        }
+        const targetRoot = body.sandbox ? "signalements_test" : "signalements";
+        const decisions = Array.isArray(body.decisions) ? body.decisions.slice(0,200) : [];
+        const obsoleteKeys = Array.isArray(body.obsoleteKeys) ? body.obsoleteKeys.slice(0,200) : [];
+        const validKey = k => typeof k === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(k);
+
+        // Une SEULE mise à jour multi-chemins Firebase : aucune clôture ne peut
+        // désormais supprimer deux signalements puis échouer au troisième en
+        // laissant un état à moitié appliqué. Une relance après erreur reste sûre.
+        const deleteKeys = new Set();
+        const deferByKey = new Map();
+        for (const d of decisions) {
+          const keys = Array.isArray(d.keys) ? d.keys.filter(validKey).slice(0,50) : [];
+          if (d.action === "delete") {
+            keys.forEach(k=>deleteKeys.add(k));
+          } else if (d.action === "defer" && Number.isFinite(Number(d.deferredUntil)) && typeof d.gradeAtDecision === "string") {
+            keys.forEach(k=>deferByKey.set(k,{deferredUntil:Number(d.deferredUntil),gradeAtDecision:d.gradeAtDecision}));
+          }
+        }
+        const obsoleteSet = new Set(obsoleteKeys.filter(validKey));
+        obsoleteSet.forEach(k=>deleteKeys.add(k));
+        // Une suppression est prioritaire si la même clé se retrouve dans deux groupes.
+        deleteKeys.forEach(k=>deferByKey.delete(k));
+
+        const updates = {};
+        deleteKeys.forEach(k=>{ updates[k]=null; });
+        for (const [k,v] of deferByKey) {
+          updates[`${k}/deferredUntil`] = v.deferredUntil;
+          updates[`${k}/gradeAtDecision`] = v.gradeAtDecision;
+        }
+        if (Object.keys(updates).length) {
+          const rootUrl=`${SIGNALEMENTS_BASE}/${targetRoot}.json?auth=${idToken}`;
+          const patchRes=await fetch(rootUrl,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(updates)});
+          if(!patchRes.ok){
+            const tx=await patchRes.text().catch(()=>"");
+            return json(502,{error:`Finalisation atomique des signalements impossible (${patchRes.status}) : ${tx.slice(0,160)}`},corsHeaders);
+          }
+        }
+        return json(200,{ok:true,deleted:deleteKeys.size-obsoleteSet.size,deferred:deferByKey.size,cleaned:obsoleteSet.size},corsHeaders);
+      }
       if (body.action === "weekFinished") {
         // (11/10) La clôture Formateur/Psy est maintenant faite ICI, par
         // le serveur, au moment même du clic dans Pillbox — plus un
@@ -269,19 +351,29 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, syncMetaRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes] = await Promise.all([
+    const [rosterRes, discordIdsRes, syncMetaRes, activiteRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes, formationOperationRes, weekHistoryRes, signalementsRes, signalementsTestRes] = await Promise.all([
       fetch(`${ROSTER_URL}?auth=${idToken}`),
       fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
       fetch(`${ROSTER_SYNC_META_URL}?auth=${idToken}`),
+      fetch(`${ACTIVITE_URL}?auth=${idToken}`),
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
-      fetch(PAY_RULES_URL), // lecture publique, comme rosterGradeLabels — pas besoin du jeton
+      fetch(PAY_RULES_URL),
       fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
       fetch(`${ANIM_PREFS_BASE}/${encodeURIComponent(session.discordId)}.json?auth=${idToken}`),
+      fetch(`${FORMATION_OPERATION_URL}?auth=${idToken}`),
+      fetch(`${WEEK_HISTORY_BASE}.json?auth=${idToken}`),
+      fetch(`${SIGNALEMENTS_BASE}/signalements.json?auth=${idToken}`),
+      fetch(`${SIGNALEMENTS_BASE}/signalements_test.json?auth=${idToken}`),
     ]);
     const animPref = animPrefRes.ok ? await animPrefRes.json() : null;
     const roster = rosterRes.ok ? await rosterRes.json() : null;
     const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
     const rosterSyncMeta = syncMetaRes.ok ? await syncMetaRes.json() : null;
+    const activite = activiteRes.ok ? await activiteRes.json() : null;
+    const formationOperation = formationOperationRes.ok ? await formationOperationRes.json() : null;
+    const weekHistory = weekHistoryRes.ok ? ((await weekHistoryRes.json()) || {}) : {};
+    const signalements = signalementsRes.ok ? ((await signalementsRes.json()) || {}) : {};
+    const signalementsTest = signalementsTestRes.ok ? ((await signalementsTestRes.json()) || {}) : {};
     let absences = absencesRes.ok ? await absencesRes.json() : null;
     // (10/10, demandé) Même nettoyage automatique que côté Roster
     // (absences-actions.js GET) — pour que Pillbox ne voie jamais une
@@ -338,7 +430,7 @@ exports.handler = async function (event) {
     // futur affichage conditionnel équivalent) se fie à CE calcul
     // serveur, jamais à une simple variable côté navigateur — recalculé
     // à chaque appel, donc une révocation prend effet immédiatement.
-    const permCtx = await loadPermissionContext(idToken).catch(()=>({custom:null, individual:null}));
+    const permCtx = requestPermCtx;
     const isOwnerOrDelegate = can(session.level, "owner_delegate", permCtx.custom, session.discordId, permCtx.individual) || session.level === "OWNER";
     // Exclusion globale des personnages d'animation : même source individuelle
     // que le panneau Permissions du Roster. Cela vaut pour les deux outils.
@@ -368,7 +460,7 @@ exports.handler = async function (event) {
     }
 
     return json(200, {
-      roster, rosterSyncMeta, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
+      roster, rosterSyncMeta, activite, formationOperation, weekHistory, signalements, signalementsTest, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
@@ -378,6 +470,12 @@ exports.handler = async function (event) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
 };
+
+function stableStringify(value){
+  if(value===null || typeof value!=="object") return JSON.stringify(value);
+  if(Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+stableStringify(value[k])).join(",")}}`;
+}
 
 function json(statusCode, obj, extraHeaders) {
   return { statusCode, headers: { "Content-Type": "application/json", ...(extraHeaders||{}) }, body: JSON.stringify(obj) };
