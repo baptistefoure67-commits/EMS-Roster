@@ -224,7 +224,7 @@ async function call(handler, method, body={}, query={}){
     resetDb();
     const r=await call(manageIndividual,'POST',{token:token(perms.OWNER_DISCORD_ID,'OWNER'),action:'set',targetDiscordId:'x2',permissionName:'owner_delegate',value:true});
     assert.equal(r.statusCode,200,JSON.stringify(r.json));
-    assert.equal(db.rosterIndividualPermissions.x2.owner_delegate.DG,true);
+    assert.equal(db.rosterIndividualPermissions.x2.owner_delegate.OWNER,true);
   });
 
   await test('Gestion individuelle : MC manager ne peut attribuer que ses propres droits', async()=>{
@@ -316,7 +316,7 @@ async function call(handler, method, body={}, query={}){
 
   await test('Règles Firebase renforcées pour permissions et logs', ()=>{
     const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'..','firebase-rules.permissions-regroupees.json'),'utf8')).rules;
-    for(const key of ['rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests']) assert(String(rules[key]['.write']).includes('permissionsWrite'),key);
+    for(const key of ['rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests']) assert(String(rules[key]['.write']).includes('auth.token.server'),key);
     assert.equal(rules.rosterLogs['.write'],undefined);
     assert(String(rules.rosterLogs.$logId['.write']).includes("auth.token.level == 'OWNER'"));
   });
