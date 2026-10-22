@@ -129,7 +129,7 @@ exports.handler = async function (event) {
     // écriture du relais.
     let requestPermCtx;
     try{
-      requestPermCtx = await loadPermissionContext(idToken);
+      requestPermCtx = await loadPermissionContext(idToken, {strict:true});
     }catch(e){
       return json(503, { error: "Permissions momentanément indisponibles — aucune action n'a été exécutée. Réessaie dans un instant." }, corsHeaders);
     }
@@ -360,42 +360,50 @@ exports.handler = async function (event) {
       return json(400, { error: "Action POST inconnue." }, corsHeaders);
     }
 
-    const [rosterRes, discordIdsRes, syncMetaRes, activiteRes, absencesRes, payRulesRes, alertDecisionsRes, animPrefRes, formationOperationRes, weekHistoryRes, signalementsRes, signalementsTestRes] = await Promise.all([
-      fetch(`${ROSTER_URL}?auth=${idToken}`),
-      fetch(`${DISCORD_IDS_URL}?auth=${idToken}`),
-      fetch(`${ROSTER_SYNC_META_URL}?auth=${idToken}`),
-      fetch(`${ACTIVITE_URL}?auth=${idToken}`),
-      fetch(`${ABSENCES_URL}?auth=${idToken}`),
-      fetch(PAY_RULES_URL),
-      fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
-      fetch(`${ANIM_PREFS_BASE}/${encodeURIComponent(session.discordId)}.json?auth=${idToken}`),
-      fetch(`${FORMATION_OPERATION_URL}?auth=${idToken}`),
-      fetch(`${WEEK_HISTORY_BASE}.json?auth=${idToken}`),
-      fetch(`${SIGNALEMENTS_BASE}/signalements.json?auth=${idToken}`),
-      fetch(`${SIGNALEMENTS_BASE}/signalements_test.json?auth=${idToken}`),
+    // Lecture indépendante de chaque ressource : une panne partielle ne doit
+    // jamais être transformée silencieusement en liste vide. Chaque entrée
+    // porte désormais un état explicite : found / absent / error.
+    const [rosterRead, discordIdsRead, syncMetaRead, activiteRead, absencesRead, payRulesRead, alertDecisionsRead, animPrefRead, formationOperationRead, weekHistoryRead, signalementsRead, signalementsTestRead] = await Promise.all([
+      readJsonState(`${ROSTER_URL}?auth=${idToken}`),
+      readJsonState(`${DISCORD_IDS_URL}?auth=${idToken}`),
+      readJsonState(`${ROSTER_SYNC_META_URL}?auth=${idToken}`),
+      readJsonState(`${ACTIVITE_URL}?auth=${idToken}`),
+      readJsonState(`${ABSENCES_URL}?auth=${idToken}`),
+      readJsonState(PAY_RULES_URL),
+      readJsonState(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`),
+      readJsonState(`${ANIM_PREFS_BASE}/${encodeURIComponent(session.discordId)}.json?auth=${idToken}`),
+      readJsonState(`${FORMATION_OPERATION_URL}?auth=${idToken}`),
+      readJsonState(`${WEEK_HISTORY_BASE}.json?auth=${idToken}`),
+      readJsonState(`${SIGNALEMENTS_BASE}/signalements.json?auth=${idToken}`),
+      readJsonState(`${SIGNALEMENTS_BASE}/signalements_test.json?auth=${idToken}`),
     ]);
-    const animPref = animPrefRes.ok ? await animPrefRes.json() : null;
-    const roster = rosterRes.ok ? await rosterRes.json() : null;
-    const discordIds = discordIdsRes.ok ? await discordIdsRes.json() : null;
-    const rosterSyncMeta = syncMetaRes.ok ? await syncMetaRes.json() : null;
-    const activite = activiteRes.ok ? await activiteRes.json() : null;
-    const formationOperation = formationOperationRes.ok ? await formationOperationRes.json() : null;
-    const weekHistory = weekHistoryRes.ok ? ((await weekHistoryRes.json()) || {}) : {};
-    const signalements = signalementsRes.ok ? ((await signalementsRes.json()) || {}) : {};
-    const signalementsTest = signalementsTestRes.ok ? ((await signalementsTestRes.json()) || {}) : {};
-    let absences = absencesRes.ok ? await absencesRes.json() : null;
-    // (10/10, demandé) Même nettoyage automatique que côté Roster
-    // (absences-actions.js GET) — pour que Pillbox ne voie jamais une
-    // entrée WDV ou expirée (3 semaines) que le Roster aurait déjà purgée.
-    if(absences) absences = await pruneExpiredAbsences(absences, idToken);
-    const alertDecisions = alertDecisionsRes.ok ? ((await alertDecisionsRes.json()) || {}) : {};
-    const storedPayRules = payRulesRes.ok ? await payRulesRes.json() : null;
-    // Fusionne sur les valeurs par défaut — si rien n'a encore été
-    // configuré (payRulesConfig vide ou absente), Pillbox reçoit les
-    // valeurs par défaut, identiques à ses anciennes constantes codées
-    // en dur. Une config partielle (un seul champ modifié un jour)
-    // garde aussi tous les autres champs à leur valeur par défaut.
-    const payRules = storedPayRules ? { ...DEFAULT_PAY_RULES, ...storedPayRules } : DEFAULT_PAY_RULES;
+    const readStatus = {
+      roster: rosterRead.state, discordIds: discordIdsRead.state, rosterSyncMeta: syncMetaRead.state,
+      activite: activiteRead.state, absences: absencesRead.state, payRules: payRulesRead.state,
+      alertDecisions: alertDecisionsRead.state, animPref: animPrefRead.state,
+      formationOperation: formationOperationRead.state, weekHistory: weekHistoryRead.state,
+      signalements: signalementsRead.state, signalementsTest: signalementsTestRead.state,
+    };
+    const animPref = animPrefRead.data;
+    const roster = rosterRead.data;
+    const discordIds = discordIdsRead.data;
+    const rosterSyncMeta = syncMetaRead.data;
+    const activite = activiteRead.data;
+    const formationOperation = formationOperationRead.data;
+    // "absent" = lecture Firebase réussie mais chemin vide ; "error" = lecture impossible.
+    const weekHistory = weekHistoryRead.state === "error" ? null : (weekHistoryRead.data || {});
+    const signalements = signalementsRead.state === "error" ? null : (signalementsRead.data || {});
+    const signalementsTest = signalementsTestRead.state === "error" ? null : (signalementsTestRead.data || {});
+    let absences = absencesRead.state === "error" ? null : absencesRead.data;
+    if(absences && absencesRead.state !== "error") absences = await pruneExpiredAbsences(absences, idToken);
+    const alertDecisions = alertDecisionsRead.state === "error" ? null : (alertDecisionsRead.data || {});
+    const storedPayRules = payRulesRead.data;
+    // Une absence réelle de configuration est différente d'une panne :
+    // dans le premier cas les valeurs d'origine constituent la config ;
+    // dans le second, on renvoie null et le frontend BLOQUE l'analyse.
+    const payRules = payRulesRead.state === "error"
+      ? null
+      : (storedPayRules ? { ...DEFAULT_PAY_RULES, ...storedPayRules } : { ...DEFAULT_PAY_RULES });
 
     // (02/10) Avant, les pings Discord de Pillbox dépendaient UNIQUEMENT de
     // discordIdsList — une liste à part, à maintenir à la main, qui finit
@@ -427,13 +435,14 @@ exports.handler = async function (event) {
     // (fonction partagée computeAbsenceSignalements, voir
     // absences-actions.js) — jamais recalculée en double avec une
     // logique qui pourrait dériver de l'originale.
-    const absenceSignalements = computeAbsenceSignalements(absences || {});
-    // (13/10, sections 2.6/2.8) Mêmes règles exactes que le Roster,
-    // jamais recalculées différemment — décisions déjà prises
-    // rattachées ici pour que Pillbox n'ait jamais à redemander une
-    // question déjà répondue tant que le jeu d'absences ne change pas.
-    const stgAbsenceSignalements = attachAlertDecisions(computeStgAbsenceSignalements(absences || {}), "stg2sem", alertDecisions);
-    const longAbsenceSignalements = attachAlertDecisions(computeLongAbsenceSignalements(absences || {}), "long67j", alertDecisions);
+    const absenceSignalements = absencesRead.state === "error" ? null : computeAbsenceSignalements(absences || {});
+    // (13/10, sections 2.6/2.8) Mêmes règles exactes que le Roster. En cas
+    // d'échec de lecture, null signale explicitement "non vérifiable" au
+    // lieu de fabriquer une fausse liste vide.
+    const stgAbsenceSignalements = (absencesRead.state === "error" || alertDecisionsRead.state === "error")
+      ? null : attachAlertDecisions(computeStgAbsenceSignalements(absences || {}), "stg2sem", alertDecisions || {});
+    const longAbsenceSignalements = (absencesRead.state === "error" || alertDecisionsRead.state === "error")
+      ? null : attachAlertDecisions(computeLongAbsenceSignalements(absences || {}), "long67j", alertDecisions || {});
 
     // (13/10, section 6/7) Le bouton "Modification OWNER" (et tout
     // futur affichage conditionnel équivalent) se fie à CE calcul
@@ -483,7 +492,9 @@ exports.handler = async function (event) {
     }
 
     return json(200, {
-      roster, rosterSyncMeta, activite, formationOperation, weekHistory, signalements, signalementsTest, discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
+      roster, rosterSyncMeta, activite, formationOperation, weekHistory, signalements, signalementsTest,
+      readStatus, payRulesSource: payRulesRead.state === "absent" ? "defaults-no-config" : (payRulesRead.state === "found" ? "firebase" : "unavailable"),
+      discordIds: { text: mergedText, source: "roster+manuel", rosterCount: rosterLines.length },
       absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements, payRules, isOwnerOrDelegate, liveUpDecisions, liveUpSessions,
       animEnabled: animPref && typeof animPref.enabled === "boolean" ? animPref.enabled : null,
       animLocked: !!(animPref && animPref.lockedByOwner),
@@ -494,6 +505,20 @@ exports.handler = async function (event) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
 };
+
+async function readJsonState(url, options){
+  try{
+    const res = await fetch(url, options);
+    if(!res.ok){
+      const text = await res.text().catch(()=>"");
+      return { state:"error", data:null, httpStatus:res.status, error:text.slice(0,180) };
+    }
+    const data = await res.json();
+    return { state:data === null ? "absent" : "found", data, httpStatus:res.status, error:null };
+  }catch(err){
+    return { state:"error", data:null, httpStatus:null, error:err && err.message ? err.message : String(err) };
+  }
+}
 
 function stableStringify(value){
   if(value===null || typeof value!=="object") return JSON.stringify(value);
