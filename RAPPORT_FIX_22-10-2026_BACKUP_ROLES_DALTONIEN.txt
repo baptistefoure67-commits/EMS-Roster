@@ -1,0 +1,46 @@
+ROSTER EMS / PILLBOX — CORRECTIFS + AUDIT COMPLET 22/10/2026
+
+1) BACKUP ROSTER — ERREUR 502
+- Bug critique trouvé pendant l'audit : roster-backup.js définissait exports.handler puis remplaçait module.exports à la fin du fichier. Netlify ne voyait donc plus le handler. Corrigé : le handler est désormais bien exporté avec les helpers de test.
+- Deuxième bug trouvé : après une restauration réussie, la réponse utilisait snapshotKey alors que la variable réelle s'appelait snapKey. Cela aurait provoqué une erreur 500 après le PATCH Firebase. Corrigé avec snapshotKey: snapKey.
+- Les lectures Firebase du backup sont maintenant parallélisées au lieu d'être faites l'une après l'autre.
+- Les données volumineuses/non nécessaires à une reprise du Roster sont exclues du fichier : rosterLogs, trollJokes, trollMedia. Les médias troll peuvent dépasser plusieurs Mo et sont volontairement stockés en morceaux dans le système normal.
+- Les données essentielles restent incluses : employés, absences, activité, historique activité, signalements, permissions, règles de paie, préférences animations, liste Discord, métadonnées de synchronisation, etc.
+- Test dédié ajouté : export -> aperçu -> restauration, avec Firebase simulé, création du snapshot et vérification du snapshotKey.
+
+2) RÔLES DISCORD PILLBOX
+- Suppression du bouton OWNER « Rôles Discord ».
+- Suppression de la fenêtre de configuration.
+- Suppression de saveDiscordRoles dans pillbox-proxy.
+- Suppression du chargement discordRoles dans Pillbox.
+- Suppression de la branche Firebase pillboxDiscordRoles.
+- Les pings individuels des employés restent fonctionnels.
+- La carte historique « Rôles Discord (référence) » du Roster n'a pas été supprimée : ce n'est pas le même système.
+
+3) MODE DALTONIEN
+- Suppression du ::before générique qui ajoutait une deuxième icône aux boutons déjà écrits « ✓ Oui » / « ✕ Non ».
+- Vérification de 22 boutons de décision true/false : chacun possède déjà son symbole visible.
+- Le bug « ✓✓ Oui / ✕✕ Non » est corrigé.
+- La palette daltonienne et les symboles sur les points de statut restent actifs.
+
+4) AUDIT STRUCTURE / INTÉGRATION
+- Syntaxe de tous les fichiers JS Netlify : OK.
+- Syntaxe des scripts JS intégrés Roster et Pillbox : OK.
+- JSON Firebase et manifest : OK.
+- Aucun ID HTML dupliqué introduit.
+- Aucun endpoint Netlify utilisé par Roster/Pillbox ne manque dans le projet Roster.
+- Les règles Firebase séparées et celles incluses dans le ZIP Roster sont strictement identiques.
+- Aucun reste de pillboxDiscordRoles dans Pillbox/proxy/règles.
+
+TESTS AUTOMATIQUES
+- Propagation erreurs activité : 4/4.
+- Spécialités activité : 10/10.
+- Style/shortcut animations : 14/14.
+- Portraits/animations : 18/18.
+- Permissions : 28/28.
+- Sauvegarde/synchronisation : 18/18.
+- Sécurité/audit : 25/25.
+- Backup handler export/preview/restore : 4/4.
+- Correctifs rôles/daltonien : 5/5 lors de l'audit.
+
+Total audit exécuté : 126 vérifications réussies, 0 échec.
