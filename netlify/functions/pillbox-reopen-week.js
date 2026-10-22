@@ -12,12 +12,11 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, loadPermissionContext } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
 const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistory";
-const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
@@ -57,13 +56,11 @@ exports.handler = async function (event) {
     // (jamais juste le grade brut) — un CD pourrait très bien s'être
     // vu retirer cette permission individuellement, ou un MC se
     // l'être vue accordée.
-    let individualOverrides = null;
-    try {
-      const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
-      individualOverrides = indivRes.ok ? await indivRes.json() : null;
-    } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
+    let permCtx;
+    try{ permCtx = await loadPermissionContext(idToken, {strict:true}); }
+    catch(e){ return json(503, { error: "Permissions momentanément indisponibles — aucune réouverture n'a été exécutée." }, corsHeaders); }
 
-    if (!can(session.level, "manage_pay_weeks", null, session.discordId, individualOverrides)) {
+    if (!can(session.level, "manage_pay_weeks", permCtx.custom, session.discordId, permCtx.individual)) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus (ou exception individuelle).` }, corsHeaders);
     }
 
@@ -76,7 +73,11 @@ exports.handler = async function (event) {
     // sessionSnapshot, qui restent tels quels tant que la semaine
     // n'est pas re-clôturée pour de vrai.
     const patch = { reopened: true, reopenedByDiscordId: session.discordId, reopenedByName: session.name, reopenedByLevel: session.level, reopenedAt: Date.now() };
-    await fetch(weekUrl, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    const patchRes = await fetch(weekUrl, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if(!patchRes.ok){
+      const t = await patchRes.text().catch(()=>"");
+      return json(502, { error: `Réouverture refusée par Firebase (${patchRes.status}) : ${t.slice(0,180)}` }, corsHeaders);
+    }
 
     await logAction({
       action: "semaine_reouverte", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
