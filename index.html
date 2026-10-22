@@ -1575,6 +1575,33 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <span class="special-sub" id="specialImportStatus"></span>
       </div>
       <div class="special-list" id="specialList"></div>
+
+      <div style="height:1px;background:var(--border-soft);margin:20px 0;"></div>
+      <div class="special-head" style="align-items:flex-start;">
+        <div>
+          <div class="special-title">⚡ Importer les formations Discord</div>
+          <div class="special-sub">Colle directement l'historique du salon Discord. Le Roster détecte le formateur, l'EMS formé et le type de formation. Les doublons déjà importés ne sont jamais recomptés.</div>
+        </div>
+        <div class="special-count"><b id="formationImportNewCount">0</b> nouvelle(s)</div>
+      </div>
+      <div class="special-controls" style="margin-top:12px;align-items:flex-start;">
+        <textarea id="formationDiscordImportText" rows="9" style="flex:1;min-width:280px;" placeholder="Colle ici le bloc Discord complet, par exemple :
+[CD] Aaron Stopenski [LS], — 11/10/2026 17:08
+@[M] Pablo Akada Formation MUP Validée ✅
+@[M] Carlos Navarro Formation MUP Validée ✅"></textarea>
+      </div>
+      <div class="special-controls" style="justify-content:space-between;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-ghost btn-small" id="btnFormationDiscordPreview">🔎 Analyser le collage</button>
+          <button class="btn-primary" id="btnFormationDiscordImport" disabled>✓ Importer les formations détectées</button>
+        </div>
+        <span class="special-sub" id="formationDiscordImportStatus"></span>
+      </div>
+      <div id="formationDiscordImportPreview" style="margin-top:10px;"></div>
+      <details style="margin-top:12px;">
+        <summary class="btn-ghost btn-small">📚 Expérience formations importées</summary>
+        <div id="formationExperienceHistory" style="margin-top:10px;" class="sub">Chargement…</div>
+      </details>
     </div>
   </div>
 
@@ -3268,6 +3295,107 @@ document.getElementById("btnSpecialMissingPing").addEventListener("click", ()=>{
   copyToClipboard(result.text, result.withoutDiscord
     ? `Message copié — ${result.withoutDiscord} employé(s) manquant(s) ignoré(s) (pas d'ID Discord)`
     : `Message copié (${result.missingCount} à ping)`);
+});
+
+
+// ═══════════════════════════ IMPORT AUTOMATIQUE DES FORMATIONS DISCORD ═══════════════════════════
+// La prévisualisation ET l'import sont parsés côté serveur par formation-import.js :
+// aucune divergence possible entre "ce qui est affiché" et "ce qui est réellement compté".
+let formationDiscordPreviewState = null;
+let formationDiscordPreviewTimer = null;
+
+async function formationDiscordRequest(action, text){
+  const res = await fetch("/.netlify/functions/formation-import", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({token:currentSessionToken, action, text:text||""}),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || `${res.status}`);
+  return data;
+}
+function formationTypeBadge(type,label){
+  const icon = type==="operation" ? "🎓" : type==="copilote" ? "🧭" : type==="pilote" ? "🚁" : type==="mup" ? "🏥" : "📘";
+  return `<span style="white-space:nowrap;font-weight:700;">${icon} ${esc(label||type||"Formation")}</span>`;
+}
+function renderFormationDiscordPreview(data){
+  const box=document.getElementById("formationDiscordImportPreview");
+  const count=document.getElementById("formationImportNewCount");
+  const btn=document.getElementById("btnFormationDiscordImport");
+  const status=document.getElementById("formationDiscordImportStatus");
+  if(!box||!count||!btn||!status) return;
+  formationDiscordPreviewState=data||null;
+  const sum=data?.summary||{};
+  count.textContent=String(sum.importable||0);
+  btn.disabled=!(sum.importable>0);
+  status.textContent=data ? `${sum.detected||0} détectée(s) · ${sum.importable||0} nouvelle(s) · ${sum.duplicates||0} doublon(s) · ${sum.unresolved||0} à vérifier` : "";
+  status.style.color=(sum.unresolved||0)>0 ? "var(--amber)" : "var(--text-dim)";
+  const rows=Array.isArray(data?.records)?data.records:[];
+  if(!rows.length){ box.innerHTML=`<div class="empty-msg" style="padding:10px;">Aucune formation reconnue dans ce collage.</div>`; return; }
+  box.innerHTML=`<div style="overflow:auto;border:1px solid var(--border-soft);border-radius:12px;">\n    <table style="width:100%;border-collapse:collapse;font-size:.76rem;min-width:760px;">\n      <thead><tr style="text-align:left;background:var(--panel-2);">\n        <th style="padding:8px;">Date</th><th style="padding:8px;">Formateur détecté</th><th style="padding:8px;">EMS formé</th><th style="padding:8px;">Formation</th><th style="padding:8px;">Action</th>\n      </tr></thead>\n      <tbody>${rows.map(r=>{
+        const state = r.duplicate ? {t:"Déjà importée",c:"var(--text-faint)"} : !r.importable ? {t:r.reason||"À vérifier",c:"var(--amber)"} : {t:(r.type==="operation"?"Ajoute Opération + ":"")+(r.activityEligible?"+1 Formations":"historique"),c:"var(--green)"};
+        return `<tr style="border-top:1px solid var(--border-soft);opacity:${r.duplicate?'.62':'1'};">\n          <td style="padding:8px;white-space:nowrap;">${esc(r.dateLabel||"—")}</td>\n          <td style="padding:8px;"><b>${esc(r.trainer?.name||r.trainerName||"—")}</b>${r.trainer?`<br><span style="color:var(--text-faint);">${esc(r.trainer.grade||"")}</span>`:""}</td>\n          <td style="padding:8px;"><b>${esc(r.trainee?.name||r.traineeName||"—")}</b>${r.trainee?`<br><span style="color:var(--text-faint);">${esc(r.trainee.grade||"")}</span>`:""}</td>\n          <td style="padding:8px;">${formationTypeBadge(r.type,r.typeLabel)}</td>\n          <td style="padding:8px;color:${state.c};font-weight:700;">${esc(state.t)}</td>\n        </tr>`;
+      }).join("")}</tbody>\n    </table>\n  </div>`;
+}
+function renderFormationExperienceHistory(recent,stats){
+  const box=document.getElementById("formationExperienceHistory"); if(!box) return;
+  const rows=Array.isArray(recent)?recent:[];
+  const totals=Array.isArray(stats)?stats:[];
+  if(!rows.length){ box.innerHTML=`<div class="empty-msg" style="padding:10px;">Aucune formation importée pour l'instant.</div>`; return; }
+  const statsHtml=totals.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">${totals.map(x=>`<div style="border:1px solid var(--border-soft);border-radius:10px;padding:7px 9px;background:var(--panel-2);font-size:.72rem;"><b>${esc(x.trainerName||"?")}</b> · ${Number(x.total)||0} formation(s)</div>`).join("")}</div>` : "";
+  box.innerHTML=statsHtml+rows.map(r=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--border-soft);">\n    <div><b>${esc(r.traineeName||"?")}</b> — ${formationTypeBadge(r.type,r.typeLabel)}</div>\n    <div style="color:var(--text-dim);font-size:.72rem;">par <b>${esc(r.trainerName||"?")}</b> · ${esc(r.dateLabel||new Date(r.occurredAt||r.importedAt||Date.now()).toLocaleDateString("fr-FR"))}</div>\n  </div>`).join("");
+}
+async function previewDiscordFormations({silent=false}={}){
+  const ta=document.getElementById("formationDiscordImportText");
+  const status=document.getElementById("formationDiscordImportStatus");
+  const text=ta?.value||"";
+  if(!text.trim()){
+    formationDiscordPreviewState=null;
+    renderFormationDiscordPreview(null);
+    if(status) status.textContent="Colle un historique Discord pour commencer.";
+    return;
+  }
+  if(status&&!silent){status.textContent="Analyse en cours…";status.style.color="var(--text-dim)";}
+  try{
+    const data=await formationDiscordRequest("preview",text);
+    renderFormationDiscordPreview(data);
+    renderFormationExperienceHistory(data.recent,data.stats);
+  }catch(err){
+    formationDiscordPreviewState=null;
+    document.getElementById("btnFormationDiscordImport").disabled=true;
+    if(status){status.textContent=`✕ ${err.message}`;status.style.color="var(--red)";}
+    if(!silent) toast(`✕ Analyse impossible : ${err.message}`);
+  }
+}
+async function loadFormationExperienceHistory(){
+  try{ const data=await formationDiscordRequest("history",""); renderFormationExperienceHistory(data.recent,data.stats); }
+  catch(err){ const box=document.getElementById("formationExperienceHistory"); if(box) box.textContent=`Historique indisponible : ${err.message}`; }
+}
+
+document.getElementById("btnFormationDiscordPreview").addEventListener("click",()=>previewDiscordFormations());
+document.getElementById("formationDiscordImportText").addEventListener("input",()=>{
+  clearTimeout(formationDiscordPreviewTimer);
+  formationDiscordPreviewTimer=setTimeout(()=>previewDiscordFormations({silent:true}),650);
+});
+document.getElementById("btnFormationDiscordImport").addEventListener("click",async()=>{
+  const btn=document.getElementById("btnFormationDiscordImport");
+  const status=document.getElementById("formationDiscordImportStatus");
+  const text=document.getElementById("formationDiscordImportText").value||"";
+  if(!formationDiscordPreviewState?.summary?.importable){toast("Aucune nouvelle formation à importer");return;}
+  btn.disabled=true; const old=btn.textContent; btn.textContent="Import en cours…";
+  try{
+    const data=await formationDiscordRequest("commit",text);
+    (data.operationEmployeeIds||[]).forEach(id=>specialSelected.add(id));
+    if((data.operationEmployeeIds||[]).length){saveSpecialSelection();renderSpecialSelection();specialSelectionLastSavedAt=Date.now();}
+    if(data.activityData&&typeof data.activityData==="object"){
+      activiteData=data.activityData; saveActiviteData(); renderActiviteTab("formateur");
+    }
+    renderFormationExperienceHistory(data.recent,data.stats);
+    status.textContent=`✓ ${data.imported||0} formation(s) importée(s) · ${data.summary?.operations||0} ajoutée(s) au bloc Opération · ${data.summary?.activityCredits||0} crédit(s) Formateur`;
+    status.style.color="var(--green)";
+    toast(`✓ ${data.imported||0} formation(s) importée(s)`);
+    await previewDiscordFormations({silent:true});
+  }catch(err){ status.textContent=`✕ Import refusé : ${err.message}`;status.style.color="var(--red)";toast(`✕ ${err.message}`); }
+  finally{btn.textContent=old;btn.disabled=!(formationDiscordPreviewState?.summary?.importable>0);}
 });
 // (10/10, demandé) Sauvegarde cloud de la sélection Formation Opération
 // — reprise telle quelle de l'ancien btnSpecialCloudSave, maintenant
@@ -5112,6 +5240,7 @@ function switchTab(active){
     const submitBtn = document.getElementById("signalementSubmitBtn");
     if(submitBtn) submitBtn.textContent = !hasCap("create_signalement") ? "Proposer un signalement" : "Envoyer anonymement"; // (12/10) selon le droit réel, plus le grade
   }
+  if(active==="Operation"){ loadFormationExperienceHistory(); }
   if(active==="Formateur"){ renderActiviteTab("formateur"); loadAbsencesFromCloud().then(()=>renderActiviteTab("formateur")); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("formateur")); renderActiviteWeekHistory("formateur"); }
   if(active==="Psychologue"){ renderActiviteTab("psychologue"); loadAbsencesFromCloud().then(()=>renderActiviteTab("psychologue")); loadActiviteFromCloud(true).then(()=>checkPillboxWeekFinishedSignal()).then(()=>renderActiviteTab("psychologue")); renderActiviteWeekHistory("psychologue"); }
   if(active==="Absences"){ loadAbsencesFromCloud(); }
