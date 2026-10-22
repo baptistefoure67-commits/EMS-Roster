@@ -900,7 +900,8 @@
         "$other": {
           ".validate": false
         }
-      }
+      },
+      ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D')"
     },
     "rosterDisasterBackups": {
       ".read": "auth != null && auth.token.server == true",
