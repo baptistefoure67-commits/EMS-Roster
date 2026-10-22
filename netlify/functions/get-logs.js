@@ -75,7 +75,7 @@ exports.handler = async function (event) {
   }
 
   try {
-    const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: session.discordId, claims: { level: session.level } });
+    const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: session.discordId, claims: { level: session.level, server: true } });
     const exch = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -115,7 +115,7 @@ exports.handler = async function (event) {
 };
 
 async function getIdToken(session, clientEmail, privateKey, webApiKey) {
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: session.discordId, claims: { level: session.level } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: session.discordId, claims: { level: session.level, server: true } });
   const exch = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
