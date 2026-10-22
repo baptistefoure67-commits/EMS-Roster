@@ -1,0 +1,34 @@
+IMPORT AUTOMATIQUE DES FORMATIONS DISCORD — 22/10/2026
+======================================================
+
+NOUVEAU — Onglet Opération
+- Zone « Importer les formations Discord » directement dans le bloc Opération.
+- Coller un historique Discord déclenche automatiquement une prévisualisation.
+- Détection du formateur grâce à la ligne d'auteur Discord.
+- Détection de l'EMS formé et du type : Opération, Co-Pilote, Pilote, MUP.
+- Variantes supportées : accents/majuscules, Co-Pilote/Co Pilote, Validée/Validé, emojis/TC_K, 5/5, espaces multiples.
+- Les noms sont associés au Roster par nom/alias normalisé, sans fuzzy dangereux.
+- En cas d'homonyme ou de nom introuvable : aucune donnée n'est importée pour la ligne concernée.
+
+EFFETS À LA VALIDATION
+- Toute formation est enregistrée dans « Expérience formations importées » avec formateur, EMS, type et date.
+- Les statistiques d'expérience comptent les formations par auteur, même si l'auteur est devenu MC/ADD/CD/etc.
+- Une Formation Opération ajoute automatiquement l'EMS à la sélection Formation Opération sans enlever les sélections existantes.
+- Si le formateur est actuellement MF/RF, la formation ajoute aussi +1 au compteur hebdomadaire « Formations » du suivi Formateur.
+- Les autres grades restent attribués dans l'expérience mais ne polluent pas le suivi hebdomadaire MF/RF, qui conserve sa logique existante.
+
+ANTI-DOUBLON
+- Empreinte déterministe formateur + EMS formé + type de formation.
+- Recoller le même historique ne recompte jamais les mêmes formations.
+- La date n'entre pas dans l'empreinte afin qu'un même message Discord copié plus tard (ex. « Hier » devenu date absolue) reste reconnu comme doublon.
+
+SÉCURITÉ / FIREBASE
+- Parsing et validation finale côté serveur via netlify/functions/formation-import.js.
+- Le navigateur ne décide jamais lui-même des écritures finales.
+- Permission requise : « Gérer la catégorie Formateur ».
+- Nouvelle branche Firebase rosterFormationExperience : lecture authentifiée, écriture serveur uniquement.
+- L'historique est inclus dans les backups/restaurations catastrophe.
+
+TESTS
+- 32 tests spécifiques import Discord.
+- Batterie complète du projet : 180 vérifications réussies, 0 échec.
