@@ -17,6 +17,25 @@ const sample=`[CD] Aaron Stopenski [LS],  — 11/10/2026 17:08
 [RF] Djam Mas [LS],  — Hier à 22:40
 @[M] Clément Eldran Formation Pilote Validée ✅`;
 
+
+const markdownExportSample=`1.
+
+### [RF] Djam Mas18/10/2026 22:05
+
+**@[A] Jean Troudeau** Formation Opération Validée [✅](https://discord.com/assets/43b7ead1fb91b731.svg)
+
+1.`;
+const markdownParsed=imp.parseDiscordFormationText(markdownExportSample,new Date(2026,9,22,20,0).getTime());
+test('Accepte un export Markdown Discord avec ### et date collée au nom',()=>{
+ assert.strictEqual(markdownParsed.records.length,1);
+ assert.strictEqual(markdownParsed.records[0].trainerName,'Djam Mas');
+ assert.strictEqual(markdownParsed.records[0].dateLabel,'18/10/2026 22:05');
+});
+test('Nettoie le gras Markdown autour de la personne formée',()=>{
+ assert.strictEqual(markdownParsed.records[0].traineeName,'Jean Troudeau');
+ assert.strictEqual(markdownParsed.records[0].type,'operation');
+});
+
 const employees=[
  {id:'1',name:'Aaron Stopenski',discordId:'11',idUnique:'101',grade:'CD',aliases:[]},
  {id:'2',name:'Pablo Akada',discordId:'12',idUnique:'102',grade:'M'},
@@ -28,6 +47,7 @@ const employees=[
  {id:'8',name:'Djam Mas',discordId:'18',idUnique:'108',grade:'RF'},
  {id:'9',name:'Léa Salvatore',discordId:'19',idUnique:'109',grade:'A',aliases:['Lea Salvatore']},
  {id:'10',name:'Clément Eldran',discordId:'20',idUnique:'110',grade:'M'},
+ {id:'11',name:'Jean Troudeau',discordId:'21',idUnique:'111',grade:'A'},
 ];
 
 const parsed=imp.parseDiscordFormationText(sample,new Date(2026,9,22,20,0).getTime());
@@ -62,6 +82,19 @@ test('Un homonyme exact devient ambigu au lieu de choisir au hasard',()=>{
 });
 const enriched=imp.enrichParsed(parsed,employees,{});
 test('Toutes les personnes du sample sont résolues',()=>assert.ok(enriched.every(r=>r.trainer&&r.trainee)));
+
+const markdownEnriched=imp.enrichParsed(markdownParsed,employees,{});
+test('Le format Markdown exact résout Djam Mas et Jean Troudeau dans le Roster',()=>{
+ assert.strictEqual(markdownEnriched[0].trainer.name,'Djam Mas');
+ assert.strictEqual(markdownEnriched[0].trainee.name,'Jean Troudeau');
+ assert.strictEqual(markdownEnriched[0].importable,true);
+});
+test('Le format Markdown exact ajoute Jean au bloc Opération et +1 formation à Djam',()=>{
+ const built=imp.buildCommitPatch(markdownEnriched,{}, {data:{'id:108':{formations:7,recrutements:0}}}, {}, {discordId:'owner',name:'Test'},1800000000000);
+ assert.ok(built.patch.rosterEmsSpecialSelection.selectedEmployees.some(e=>e.name==='Jean Troudeau'));
+ assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,8);
+});
+
 test('Seul le RF actuel est créditable dans le compteur hebdo Formateur',()=>{
  const credits=enriched.filter(r=>r.activityEligible); assert.strictEqual(credits.length,2); assert.ok(credits.every(r=>r.trainer.name==='Djam Mas'));
 });
