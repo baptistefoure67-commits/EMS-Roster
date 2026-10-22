@@ -933,10 +933,13 @@
           ".validate": "newData.isString() && newData.val().length < 20"
         },
         "type": {
-          ".validate": "newData.isString() && (newData.val() == 'operation' || newData.val() == 'copilote' || newData.val() == 'pilote' || newData.val() == 'mup')"
+          ".validate": "newData.isString() && (newData.val() == 'operation' || newData.val() == 'copilote' || newData.val() == 'pilote' || newData.val() == 'mup' || newData.val() == 'unknown')"
         },
         "typeLabel": {
           ".validate": "newData.isString() && newData.val().length < 30"
+        },
+        "formationKey": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 200"
         },
         "dateLabel": {
           ".validate": "newData.isString() && newData.val().length < 80"
