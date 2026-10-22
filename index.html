@@ -6765,13 +6765,28 @@ async function refreshEmployeesFromCloud(){
     const res = await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
     if(!res.ok) return;
     const data = await res.json();
-    if(data && Array.isArray(data.employees) && data.savedAt && data.savedAt > (rosterLastUpdatedAt||0)){
-      employees = data.employees;
-      rosterLastUpdatedAt = data.savedAt;
-      setRosterCloudConfirmed(true); saveRosterDisplayCache();
-      renderLastUpdated();
-      populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
-      populateForceLogoutSelect();
+    if(data && Array.isArray(data.employees)){
+      // (22/10) IMPORTANT : une lecture Firebase valide confirme le cloud
+      // même si savedAt est IDENTIQUE au cache local. Avant, après un seul
+      // échec réseau au chargement, le Roster pouvait rester bloqué en
+      // roster-cloud-readonly indéfiniment : le sondage suivant réussissait
+      // mais, comme les données n'étaient pas plus récentes, ce bloc n'était
+      // jamais exécuté et les boutons « Modifier » restaient non cliquables.
+      // On conserve en revanche la sécurité anti-Roster vide : un Firebase
+      // vide ne doit jamais déverrouiller/écraser un cache non vide.
+      if(data.employees.length===0 && employees.length>0){
+        setRosterCloudConfirmed(false,"⚠ Firebase renvoie un Roster vide — mode lecture seule de sécurité.");
+        return;
+      }
+      setRosterCloudConfirmed(true,"✓ Roster vérifié avec Firebase");
+      if(data.savedAt && data.savedAt > (rosterLastUpdatedAt||0)){
+        employees = data.employees;
+        rosterLastUpdatedAt = data.savedAt;
+        saveRosterDisplayCache();
+        renderLastUpdated();
+        populateGradeSelects(); renderRoles(); renderAll(); refreshSignalementPersonList();
+        populateForceLogoutSelect();
+      }
     }
   }catch(e){ /* échec silencieux -- retente au prochain sondage */ }
 }
