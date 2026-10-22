@@ -2089,8 +2089,8 @@ function computeActivityChanges(remoteData,localData){
 async function fetchSaveReviewSnapshot(){
   const result={compareError:null,roster:null,selection:null,activity:null};
   try{ const r=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL)); if(!r.ok) throw new Error(`Roster ${r.status}`); result.roster=await r.json(); }catch(e){ result.compareError=e.message; }
-  try{ const r=await fetch(SPECIAL_SELECTION_CLOUD_URL); if(r.ok) result.selection=await r.json(); }catch(e){}
-  try{ const r=await fetch(ACTIVITE_CLOUD_URL); if(r.ok) result.activity=await r.json(); }catch(e){}
+  try{ const r=await fetch(withFirebaseAuth(SPECIAL_SELECTION_CLOUD_URL)); if(r.ok) result.selection=await r.json(); }catch(e){}
+  try{ const r=await fetch(withFirebaseAuth(ACTIVITE_CLOUD_URL)); if(r.ok) result.activity=await r.json(); }catch(e){}
   return result;
 }
 async function buildRosterSaveReview(){
@@ -2135,17 +2135,11 @@ async function pushRosterSnapshotConfirmed(review){
   if(!hasCap("manage_roster")) return {skipped:true};
   const invalid=findInvalidEmployees();
   if(invalid.length){ const detail=invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; "); throw new Error(`Sauvegarde Roster bloquée : ${invalid.length} fiche(s) invalide(s) — ${detail}`); }
-  // Vérifie que personne n'a modifié le cloud pendant que la fenêtre de confirmation était ouverte.
-  const latestRes=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL));
-  if(!latestRes.ok) throw new Error(`Impossible de revérifier le Roster cloud (${latestRes.status}).`);
-  const latest=await latestRes.json();
-  const latestSavedAt=latest?.savedAt||null;
-  if((review.previousSavedAt||null)!==latestSavedAt){ throw new Error("Le Roster a été modifié par quelqu'un d'autre pendant ta confirmation. Relance Sauvegarder pour revoir les changements."); }
-  const savedAt=Date.now();
-  const res=await fetch(withFirebaseAuth(ROSTER_CLOUD_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employees,savedAt})});
-  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error(`Roster refusé (${res.status}) ${t.slice(0,120)}`); }
-  rosterLastUpdatedAt=savedAt; rosterEmployeesDirty=false; renderLastUpdated(); return {savedAt};
+  const data = await protectedAction("replaceRosterSnapshot", {employees, expectedSavedAt: review.previousSavedAt ?? null});
+  rosterLastUpdatedAt=data.savedAt||Date.now(); rosterEmployeesDirty=false; renderLastUpdated();
+  return data;
 }
+
 // Compatibilité : si un ancien appel direct tente encore d'envoyer le Roster,
 // il est volontairement refusé et renvoyé vers le bouton avec confirmation.
 async function pushStateToCloudNow(){
@@ -2387,7 +2381,7 @@ async function loadFormationFromCloudIntoSelection(silent){
   if(btn){ btn.disabled = true; }
   if(statusEl && !silent){ statusEl.textContent = "Chargement depuis le cloud…"; statusEl.style.color = "var(--text-dim)"; }
   try{
-    const res = await fetch(FORMATION_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(FORMATION_CLOUD_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data || !data.text){
@@ -3242,15 +3236,16 @@ async function saveSpecialSelectionToCloud(signal){
   const selectedEmployees = employees.filter(e=>!e.licencie && specialSelected.has(e.id)).map(e=>({
     id:e.id, name:e.name, discordId:e.discordId, idUnique:e.idUnique||null, grade:e.grade
   }));
-  const res = await fetch(SPECIAL_SELECTION_CLOUD_URL,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt:Date.now()}),...(signal ? {signal} : {})});
-  if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return selectedEmployees.length;
+  if(signal?.aborted) throw new DOMException("Opération annulée", "AbortError");
+  const data = await protectedAction("saveSpecialSelection", {selectedEmployees});
+  return Number(data.count ?? selectedEmployees.length);
 }
+
 let specialSelectionLastSavedAt = 0;
 async function refreshSpecialSelectionFromCloud(){
   if(!currentFirebaseIdToken && !currentSessionToken) return;
   try{
-    const res = await fetch(SPECIAL_SELECTION_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(SPECIAL_SELECTION_CLOUD_URL));
     if(!res.ok) return;
     const data = await res.json();
     if(!data || !Array.isArray(data.selectedEmployees) || !data.savedAt) return;
@@ -3282,7 +3277,6 @@ async function refreshSpecialSelectionFromCloud(){
 // que Pillbox attend dans son champ ID Discord, donc aucune conversion
 // n'est nécessaire ici : on envoie le texte brut directement.
 const CLOUD_DB_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
-const ROSTER_PILLBOX_SYNC_META_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPillboxSyncMeta.json";
 
 // Parseur identique à celui utilisé côté Pillbox (parseDiscordIds), pour
 // comparer les deux côtés avec exactement la même logique de lecture.
@@ -3350,7 +3344,7 @@ let animationExcludedCharacterIds = new Set();
 function readAnimationExclusionDecision(personEntry){
   const entry = personEntry && personEntry.exclude_animations;
   if(!entry || typeof entry !== "object") return null;
-  for(const layer of ["DG","D","CD"]){
+  for(const layer of ["OWNER","DG","D","CD"]){
     if(entry[layer] === true || entry[layer] === false) return entry[layer];
   }
   return null;
@@ -3830,24 +3824,8 @@ async function syncWithPillbox(){
       let diffCount = 0;
       Object.keys(after).forEach(n=>{ if(!roleNames.has(n) && (before[n]!==after[n])) diffCount++; });
       Object.keys(before).forEach(n=>{ if(!roleNames.has(n) && !(n in after)) diffCount++; });
-      const res = await fetch(withFirebaseAuth(CLOUD_DB_URL), {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
-      });
-      if(!res.ok) throw new Error(`${res.status}`);
-      // Métadonnée dédiée à Pillbox : vraie date de réception + nombre d'employés actifs,
-      // avec comparaison à la synchronisation précédente.
       const activeEmployeeCount = employees.filter(e=>!e.licencie).length;
-      let previousMeta = null;
-      try{ const mr=await fetch(withFirebaseAuth(ROSTER_PILLBOX_SYNC_META_URL)); if(mr.ok) previousMeta=await mr.json(); }catch(e){}
-      const previousEmployeeCount = Number.isFinite(Number(previousMeta?.employeeCount)) ? Number(previousMeta.employeeCount) : null;
-      const dropPercent = previousEmployeeCount>0 && activeEmployeeCount<previousEmployeeCount ? Math.round(((previousEmployeeCount-activeEmployeeCount)/previousEmployeeCount)*1000)/10 : 0;
-      const syncMeta = {
-        lastSyncAt: Date.now(), employeeCount: activeEmployeeCount,
-        previousEmployeeCount, previousSyncAt: previousMeta?.lastSyncAt||null, dropPercent,
-        syncedByDiscordId: String(currentUserDiscordId||""), syncedByName: currentUserName||""
-      };
-      const metaRes = await fetch(withFirebaseAuth(ROSTER_PILLBOX_SYNC_META_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(syncMeta)});
-      if(!metaRes.ok) throw new Error(`métadonnées ${metaRes.status}`);
+      await protectedAction("syncPillboxRoster", {text, employeeCount:activeEmployeeCount});
       done.push(`Roster${diffCount ? ` (${diffCount} changement(s))` : ""}`);
       setLiaisonStep(stepIdx, "done");
     }catch(err){ failed.push(`Roster (${err.message})`); setLiaisonStep(stepIdx, "failed"); }
@@ -3857,10 +3835,7 @@ async function syncWithPillbox(){
     try{
       const {text, count} = buildFormationSendList();
       if(count){
-        const res = await fetch(FORMATION_CLOUD_URL, {
-          method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text, savedAt: Date.now()}),
-        });
-        if(!res.ok) throw new Error(`${res.status}`);
+        await protectedAction("syncFormationOperation", {text});
         done.push(`Formation Opération (${count})`);
       }
       setLiaisonStep(stepIdx, "done");
@@ -4641,15 +4616,9 @@ async function createAutoSignalement(e, streak, categoryLabel){
     personGrade: (e.grade||"").toUpperCase(),
     category: "inactivite",
     reason: `Signalement automatique : ${streak} semaines de suite sans ${categoryLabel} (généré par le suivi d'activité, aucune saisie humaine).`,
-    createdAt: Date.now(),
-    auto: true,
   };
-  const key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  try{
-    await fetch(signalementsUrl().replace(".json", `/${key}.json`), {
-      method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(entry),
-    });
-  }catch(err){ console.error("Échec du signalement automatique:", err); }
+  try{ await signalementServerAction("createAutoSignalement", entry); }
+  catch(err){ console.error("Échec du signalement automatique:", err); }
 }
 
 // Met à jour la série AVANT de remettre les compteurs à 0 :
@@ -4892,7 +4861,7 @@ async function loadActiviteFromCloud(silent){
     if(!confirm("Des modifications non sauvegardées existent (saisie en cours). Les recharger depuis le cloud maintenant va les écraser définitivement. Continuer ?")) return;
   }
   try{
-    const res = await fetch(ACTIVITE_CLOUD_URL);
+    const res = await fetch(withFirebaseAuth(ACTIVITE_CLOUD_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data || !data.data){ if(!silent) toast("Aucune donnée cloud trouvée."); return; }
@@ -5076,7 +5045,6 @@ TAB_IDS.forEach(name=>{
 // (demandé le 06/09 — éviter la logique dupliquée entre les deux outils).
 const SIGNALEMENTS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 let signalementSandboxMode = localStorage.getItem("signalementSandbox")==="1";
-function signalementsUrl(){ return `${SIGNALEMENTS_BASE}/${signalementSandboxMode?"signalements_test":"signalements"}.json`; }
 
 const SIGNALEMENT_CONCERNED_GRADES = ["MF","MP","MLP","RF","RP","RL","MC","ADD"];
 const SIGNALEMENT_GRADE_LABEL = {
@@ -5225,9 +5193,8 @@ async function loadSignalementPending(){
   const isAdmin = hasCap("validate_signalement");
   list.textContent = "Chargement…";
   try{
-    const res = await fetch(signalementsUrl());
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    const data = await res.json();
+    const out = await signalementServerAction("listSignalements", {});
+    const data = out.signalements || {};
     if(!data){ list.textContent = "Aucun signalement en attente."; return; }
     const entries = Object.entries(data).sort((a,b)=> (b[1].createdAt||0)-(a[1].createdAt||0));
     if(!entries.length){ list.textContent = "Aucun signalement en attente."; return; }
@@ -5245,13 +5212,12 @@ async function loadSignalementPending(){
     list.textContent = `Impossible de charger les signalements en attente (${err.message}).`;
   }
 }
-document.getElementById("signalementPendingList").addEventListener("click", (e)=>{
+document.getElementById("signalementPendingList").addEventListener("click", async (e)=>{
   const btn = e.target.closest(".admin-del-btn");
   if(!btn) return;
   if(!confirm("Supprimer définitivement ce signalement ?")) return;
-  fetch(signalementsUrl().replace(".json", `/${btn.dataset.key}.json`), {method:"DELETE"})
-    .then(()=>loadSignalementPending())
-    .catch(err=>alert(`Échec de la suppression (${err.message}).`));
+  try{ await signalementServerAction("deleteSignalementOfficial", {key:btn.dataset.key}); await loadSignalementPending(); }
+  catch(err){ alert(`Échec de la suppression (${err.message}).`); }
 });
 document.getElementById("signalementRefreshBtn").addEventListener("click", loadSignalementPending);
 
@@ -5595,16 +5561,17 @@ function renderIndividualPermTableForSelected(){
   bulkBar.style.display = (isSelf || !hasCap("manage_permissions")) ? "none" : "flex";
   document.getElementById("individualPermBulkStatus").textContent = "";
 
-  // Même règle que côté serveur : OWNER -> DG ; CD/D/DG -> leur couche ;
-  // quelqu'un d'autre ayant reçu cette permission -> couche CD.
-  const myLayer = currentUserLevel === "OWNER" ? "DG" : (["CD","D","DG"].includes(currentUserLevel) ? currentUserLevel : "CD");
+  // Même règle que côté serveur : OWNER possède sa propre couche, strictement
+  // au-dessus de DG ; CD/D/DG utilisent leur couche ; un autre gestionnaire
+  // ayant reçu ce droit agit au niveau CD.
+  const myLayer = ["OWNER","DG","D","CD"].includes(currentUserLevel) ? currentUserLevel : "CD";
   const personEntry = (individualPermsCache && individualPermsCache[discordId]) || {};
 
   table.innerHTML = (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).map(perm=>{
-    const layers = personEntry[perm] || { CD:null, D:null, DG:null };
+    const layers = personEntry[perm] || { CD:null, D:null, DG:null, OWNER:null };
     // couche active = la plus haute qui a une valeur
     let activeLayer = null, activeValue = null;
-    for(const l of ["DG","D","CD"]){
+    for(const l of ["OWNER","DG","D","CD"]){
       if(layers[l] === true || layers[l] === false){ activeLayer = l; activeValue = layers[l]; break; }
     }
     // Ce que "Hériter" donne VRAIMENT pour le grade de cette personne
@@ -6098,12 +6065,7 @@ document.getElementById("signalementWithdrawBtn").addEventListener("click", asyn
   msg.innerHTML = "";
   if(!code){ msg.innerHTML = `<span style="color:var(--red);">Colle d'abord ton code.</span>`; return; }
   try{
-    const url = signalementsUrl().replace(".json", `/${code}.json`);
-    const check = await fetch(url);
-    const existing = check.ok ? await check.json() : null;
-    if(!existing){ msg.innerHTML = `<span style="color:var(--red);">Ce code ne correspond à aucun signalement (déjà retiré, ou code invalide).</span>`; return; }
-    const res = await fetch(url, {method:"DELETE"});
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    await signalementServerAction("withdrawSignalementByCode", {key:code});
     msg.innerHTML = `<span style="color:var(--green);">✓ Signalement retiré.</span>`;
     document.getElementById("signalementWithdrawCodeInput").value = "";
     loadSignalementPending();
@@ -6408,7 +6370,7 @@ async function signalementServerAction(action, payload){
   const res = await fetch("/.netlify/functions/signalement-actions", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ token: currentSessionToken, action, payload }),
+    body: JSON.stringify({ token: currentSessionToken, action, payload: { ...(payload||{}), sandbox: signalementSandboxMode } }),
   });
   if(res.status === 401){
     toast("Session expirée — reconnecte-toi avec Discord.");
