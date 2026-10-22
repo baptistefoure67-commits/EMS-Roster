@@ -1,0 +1,17 @@
+FIX ROSTER 14.4 — BOUTON MODIFIER BLOQUE
+Date : 22/10/2026
+
+Cause :
+- En cas d'échec ponctuel du premier chargement Firebase, le Roster utilisait son cache et activait roster-cloud-readonly.
+- Le CSS désactive alors les interactions dans la vue Roster, dont le bouton Modifier.
+- Le rafraîchissement automatique ne repassait rosterCloudConfirmed à true que si savedAt était plus récent que le cache.
+- Si Firebase répondait ensuite correctement mais avec exactement la même version, le Roster restait bloqué en lecture seule indéfiniment.
+
+Correction :
+- Toute lecture Firebase valide confirme désormais le cloud et retire le mode lecture seule, même lorsque savedAt est identique.
+- La protection anti-Roster vide reste active : un Firebase vide ne déverrouille pas un cache non vide.
+- Aucun changement de Pillbox ou des règles Firebase.
+
+Validation :
+- Test navigateur : pointer-events none avant récupération, auto après récupération, formulaire Modifier ouvert après clic.
+- 208 vérifications projet réussies, 0 échec.
