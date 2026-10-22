@@ -23,10 +23,15 @@ const { logAction } = require("./logs");
 function rankOf(level){ return LEVELS.indexOf(level); } // -1 si pas un grade administratif
 function isDPlus(level){ return ["D","DG","OWNER"].includes(level); }
 
-const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
+const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
+const ROSTER_URL = `${BASE}/rosterEmsData.json`;
+const DISCORD_IDS_URL = `${BASE}/discordIdsList.json`;
+const FORMATION_OPERATION_URL = `${BASE}/formationOperationList.json`;
+const SPECIAL_SELECTION_URL = `${BASE}/rosterEmsSpecialSelection.json`;
+const SYNC_META_URL = `${BASE}/rosterPillboxSyncMeta.json`;
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,19 +64,86 @@ exports.handler = async function (event) {
   if (!session) {
     return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
   }
-  if (!(await canFor(session, "manage_roster"))) {
-    return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` });
-  }
 
   try {
     const idToken = await getFirebaseIdToken(
       session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY
     );
-    const authedRosterUrl = `${ROSTER_URL}?auth=${idToken}`;
+    const authed = (url) => `${url}${url.includes("?")?"&":"?"}auth=${idToken}`;
+    const canManageRoster = await canFor(session, "manage_roster", idToken);
+    const canSyncPillbox = await canFor(session, "sync_pillbox_complete", idToken);
 
-    const rosterRes = await fetch(authedRosterUrl);
+    // ── Sauvegarde complète du Roster : passage serveur + CAS Firebase.
+    if (action === "replaceRosterSnapshot") {
+      if (!canManageRoster) return json(403, { error: `Permission refusée (${session.level}) — « Gérer les employés » requise.` });
+      const incoming = Array.isArray(payload?.employees) ? payload.employees : null;
+      if (!incoming) return json(400, { error: "Liste d'employés invalide." });
+      const expectedSavedAt = payload?.expectedSavedAt ?? null;
+      const currentRes = await fetch(authed(ROSTER_URL), { headers: { "X-Firebase-ETag": "true" } });
+      if (!currentRes.ok) return json(502, { error: `Impossible de relire le Roster (${currentRes.status}).` });
+      const etag = currentRes.headers.get("etag");
+      const current = await currentRes.json();
+      const currentSavedAt = current?.savedAt ?? null;
+      if (currentSavedAt !== expectedSavedAt) return json(409, { error: "Le Roster a été modifié par une autre session. Relance Sauvegarder pour revoir les changements." });
+      const validation = validateEmployees(incoming);
+      if (validation.length) return json(422, { error: `Impossible d'enregistrer : ${validation.length} fiche(s) invalide(s) — ${validation.slice(0,5).join(" ; ")}` });
+      const savedAt = Date.now();
+      const headers = { "Content-Type":"application/json" };
+      if (etag) headers["if-match"] = etag;
+      const saveRes = await fetch(authed(ROSTER_URL), { method:"PUT", headers, body:JSON.stringify({employees:incoming,savedAt}) });
+      if (saveRes.status === 412) return json(409, { error: "Conflit : une autre sauvegarde a gagné la course. Relance Sauvegarder." });
+      if (!saveRes.ok) { const tx=await saveRes.text().catch(()=>""); return json(502,{error:`Échec de l'écriture (${saveRes.status}) : ${tx.slice(0,160)}`}); }
+      await logAction({action:"sauvegarde_roster_confirmee",authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`${incoming.length} fiche(s)`,idToken}).catch(()=>{});
+      return json(200,{ok:true,employees:incoming,savedAt});
+    }
+
+    // ── Sélection Formation Opération sauvegardée dans le cloud.
+    if (action === "saveSpecialSelection") {
+      if (!canSyncPillbox) return json(403,{error:"Permission « Synchronisation complète avec Pillbox » requise."});
+      const selectedEmployees = Array.isArray(payload?.selectedEmployees) ? payload.selectedEmployees.slice(0,1000) : null;
+      if (!selectedEmployees) return json(400,{error:"Sélection invalide."});
+      const savedAt=Date.now();
+      const r=await fetch(authed(SPECIAL_SELECTION_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({selectedEmployees,savedAt})});
+      if(!r.ok){const tx=await r.text().catch(()=>"");return json(502,{error:`Échec sélection (${r.status}) : ${tx.slice(0,120)}`});}
+      return json(200,{ok:true,count:selectedEmployees.length,savedAt});
+    }
+
+    // ── Envoi Roster/IDs + métadonnée de réception vers Pillbox.
+    if (action === "syncPillboxRoster") {
+      if (!canSyncPillbox) return json(403,{error:"Permission « Synchronisation complète avec Pillbox » requise."});
+      const text=String(payload?.text||"");
+      const employeeCount=Number(payload?.employeeCount);
+      if(text.length>50000 || !Number.isFinite(employeeCount) || employeeCount<0 || employeeCount>1000) return json(400,{error:"Données de synchronisation invalides."});
+      const now=Date.now();
+      const previousRes=await fetch(authed(SYNC_META_URL));
+      const previous=previousRes.ok ? await previousRes.json() : null;
+      const previousEmployeeCount=Number.isFinite(Number(previous?.employeeCount)) ? Number(previous.employeeCount) : null;
+      const dropPercent=previousEmployeeCount>0 && employeeCount<previousEmployeeCount ? Math.round(((previousEmployeeCount-employeeCount)/previousEmployeeCount)*1000)/10 : 0;
+      const idsRes=await fetch(authed(DISCORD_IDS_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,savedAt:now})});
+      if(!idsRes.ok){const tx=await idsRes.text().catch(()=>"");return json(502,{error:`Échec envoi Roster (${idsRes.status}) : ${tx.slice(0,120)}`});}
+      const syncMeta={lastSyncAt:now,employeeCount,previousEmployeeCount,previousSyncAt:previous?.lastSyncAt||null,dropPercent,syncedByDiscordId:String(session.discordId||""),syncedByName:session.name||""};
+      const metaRes=await fetch(authed(SYNC_META_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(syncMeta)});
+      if(!metaRes.ok) return json(502,{error:`Roster envoyé, mais métadonnées de synchro refusées (${metaRes.status}).`});
+      return json(200,{ok:true,syncMeta});
+    }
+
+    if (action === "syncFormationOperation") {
+      if (!canSyncPillbox) return json(403,{error:"Permission « Synchronisation complète avec Pillbox » requise."});
+      const text=String(payload?.text||"");
+      if(text.length>50000) return json(400,{error:"Liste Formation Opération trop longue."});
+      const savedAt=Date.now();
+      const r=await fetch(authed(FORMATION_OPERATION_URL),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,savedAt})});
+      if(!r.ok){const tx=await r.text().catch(()=>"");return json(502,{error:`Échec Formation Opération (${r.status}) : ${tx.slice(0,120)}`});}
+      return json(200,{ok:true,savedAt});
+    }
+
+    if (!canManageRoster) return json(403, { error: `Permission refusée (${session.level}) — « Gérer les employés » requise.` });
+    const authedRosterUrl = authed(ROSTER_URL);
+    const rosterRes = await fetch(authedRosterUrl, { headers: { "X-Firebase-ETag":"true" } });
+    const rosterEtag = rosterRes.headers.get("etag");
     const rosterData = rosterRes.ok ? await rosterRes.json() : null;
     let employees = (rosterData && rosterData.employees) || [];
+    let pendingLog = null;
 
     if (action === "editEmployee") {
       const { id, name, discordId, grade, role, aliases } = payload || {};
@@ -100,14 +172,14 @@ exports.handler = async function (event) {
         aliases: (cleanAliases && cleanAliases.length) ? cleanAliases : undefined,
       };
       if (employees[idx].aliases === undefined) delete employees[idx].aliases;
-      await logAction({
+      pendingLog = {
         action: "modification_employe",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
         targetDiscordId: employees[idx].discordId, targetName: employees[idx].name,
         oldValue: `${before.grade} / ${before.name} / ${before.discordId}`,
         newValue: `${employees[idx].grade} / ${employees[idx].name} / ${employees[idx].discordId}`,
         idToken,
-      }).catch(()=>{});
+      };
     } else if (action === "licencier") {
       const { id } = payload || {};
       const target = employees.find((e) => String(e.id) === String(id));
@@ -119,13 +191,13 @@ exports.handler = async function (event) {
         return json(403, { error: `Permission refusée (${session.level}) — tu ne peux pas licencier quelqu'un d'un grade égal ou supérieur au tien.` });
       }
       employees = employees.filter((e) => String(e.id) !== String(id));
-      await logAction({
+      pendingLog = {
         action: "licenciement",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
         targetDiscordId: target?.discordId, targetName: target?.name,
         details: `Grade au moment du licenciement : ${target?.grade}`,
         idToken,
-      }).catch(()=>{});
+      };
     } else {
       return json(400, { error: `Action inconnue : "${action}".` });
     }
@@ -139,15 +211,7 @@ exports.handler = async function (event) {
     // ("permission denied" générique) — on le vérifie donc nous-mêmes
     // AVANT d'écrire, pour donner une erreur exploitable plutôt qu'un
     // simple 502 impossible à diagnostiquer à distance.
-    const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
-    const badEmployees = [];
-    employees.forEach((e, i) => {
-      const problems = [];
-      if (typeof e.name !== "string" || !e.name.trim() || e.name.length >= 100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
-      if (typeof e.discordId !== "string" || !e.discordId.trim() || e.discordId.length >= 30) problems.push("ID Discord vide ou invalide");
-      if (typeof e.grade !== "string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e.grade}")`);
-      if (problems.length) badEmployees.push(`${e.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
-    });
+    const badEmployees = validateEmployees(employees);
     if (badEmployees.length) {
       return json(422, {
         error: `Impossible d'enregistrer : ${badEmployees.length} fiche(s) du roster ont un champ invalide qui bloque TOUTE sauvegarde (pas seulement celle-ci) — corrige-les d'abord : ${badEmployees.slice(0, 5).join(" ; ")}${badEmployees.length > 5 ? ` ; (+${badEmployees.length - 5} autre(s))` : ""}`,
@@ -155,21 +219,40 @@ exports.handler = async function (event) {
     }
 
     const savedAt = Date.now();
+    const saveHeaders = { "Content-Type": "application/json" };
+    if (rosterEtag) saveHeaders["if-match"] = rosterEtag;
     const saveRes = await fetch(authedRosterUrl, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: saveHeaders,
       body: JSON.stringify({ employees, savedAt }),
     });
+    if (saveRes.status === 412) {
+      return json(409, { error: "Conflit : le Roster a changé pendant l'opération. Recharge puis recommence — aucune donnée n'a été écrasée." });
+    }
     if (!saveRes.ok) {
       const t = await saveRes.text().catch(() => "");
       return json(502, { error: `Échec de l'écriture sur Firebase (${saveRes.status}) : ${t.slice(0, 200)}` });
     }
+    if (pendingLog) await logAction(pendingLog).catch(()=>{});
 
     return json(200, { ok: true, employees, savedAt });
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
   }
 };
+
+function validateEmployees(employees){
+  const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
+  const bad=[];
+  (employees||[]).forEach((e,i)=>{
+    const problems=[];
+    if(typeof e?.name!=="string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
+    if(typeof e?.discordId!=="string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
+    if(typeof e?.grade!=="string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e?.grade}")`);
+    if(problems.length) bad.push(`${e?.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
+  });
+  return bad;
+}
 
 function json(statusCode, obj) {
   return {
