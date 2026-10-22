@@ -2,7 +2,7 @@ const fs=require('fs');
 const path=require('path');
 let ok=0, fail=0;
 function t(name, cond){ if(cond){console.log('✅',name);ok++;} else {console.error('❌',name);fail++;} }
-const roster=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const roster=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8') + '\n' + fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
 const pill=fs.readFileSync(path.join(__dirname,'..','..','__pillbox_for_test.html'),'utf8');
 const perm=fs.readFileSync(path.join(__dirname,'..','netlify','functions','permissions.js'),'utf8');
 const indiv=fs.readFileSync(path.join(__dirname,'..','netlify','functions','manage-individual-permissions.js'),'utf8');
@@ -18,7 +18,7 @@ const real=objKeys(roster,'CHARACTER_REAL_PORTRAITS');
 t('Roster contient un deuxième objet de photos réelles', roster.includes('const CHARACTER_REAL_PORTRAITS = {'));
 t('Les 9 clés réelles correspondent exactement aux 9 clés IA', ai.length===9 && real.length===9 && [...ai].sort().join(',')===[...real].sort().join(','));
 t('Pillbox possède aussi les deux objets', pill.includes('const CHARACTER_REAL_PORTRAITS = {') && objKeys(pill,'CHARACTER_REAL_PORTRAITS').length===9);
-t('Le style est choisi une seule fois au début d’une animation Roster', roster.includes('let portraitStyle = pickAnimationPortraitStyle()'));
+t('Le style est résolu une seule fois au début d’une animation Roster (choix OWNER ou 50/50)', roster.includes('let portraitStyle = animationPortraitStyleForScene(currentUserDiscordId)'));
 t('Synchroniser applique le même portraitStyle aux deux personnes', roster.includes('syncMePortrait"), currentUserDiscordId, portraitStyle') && roster.includes('syncColleaguePortrait"), colleagueId, portraitStyle'));
 t('Sauvegarder applique le même portraitStyle aux deux personnes', roster.includes('saveRosterPortrait"), currentUserDiscordId, portraitStyle') && roster.includes('saveRosterColleaguePortrait"), colleagueId, portraitStyle'));
 t('Pillbox applique le même portraitStyle aux deux personnes', pill.includes("payrollPortrait'), myId, portraitStyle") && pill.includes("guestPortrait'), guestId, portraitStyle"));
