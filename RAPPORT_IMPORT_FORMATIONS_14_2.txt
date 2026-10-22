@@ -1,0 +1,29 @@
+ROSTER 14.2 — IMPORT FORMATIONS / OPÉRATION — 22/10/2026
+
+Objectif
+- Ne pas modifier le système UP existant de Pillbox.
+- Une Formation Opération reconnue alimente immédiatement formationOperationList, déjà lue par hasFormationOperation() dans Pillbox.
+- Les autres formations validées n'influencent pas l'UP A -> INF ; elles ajoutent seulement l'expérience et, pour MF/RF, +1 au compteur Formations.
+- Une formation validée dont le libellé n'est pas reconnu reste importable comme « Formation non reconnue » et ne coche jamais Opération.
+
+Variantes Opération reconnues
+- Formation Opération
+- Formation operation
+- Formation Opérations
+- Formation OP
+- Formation OPE
+- Formation Opé
+- Formation OPS
+- Formation d'opération
+Les accents, la casse, les liens Markdown Discord et les formats Discord déjà pris en charge restent tolérés.
+
+Sécurité
+- Aucun fuzzy matching dangereux pour déterminer Opération.
+- Un typo comme « Operatoin » est signalé « Formation non reconnue » au lieu d'être transformé en Opération.
+- formationOperationList reste écrivable uniquement via le jeton serveur déjà prévu par les règles Firebase.
+- Aucun changement des règles Firebase requis.
+- Aucun changement de Pillbox requis.
+
+Tests
+- 51 tests dédiés à l'import formations.
+- Toutes les suites existantes repassées : 199 vérifications au total, 0 échec.
