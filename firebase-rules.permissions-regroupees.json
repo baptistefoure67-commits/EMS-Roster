@@ -903,6 +903,61 @@
       },
       ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D')"
     },
+    "rosterFormationExperience": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
+      "$formationId": {
+        ".validate": "!newData.exists() || newData.hasChildren(['trainerName','traineeName','type','typeLabel','dateLabel','importedAt','importedByDiscordId','importedByName'])",
+        "trainerId": {
+          ".validate": "true"
+        },
+        "trainerName": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100"
+        },
+        "trainerDiscordId": {
+          ".validate": "newData.isString() && newData.val().length < 40"
+        },
+        "trainerGrade": {
+          ".validate": "newData.isString() && newData.val().length < 20"
+        },
+        "traineeId": {
+          ".validate": "true"
+        },
+        "traineeName": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100"
+        },
+        "traineeDiscordId": {
+          ".validate": "newData.isString() && newData.val().length < 40"
+        },
+        "traineeGrade": {
+          ".validate": "newData.isString() && newData.val().length < 20"
+        },
+        "type": {
+          ".validate": "newData.isString() && (newData.val() == 'operation' || newData.val() == 'copilote' || newData.val() == 'pilote' || newData.val() == 'mup')"
+        },
+        "typeLabel": {
+          ".validate": "newData.isString() && newData.val().length < 30"
+        },
+        "dateLabel": {
+          ".validate": "newData.isString() && newData.val().length < 80"
+        },
+        "occurredAt": {
+          ".validate": "newData.isNumber() && newData.val() > 1735689600000"
+        },
+        "importedAt": {
+          ".validate": "newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000"
+        },
+        "importedByDiscordId": {
+          ".validate": "newData.isString() && newData.val().length < 40"
+        },
+        "importedByName": {
+          ".validate": "newData.isString() && newData.val().length < 120"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "rosterDisasterBackups": {
       ".read": "auth != null && auth.token.server == true",
       ".write": "auth != null && auth.token.server == true"
