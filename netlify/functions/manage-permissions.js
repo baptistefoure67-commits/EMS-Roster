@@ -15,7 +15,7 @@ const OVERRIDE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.fi
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   // permissionsWrite n'est jamais renvoyé au navigateur : ce jeton est créé
   // et utilisé uniquement par cette fonction après contrôle de session.
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
