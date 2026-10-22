@@ -3314,8 +3314,29 @@ async function formationDiscordRequest(action, text){
   return data;
 }
 function formationTypeBadge(type,label){
-  const icon = type==="operation" ? "🎓" : type==="copilote" ? "🧭" : type==="pilote" ? "🚁" : type==="mup" ? "🏥" : "📘";
+  const icon = type==="operation" ? "🎓" : type==="copilote" ? "🧭" : type==="pilote" ? "🚁" : type==="mup" ? "🏥" : type==="unknown" ? "⚠️" : "📘";
   return `<span style="white-space:nowrap;font-weight:700;">${icon} ${esc(label||type||"Formation")}</span>`;
+}
+function formationImportActionText(r){
+  if(r.duplicate) return {t:"Déjà importée",c:"var(--text-faint)"};
+  if(!r.importable) return {t:r.reason||"À vérifier",c:"var(--amber)"};
+  const trainer=r.trainer?.name||r.trainerName||"le formateur";
+  const credit=r.activityEligible ? `+1 formation pour ${trainer}` : `formation enregistrée pour ${trainer}`;
+  if(r.type==="operation") return {t:`Formation Opération → liste Pillbox · ${credit}`,c:"var(--green)"};
+  if(r.type==="unknown") return {t:`${credit} · ⚠ Formation non reconnue`,c:"var(--amber)"};
+  return {t:credit,c:"var(--green)"};
+}
+function formationImportSuccessText(data){
+  const results=Array.isArray(data?.importResults)?data.importResults:[];
+  if(results.length===1){
+    const r=results[0];
+    const credit=r.activityCredited ? `+1 formation pour ${r.trainerName}` : `formation enregistrée pour ${r.trainerName}`;
+    if(r.type==="operation") return `✓ Formation Opération validée pour ${r.traineeName} · ${credit}`;
+    if(r.type==="unknown") return `✓ ${credit} · ⚠ Formation non reconnue`;
+    return `✓ ${credit}`;
+  }
+  const unrecognized=Number(data?.summary?.unrecognized)||0;
+  return `✓ ${data?.imported||0} formation(s) importée(s) · ${data?.summary?.operations||0} Formation(s) Opération ajoutée(s) · ${data?.summary?.activityCredits||0} +1 formation crédité(s)${unrecognized?` · ⚠ ${unrecognized} formation(s) non reconnue(s)`:""}`;
 }
 function renderFormationDiscordPreview(data){
   const box=document.getElementById("formationDiscordImportPreview");
@@ -3327,12 +3348,12 @@ function renderFormationDiscordPreview(data){
   const sum=data?.summary||{};
   count.textContent=String(sum.importable||0);
   btn.disabled=!(sum.importable>0);
-  status.textContent=data ? `${sum.detected||0} détectée(s) · ${sum.importable||0} nouvelle(s) · ${sum.duplicates||0} doublon(s) · ${sum.unresolved||0} à vérifier` : "";
-  status.style.color=(sum.unresolved||0)>0 ? "var(--amber)" : "var(--text-dim)";
+  status.textContent=data ? `${sum.detected||0} détectée(s) · ${sum.importable||0} nouvelle(s) · ${sum.duplicates||0} doublon(s) · ${sum.unresolved||0} à vérifier${sum.unrecognized?` · ⚠ ${sum.unrecognized} formation(s) non reconnue(s)`:""}` : "";
+  status.style.color=((sum.unresolved||0)>0||(sum.unrecognized||0)>0) ? "var(--amber)" : "var(--text-dim)";
   const rows=Array.isArray(data?.records)?data.records:[];
   if(!rows.length){ box.innerHTML=`<div class="empty-msg" style="padding:10px;">Aucune formation reconnue dans ce collage.</div>`; return; }
   box.innerHTML=`<div style="overflow:auto;border:1px solid var(--border-soft);border-radius:12px;">\n    <table style="width:100%;border-collapse:collapse;font-size:.76rem;min-width:760px;">\n      <thead><tr style="text-align:left;background:var(--panel-2);">\n        <th style="padding:8px;">Date</th><th style="padding:8px;">Formateur détecté</th><th style="padding:8px;">EMS formé</th><th style="padding:8px;">Formation</th><th style="padding:8px;">Action</th>\n      </tr></thead>\n      <tbody>${rows.map(r=>{
-        const state = r.duplicate ? {t:"Déjà importée",c:"var(--text-faint)"} : !r.importable ? {t:r.reason||"À vérifier",c:"var(--amber)"} : {t:(r.type==="operation"?"Ajoute Opération + ":"")+(r.activityEligible?"+1 Formations":"historique"),c:"var(--green)"};
+        const state = formationImportActionText(r);
         return `<tr style="border-top:1px solid var(--border-soft);opacity:${r.duplicate?'.62':'1'};">\n          <td style="padding:8px;white-space:nowrap;">${esc(r.dateLabel||"—")}</td>\n          <td style="padding:8px;"><b>${esc(r.trainer?.name||r.trainerName||"—")}</b>${r.trainer?`<br><span style="color:var(--text-faint);">${esc(r.trainer.grade||"")}</span>`:""}</td>\n          <td style="padding:8px;"><b>${esc(r.trainee?.name||r.traineeName||"—")}</b>${r.trainee?`<br><span style="color:var(--text-faint);">${esc(r.trainee.grade||"")}</span>`:""}</td>\n          <td style="padding:8px;">${formationTypeBadge(r.type,r.typeLabel)}</td>\n          <td style="padding:8px;color:${state.c};font-weight:700;">${esc(state.t)}</td>\n        </tr>`;
       }).join("")}</tbody>\n    </table>\n  </div>`;
 }
@@ -3390,10 +3411,15 @@ document.getElementById("btnFormationDiscordImport").addEventListener("click",as
       activiteData=data.activityData; saveActiviteData(); renderActiviteTab("formateur");
     }
     renderFormationExperienceHistory(data.recent,data.stats);
-    status.textContent=`✓ ${data.imported||0} formation(s) importée(s) · ${data.summary?.operations||0} ajoutée(s) au bloc Opération · ${data.summary?.activityCredits||0} crédit(s) Formateur`;
+    const successText=formationImportSuccessText(data);
+    status.textContent=successText;
     status.style.color="var(--green)";
     toast(`✓ ${data.imported||0} formation(s) importée(s)`);
     await previewDiscordFormations({silent:true});
+    // La re-prévisualisation sert à transformer les lignes importées en
+    // « doublons », mais on conserve le message de réussite demandé.
+    status.textContent=successText;
+    status.style.color="var(--green)";
   }catch(err){ status.textContent=`✕ Import refusé : ${err.message}`;status.style.color="var(--red)";toast(`✕ ${err.message}`); }
   finally{btn.textContent=old;btn.disabled=!(formationDiscordPreviewState?.summary?.importable>0);}
 });
