@@ -35,6 +35,7 @@ const GRADE_PERMISSION_KEYS = [
   "force_logout",
   "reset_activite_streak",
   "reopen_roster_week",
+  "manage_roster_backup",
 ];
 
 // Permissions qui ne doivent JAMAIS apparaître dans la matrice par grade.
@@ -118,7 +119,8 @@ const DEFAULT_PERMISSIONS = {
     reopen_roster_week: true,
   },
   CD: {
-    // Identique à ADD dans la matrice fournie.
+    // Identique à ADD, avec en plus la sauvegarde/restauration catastrophe.
+    manage_roster_backup: true,
   },
   D: {
     modify_role_label: true,
