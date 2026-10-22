@@ -15,8 +15,9 @@
 //
 // Actions :
 //   - "kick"  : enregistre un horodatage de déconnexion forcée pour une
-//               personne, dans la portée demandée. Réservé D, DG, OWNER
-//               et maintenant CD (can "force_logout" — permissions.js).
+//               personne, dans la portée demandée. Autorisé uniquement si
+//               la permission effective "force_logout" est vraie (ADD+ par
+//               défaut, mais les exceptions individuelles sont respectées).
 //   - "check" : donnée à n'importe quelle session valide (pas besoin de
 //               force_logout pour ÇA — tout le monde doit pouvoir
 //               vérifier si lui-même a été déconnecté), dans la portée
@@ -51,7 +52,7 @@ function kicksUrlFor(scope){
 }
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
