@@ -2,7 +2,7 @@ const fs=require('fs');
 const path=require('path');
 let ok=0, fail=0;
 function t(name, cond){ if(cond){console.log('✅',name);ok++;} else {console.error('❌',name);fail++;} }
-const roster=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8') + '\n' + fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
+const roster=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const pill=fs.readFileSync(path.join(__dirname,'..','..','__pillbox_for_test.html'),'utf8');
 const perm=fs.readFileSync(path.join(__dirname,'..','netlify','functions','permissions.js'),'utf8');
 const indiv=fs.readFileSync(path.join(__dirname,'..','netlify','functions','manage-individual-permissions.js'),'utf8');
