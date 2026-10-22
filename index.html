@@ -3983,7 +3983,12 @@ const ROSTER_BACKUP_ENDPOINT="/.netlify/functions/roster-backup";
 async function rosterBackupCall(action,payload){
   if(!currentSessionToken) throw new Error("Session expirée — reconnecte-toi.");
   const res=await fetch(ROSTER_BACKUP_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:currentSessionToken,action,...(payload||{})})});
-  const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error||`${res.status} ${res.statusText}`); return data;
+  const raw=await res.text(); let data={}; try{data=raw?JSON.parse(raw):{};}catch(e){}
+  if(!res.ok){
+    const gatewayHint=res.status===502?"La fonction de backup a été interrompue par Netlify (502). Réessaie après le déploiement de la correction.":`${res.status} ${res.statusText}`;
+    throw new Error(data.error||gatewayHint);
+  }
+  return data;
 }
 function downloadRosterBackupTxt(backup){
   const text="\uFEFF"+JSON.stringify(backup,null,2), blob=new Blob([text],{type:"text/plain;charset=utf-8"}), url=URL.createObjectURL(blob), a=document.createElement("a");
