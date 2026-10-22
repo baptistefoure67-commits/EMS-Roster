@@ -902,13 +902,6 @@
         }
       }
     },
-    "pillboxDiscordRoles": {
-      ".read": "auth != null && auth.token.server == true",
-      ".write": "auth != null && auth.token.server == true",
-      "$roleName": {
-        ".validate": "newData.isString() && newData.val().matches(/^[0-9]{5,30}$/)"
-      }
-    },
     "rosterDisasterBackups": {
       ".read": "auth != null && auth.token.server == true",
       ".write": "auth != null && auth.token.server == true"
