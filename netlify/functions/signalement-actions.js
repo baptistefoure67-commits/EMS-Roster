@@ -20,10 +20,11 @@ const crypto = require("crypto");
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const PROPOSITIONS_URL = `${BASE}/signalementPropositions.json`;
 const SIGNALEMENTS_URL = `${BASE}/signalements.json`;
+const SIGNALEMENTS_TEST_URL = `${BASE}/signalements_test.json`;
 const VALID_CATEGORIES = ["inactivite","quantite_travail","qualite_travail","comportement","disponibilite","autre"];
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -50,6 +51,53 @@ exports.handler = async function (event) {
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
     const authedUrl = (url) => `${url}?auth=${idToken}`;
+    const signalementsTargetUrl = (payload && payload.sandbox === true) ? SIGNALEMENTS_TEST_URL : SIGNALEMENTS_URL;
+
+    if (action === "listSignalements") {
+      if (!(await canFor(session, "propose_signalement", idToken))) return json(403,{error:"Permission de consultation des signalements refusée."});
+      const r=await fetch(authedUrl(signalementsTargetUrl));
+      if(!r.ok) return json(502,{error:`Lecture signalements impossible (${r.status}).`});
+      return json(200,{ok:true,signalements:(await r.json())||{}});
+    }
+
+    if (action === "deleteSignalementOfficial") {
+      if (!(await canFor(session, "validate_signalement", idToken))) return json(403,{error:"Permission de validation des signalements requise."});
+      const key=String(payload?.key||"");
+      if(!/^[A-Za-z0-9_-]{1,120}$/.test(key)) return json(400,{error:"Identifiant de signalement invalide."});
+      const r=await fetch(authedUrl(signalementsTargetUrl.replace(".json",`/${key}.json`)),{method:"DELETE"});
+      if(!r.ok) return json(502,{error:`Suppression impossible (${r.status}).`});
+      await logAction({action:"suppression_signalement",authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`Signalement ${key}`,idToken}).catch(()=>{});
+      return json(200,{ok:true});
+    }
+
+    if (action === "withdrawSignalementByCode") {
+      // Le code aléatoire remis au déclarant reste la preuve de possession du
+      // signalement, mais l'écriture Firebase n'est plus faite par le navigateur.
+      if (!(await canFor(session, "propose_signalement", idToken))) return json(403,{error:"Permission de signalement requise."});
+      const key=String(payload?.key||"").trim();
+      if(!/^[A-Za-z0-9_-]{1,120}$/.test(key)) return json(400,{error:"Code de signalement invalide."});
+      const url=authedUrl(signalementsTargetUrl.replace(".json",`/${key}.json`));
+      const check=await fetch(url);
+      const existing=check.ok ? await check.json() : null;
+      if(!existing) return json(404,{error:"Ce code ne correspond à aucun signalement (déjà retiré ou code invalide)."});
+      const r=await fetch(url,{method:"DELETE"});
+      if(!r.ok) return json(502,{error:`Retrait impossible (${r.status}).`});
+      await logAction({action:"retrait_signalement_par_code",authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`Signalement ${key}`,idToken}).catch(()=>{});
+      return json(200,{ok:true});
+    }
+
+    if (action === "createAutoSignalement") {
+      if (!(await canFor(session, "reset_activite_streak", idToken))) return json(403,{error:"Permission de clôture d'activité requise."});
+      const { personName, personId, personGrade, category, reason } = payload || {};
+      if(!personName || !reason) return json(400,{error:"Données du signalement automatique incomplètes."});
+      const cats=String(category||"inactivite").split(",").filter(c=>VALID_CATEGORIES.includes(c));
+      if(!cats.length) return json(400,{error:"Catégorie invalide."});
+      const entry={personName:String(personName).slice(0,100),personId:personId||null,personGrade:personGrade||null,category:cats.join(","),reason:String(reason).slice(0,1999),createdAt:Date.now(),auto:true};
+      const key=crypto.randomUUID();
+      const r=await fetch(authedUrl(signalementsTargetUrl.replace(".json",`/${key}.json`)),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(entry)});
+      if(!r.ok) return json(502,{error:`Création automatique impossible (${r.status}).`});
+      return json(200,{ok:true,key});
+    }
 
     if (action === "createSignalementOfficial") {
       if (!(await canFor(session, "create_signalement"))) {
@@ -63,7 +111,7 @@ exports.handler = async function (event) {
       const entry = { personName, personId: personId || null, personGrade: personGrade || null, category: cats.join(","), reason: reason.trim(), createdAt: Date.now() };
       if (activiteSnapshot) entry.activiteSnapshot = activiteSnapshot;
       const sigKey = crypto.randomUUID();
-      const res = await fetch(authedUrl(SIGNALEMENTS_URL.replace(".json", `/${sigKey}.json`)), {
+      const res = await fetch(authedUrl(signalementsTargetUrl.replace(".json", `/${sigKey}.json`)), {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry),
       });
       if (!res.ok) { const t = await res.text().catch(()=>""); return json(502, { error: `Échec (${res.status}) : ${t.slice(0,200)}` }); }
