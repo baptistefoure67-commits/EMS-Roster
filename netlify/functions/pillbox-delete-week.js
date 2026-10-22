@@ -6,13 +6,12 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const { verify } = require("./session-token");
-const { can } = require("./permissions");
+const { can, loadPermissionContext } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
 
 const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistory";
 const ARCHIVE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistoryArchive";
-const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
@@ -48,13 +47,11 @@ exports.handler = async function (event) {
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
-    let individualOverrides = null;
-    try {
-      const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
-      individualOverrides = indivRes.ok ? await indivRes.json() : null;
-    } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
+    let permCtx;
+    try{ permCtx = await loadPermissionContext(idToken, {strict:true}); }
+    catch(e){ return json(503, { error: "Permissions momentanément indisponibles — aucune suppression n'a été exécutée." }, corsHeaders); }
 
-    if (!can(session.level, "manage_pay_weeks", null, session.discordId, individualOverrides)) {
+    if (!can(session.level, "manage_pay_weeks", permCtx.custom, session.discordId, permCtx.individual)) {
       return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus (ou exception individuelle).` }, corsHeaders);
     }
 
@@ -68,7 +65,11 @@ exports.handler = async function (event) {
     if (!existing) return json(404, { error: "Semaine introuvable." }, corsHeaders);
 
     const archiveUrl = `${ARCHIVE_BASE}/${weekKey}/${Date.now()}.json?auth=${idToken}`;
-    await fetch(archiveUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...existing, deletedFromMainHistory: true }) });
+    const archiveRes = await fetch(archiveUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...existing, deletedFromMainHistory: true }) });
+    if(!archiveRes.ok){
+      const t = await archiveRes.text().catch(()=>"");
+      return json(502, { error: `Archive impossible (${archiveRes.status}) : suppression ANNULÉE. ${t.slice(0,160)}` }, corsHeaders);
+    }
 
     const delRes = await fetch(weekUrl, { method: "DELETE" });
     if (!delRes.ok) { const t = await delRes.text().catch(()=>""); return json(502, { error: `Échec de la suppression (${delRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
