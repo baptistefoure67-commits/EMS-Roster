@@ -14,10 +14,10 @@ const { createFirebaseCustomToken } = require("./firebase-token");
 
 const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 const GRADE_OVERRIDE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPermissionsOverride.json";
-const DECISION_LEVELS = ["CD", "D", "DG"];
+const DECISION_LEVELS = ["CD", "D", "DG", "OWNER"];
 
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
-  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true } });
+  const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, permissionsWrite: true, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: customToken, returnSecureToken: true }),
@@ -49,14 +49,14 @@ function normalizeAllForDisplay(all){
 }
 
 function effectiveLayerFor(session){
-  return session.level === "OWNER" ? "DG" : (DECISION_LEVELS.includes(session.level) ? session.level : "CD");
+  return DECISION_LEVELS.includes(session.level) ? session.level : "CD";
 }
 
 async function grantableKeys(session, idToken, canManagePermissions){
   if(session.level === "OWNER") return [...INDIVIDUAL_PERMISSION_KEYS];
   const list = [];
   if(canManagePermissions){
-    const ctx = await loadPermissionContext(idToken).catch(()=>({custom:null,individual:null}));
+    const ctx = await loadPermissionContext(idToken);
     for(const p of GRADE_PERMISSION_KEYS){
       if(can(session.level, p, ctx.custom, session.discordId, ctx.individual)) list.push(p);
     }
@@ -149,7 +149,7 @@ exports.handler = async function (event) {
     current[targetDiscordId] = current[targetDiscordId] || {};
     const beforePerson = JSON.parse(JSON.stringify(current[targetDiscordId]));
     const ensure = (perm) => {
-      current[targetDiscordId][perm] = current[targetDiscordId][perm] || { CD: null, D: null, DG: null };
+      current[targetDiscordId][perm] = current[targetDiscordId][perm] || { CD: null, D: null, DG: null, OWNER: null };
       return current[targetDiscordId][perm];
     };
 
