@@ -3,7 +3,7 @@ const path=require('path');
 let ok=0,fail=0;
 function t(name,cond){if(cond){console.log('✅',name);ok++;}else{console.error('❌',name);fail++;}}
 const roster=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
-const pill=fs.readFileSync(path.join(__dirname,'..','..','__pillbox_for_test.html'),'utf8');
+const pill=require('./_helpers').readPillbox();
 const indiv=fs.readFileSync(path.join(__dirname,'..','netlify','functions','manage-individual-permissions.js'),'utf8');
 const proxy=fs.readFileSync(path.join(__dirname,'..','netlify','functions','pillbox-proxy.js'),'utf8');
 
