@@ -60,9 +60,15 @@ exports.handler = async function (event) {
     // vraiment rien, la donnée reste consultable dans
     // pillboxWeekHistoryArchive (section "je ne veux pas simplement
     // supprimer une semaine" du cahier des charges).
-    const existingRes = await fetch(weekUrl);
-    const existing = existingRes.ok ? await existingRes.json() : null;
+    const existingRes = await fetch(weekUrl, { headers: { "X-Firebase-ETag": "true" } });
+    if(!existingRes.ok){
+      const t = await existingRes.text().catch(()=>"");
+      return json(502, { error: `Lecture Firebase impossible (${existingRes.status}) : aucune suppression exécutée. ${t.slice(0,160)}` }, corsHeaders);
+    }
+    const existing = await existingRes.json();
     if (!existing) return json(404, { error: "Semaine introuvable." }, corsHeaders);
+    const sourceEtag = existingRes.headers?.get?.("etag") || null;
+    if(!sourceEtag) return json(502, { error: "Firebase n'a pas fourni d'ETag : suppression annulée pour éviter une écriture concurrente." }, corsHeaders);
 
     const archiveUrl = `${ARCHIVE_BASE}/${weekKey}/${Date.now()}.json?auth=${idToken}`;
     const archiveRes = await fetch(archiveUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...existing, deletedFromMainHistory: true }) });
@@ -71,8 +77,12 @@ exports.handler = async function (event) {
       return json(502, { error: `Archive impossible (${archiveRes.status}) : suppression ANNULÉE. ${t.slice(0,160)}` }, corsHeaders);
     }
 
-    const delRes = await fetch(weekUrl, { method: "DELETE" });
-    if (!delRes.ok) { const t = await delRes.text().catch(()=>""); return json(502, { error: `Échec de la suppression (${delRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+    const delRes = await fetch(weekUrl, { method: "DELETE", headers: { "If-Match": sourceEtag } });
+    if (!delRes.ok) {
+      const t = await delRes.text().catch(()=>"");
+      if(delRes.status===412) return json(409, { error: "La semaine a changé pendant la suppression : opération annulée. Recharge l'historique puis réessaie." }, corsHeaders);
+      return json(502, { error: `Échec de la suppression (${delRes.status}) : ${t.slice(0,200)}` }, corsHeaders);
+    }
 
     await logAction({
       action: "semaine_supprimee", authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
