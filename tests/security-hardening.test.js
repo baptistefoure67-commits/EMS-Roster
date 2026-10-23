@@ -1,7 +1,7 @@
 const fs=require('fs'), path=require('path'), assert=require('assert');
 const root=path.resolve(__dirname,'..');
 const roster=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const pill=fs.readFileSync(path.resolve(root,'../../pillbox/index.html'),'utf8');
+const pill=require('./_helpers').readPillbox();
 const proxy=fs.readFileSync(path.join(root,'netlify/functions/pillbox-proxy.js'),'utf8');
 const gemini=fs.readFileSync(path.join(root,'netlify/functions/gemini-ocr-proxy.js'),'utf8');
 const protectedWrite=fs.readFileSync(path.join(root,'netlify/functions/protected-write.js'),'utf8');
