@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // pillbox-reopen-week.js — réouverture d'une semaine de paie clôturée
-// (09/09). Réservé à can(level, "manage_pay_weeks") — CD et au-dessus par
+// (09/09). Réservé à can(level, "manage_pay_weeks") — ADD et au-dessus par
 // défaut, ajustable via les exceptions individuelles comme tout le
 // reste. Vérifié ici, jamais seulement caché côté interface.
 //
@@ -61,12 +61,16 @@ exports.handler = async function (event) {
     catch(e){ return json(503, { error: "Permissions momentanément indisponibles — aucune réouverture n'a été exécutée." }, corsHeaders); }
 
     if (!can(session.level, "manage_pay_weeks", permCtx.custom, session.discordId, permCtx.individual)) {
-      return json(403, { error: `Permission refusée (${session.level}) — réservé à CD et au-dessus (ou exception individuelle).` }, corsHeaders);
+      return json(403, { error: `Permission refusée (${session.level}) — réservé aux utilisateurs ayant manage_pay_weeks (ADD et au-dessus par défaut, ou exception individuelle).` }, corsHeaders);
     }
 
     const weekUrl = `${WEEK_HISTORY_BASE}/${weekKey}.json?auth=${idToken}`;
     const weekRes = await fetch(weekUrl);
-    const weekData = weekRes.ok ? await weekRes.json() : null;
+    if(!weekRes.ok){
+      const t = await weekRes.text().catch(()=>"");
+      return json(502, { error: `Lecture Firebase impossible (${weekRes.status}) : aucune réouverture exécutée. ${t.slice(0,160)}` }, corsHeaders);
+    }
+    const weekData = await weekRes.json();
     if (!weekData) return json(404, { error: "Semaine introuvable." }, corsHeaders);
 
     // Marque la semaine "réouverte" — ne touche PAS à summary ni
