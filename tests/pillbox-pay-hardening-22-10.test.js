@@ -3,7 +3,7 @@ const path = require('path');
 const assert = require('assert');
 
 const ROOT = path.resolve(__dirname,'..');
-const PILLBOX = '/mnt/data/pillbox12_work/index.html';
+const PILLBOX = require('./_helpers').pillboxHtmlPath();
 const html = fs.readFileSync(PILLBOX,'utf8');
 const proxy = fs.readFileSync(path.join(ROOT,'netlify/functions/pillbox-proxy.js'),'utf8');
 const del = fs.readFileSync(path.join(ROOT,'netlify/functions/pillbox-delete-week.js'),'utf8');
