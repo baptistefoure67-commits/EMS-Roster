@@ -22,64 +22,15 @@ const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { can, loadPermissionContext } = require("./permissions");
 const { logAction } = require("./logs");
+const { cloneDefaultPayRules } = require("./pay-rules-defaults");
 
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const CONFIG_URL = `${BASE}/payRulesConfig.json`;
 const HISTORY_URL = `${BASE}/payRulesConfigHistory.json`;
 const INDIVIDUAL_URL = `${BASE}/rosterIndividualPermissions.json`;
 
-// Valeurs par défaut — copie exacte des constantes actuellement codées
-// en dur dans Pillbox (REA_RATE, FIXED_PAY, BONUS_BY_RANK, les règles
-// PPA). Si jamais payRulesConfig n'existe pas encore dans Firebase (pas
-// encore initialisé), GET renvoie ces valeurs telles quelles — Pillbox
-// se comporte alors exactement comme avant, sans aucune différence.
-const DEFAULT_CONFIG = {
-  reaRate: 14000,
-  fixedSalaryByGrade: {
-    STG: 5000000, A: 6000000, INF: 7000000, M: 8000000,
-    MF: 9000000, MP: 9000000, MLP: 9000000,
-    RF: 10000000, RP: 10000000, RL: 10000000,
-    MC: 11500000, ADD: 11500000, CD: 13500000, D: 15000000, DG: 15000000,
-  },
-  bonusByRank: { "1": 3000000, "2": 2000000, "3": 1000000 },
-  ppaEligibleGrades: ["MP","MLP","RP","RF","RL","MC","ADD","CD","D","DG"],
-  ppaWeeklyCap: 10000000,
-  // (03/10) Quotas — deuxième tranche de l'audit. Copie exacte de la
-  // logique codée en dur de Pillbox : quota = staff ? 30 : 70, grades
-  // exemptés, et la zone "presque atteint" (65 à quota-1, STG/A/INF/M
-  // uniquement, jamais les grades staff).
-  quotaStandard: 70,
-  quotaStaff: 30,
-  exemptGrades: ["MC","ADD","CD","D","DG"],
-  nearMissGrades: ["STG","A","INF","M"],
-  nearMissThreshold: 65,
-  // (03/10) Q et licenciements — troisième tranche. Copie exacte des
-  // seuils codés en dur : Stagiaire proposé à Q2, automatique à Q3 ;
-  // Ambulancier proposé à Q3 ; cumul Q+A > 3 déclenche un licenciement
-  // pour les autres grades. Quelqu'un déjà au seuil "automatique" qui
-  // rate à nouveau reste TOUJOURS automatique (règle structurelle, pas
-  // un simple nombre réglable séparément).
-  stgProposalThreshold: 2,
-  stgAutoThreshold: 3,
-  aProposalThreshold: 3,
-  // (11/10, demandé) Proposition Infirmiers — même principe que
-  // l'Ambulancier, mais DÉSACTIVÉE par défaut (infProposalEnabled:
-  // false) : tant que personne ne l'active explicitement, les
-  // Infirmiers restent soumis uniquement au cumul Q+A, inchangé.
-  infProposalEnabled: false,
-  infProposalThreshold: 3,
-  // (13/10, section 4.4) Même principe que les Infirmiers, mais
-  // généralisé à n'importe quel grade au-delà de STG/A/INF (M, MF, MP,
-  // MLP, RF, RP, RL) — liste VIDE par défaut, donc aucun changement de
-  // comportement tant que personne n'a explicitement coché un grade
-  // dans le Roster (ces grades restent sur la règle de cumul Q+A,
-  // exactement comme avant ce point du cahier des charges).
-  extraQProposalGrades: [],
-  extraQProposalThreshold: 3,
-  qaCumulThreshold: 3,
-  updatedAt: null,
-  updatedBy: null,
-};
+// Valeurs par défaut partagées avec Pillbox — source unique.
+const DEFAULT_CONFIG = cloneDefaultPayRules();
 
 const VALID_GRADES = ["STG","A","INF","M","MF","MP","MLP","RF","RP","RL","MC","ADD","CD","D","DG"];
 
