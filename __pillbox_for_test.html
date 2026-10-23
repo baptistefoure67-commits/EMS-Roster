@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#3a0000">
 <meta name="description" content="Terminal de calcul des paies EMS pour LSCity RP.">
-<meta name="application-version" content="183">
+<meta name="application-version" content="184">
 <!-- Version 183 : ajout manuel de réanimations oubliées et renouvellement de session -->
-<link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>PILLBOX — Terminal Payes EMS</title>
@@ -95,15 +94,6 @@
   .mono{font-family:var(--mono);}
 
   /* ── header ── */
-  .install-app-btn{
-    background:linear-gradient(135deg,#e2263f,#a90d22); color:#fff; border:1px solid rgba(255,255,255,.35);
-    border-radius:7px; padding:5px 10px; font-size:10px; font-weight:800; cursor:pointer;
-    display:inline-flex; align-items:center; gap:5px; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.22);
-    transition:transform .08s ease, filter .15s ease;
-  }
-  .install-app-btn:hover{filter:brightness(1.12);}
-  .install-app-btn:active{transform:scale(.97);}
-  .install-app-btn[hidden]{display:none;}
 
   .header-bar{ display:flex; align-items:flex-start; flex-wrap:wrap; gap:8px; max-width:1120px; margin:0 auto; padding:14px 24px 0; position:relative; z-index:2; }
   .clear-save-btn{
@@ -794,7 +784,6 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
 </div>
 
 <div class="header-bar">
-  <button type="button" class="install-app-btn" id="installAppBtn" hidden>📲 Télécharger l’application</button>
   <button type="button" class="clear-save-btn" id="resetAllBtn" style="display:inline-flex;" title="Efface tout : sauvegarde locale, tableau collé, réanimations, ID Discord, et toutes les corrections manuelles — pour repartir de zéro sur une nouvelle semaine">🔄 Réinitialiser</button>
   <button type="button" class="clear-save-btn" id="openSessionToolsBtn" style="display:inline-flex;" title="Importer une session existante ou exporter le travail actuel">📁 Importer / Exporter</button>
   <button type="button" class="clear-save-btn" id="showWeekHistoryBtn" style="display:inline-flex;" title="Revoir les semaines déjà traitées, et récupérer l'une d'elles au cas où une semaine aurait été close par erreur">📜 Semaines passées</button>
@@ -815,7 +804,7 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
     <img id="logoImg" alt="Pillbox">
     <div>
       <h1>PILLBOX — TERMINAL PAYES EMS</h1>
-      <p>Outil de calcul hebdomadaire — gratuit, hors-ligne, aucun compte requis. Relis toujours les points marqués ⚠ avant d'envoyer.</p>
+      <p>Outil de calcul hebdomadaire EMS — connexion Discord requise. Les données cloud passent par Netlify/Firebase et les captures OCR peuvent être envoyées à Gemini. Relis toujours les points marqués ⚠ avant d'envoyer.</p>
       <div class="hero-links">
         <a href="https://ems.assistant-eliot.com/login" target="_blank" rel="noopener">↗ Ouvrir le site EMS (ems.assistant-eliot.com)</a>
       </div>
@@ -919,7 +908,8 @@ Format 2 (tableau Interventions en jeu, sans ID) :
     <div class="step-body">
       <div class="hint" style="margin-top:0;margin-bottom:10px;">👉 Une fois les étapes 1 et 2 remplies (et les étapes 3 et 4 si besoin), clique sur le bouton ci-dessous. Le bouton reste grisé tant qu'il manque quelque chose (semaine, tableau...) — c'est normal, remplis d'abord au-dessus.</div>
       <div class="tuto-box"><b class="tuto-title">🎓 En détail</b>
-      En cliquant sur "Analyser", l'outil lit tout ce que tu as collé et calcule, pour chaque employé : s'il a atteint son quota, s'il mérite un avertissement, une promotion, une paye modifiée, etc. — en appliquant toujours les mêmes règles, sans jamais rien envoyer sur internet (tout se passe dans ton navigateur). Si le bouton reste grisé, regarde en haut : soit la date de semaine est vide, soit le tableau (étape 1) n'a pas été collé.</div>
+      En cliquant sur "Analyser", l'outil lit les données collées et applique les règles de paie chargées depuis le serveur. La connexion Discord, Firebase/Netlify et certaines fonctions cloud sont nécessaires ; les captures utilisées par l'OCR Gemini peuvent être envoyées à Gemini pour analyse. Si le bouton reste grisé, vérifie le tableau et l'état des règles de paie ci-dessous.</div>
+      <div id="payRulesStatusBanner" class="warn-box" style="display:none;margin-bottom:10px;"></div>
       <button class="btn btn-primary" id="analyzeBtn" style="margin-top:0" disabled>▶ Analyser la semaine</button>
       <div id="animationStatusHint" class="hint" style="margin-top:7px;font-size:11.5px;"></div>
       <!-- (11/10) Phrases "EMS Repris" en attente de copie — remplies à la clôture de semaine -->
@@ -1173,15 +1163,19 @@ async function pillboxRenewSessionIfNeeded(){
   try{
     const res = await fetch(PILLBOX_SESSION_RENEW_URL, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({token:pillboxSessionToken})
+      body:JSON.stringify({token:pillboxSessionToken, app:"pillbox"})
     });
     const data = await res.json().catch(()=>({}));
     if(res.ok && data.token){
       pillboxSessionToken = data.token;
-      pillboxSaveSessionToStorage(pillboxSessionToken, {name:pillboxCurrentName || "", level:pillboxCurrentLevel || payload.level || ""});
+      pillboxCurrentName = data.name || pillboxCurrentName || "";
+      pillboxCurrentLevel = data.level || pillboxCurrentLevel || payload.level || "";
+      const authStatus = document.getElementById('pillboxAuthStatus');
+      if(authStatus) authStatus.textContent = `${pillboxCurrentName}${pillboxCurrentLevel ? ` — ${pillboxCurrentLevel}` : ""}`;
+      pillboxSaveSessionToStorage(pillboxSessionToken, {name:pillboxCurrentName, level:pillboxCurrentLevel});
       return true;
     }
-    if(res.status === 401){
+    if(res.status === 401 || res.status === 403){
       // Écrit immédiatement tout le travail local avant de masquer l'outil.
       // Ne dépend pas du délai debounce de l'autosave normal.
       try{
@@ -1194,7 +1188,9 @@ async function pillboxRenewSessionIfNeeded(){
       if(pillboxPresenceInterval){ clearInterval(pillboxPresenceInterval); pillboxPresenceInterval=null; }
       if(pillboxSessionRenewTimer){ clearInterval(pillboxSessionRenewTimer); pillboxSessionRenewTimer=null; }
       pillboxSessionToken = null;
-      pillboxShowGate("Ta session Discord a réellement expiré. Tes saisies et décisions restent sauvegardées sur cet appareil : reconnecte-toi pour reprendre.");
+      pillboxShowGate(res.status === 403
+        ? "Ton accès à Pillbox n'est plus autorisé avec ton grade/tes permissions actuels. Tes saisies restent sauvegardées sur cet appareil."
+        : "Ta session Discord a réellement expiré. Tes saisies et décisions restent sauvegardées sur cet appareil : reconnecte-toi pour reprendre.");
     }
   }catch(e){ /* réseau temporaire : on conserve la session et réessaie au prochain passage */ }
   finally{ pillboxSessionRenewInFlight = false; }
@@ -1559,12 +1555,29 @@ const NEXT_SINGLE = {A:"INF", INF:"M", MF:"RF", MP:"RP", MLP:"RL", RF:"MC", RP:"
 // depuis le Roster (panneau "⚙️ Réglages des paies"). Valeurs ci-dessous
 // = valeurs par défaut, identiques au comportement codé en dur
 // d'origine ; remplacées EN PLACE par applyFetchedPayRules() si une
-// configuration a été sauvegardée côté Roster (fetchPayRulesConfig,
-// appelé une fois au chargement, silencieux — jamais bloquant). Tant
-// que personne n'a rien modifié dans ce panneau, rien ne change ici.
+// configuration a été sauvegardée côté Roster (fetchPayRulesConfig).
+// Les valeurs ci-dessous ne servent qu'en l'absence réelle de configuration ;
+// une panne de lecture Firebase bloque désormais l'analyse au lieu de tomber
+// silencieusement sur ces valeurs.
 let REA_RATE = 14000;
 let PPA_WEEKLY_CAP = 10000000;
 const BONUS_BY_RANK_CONFIG = {1:3000000, 2:2000000, 3:1000000};
+let payRulesReady = false;
+let payRulesLoadError = "Chargement des règles de paie en cours…";
+function updatePayRulesStatusUi(){
+  const banner = document.getElementById("payRulesStatusBanner");
+  const btn = document.getElementById("analyzeBtn");
+  if(banner){
+    if(payRulesReady){
+      banner.style.display = "none";
+      banner.textContent = "";
+    }else{
+      banner.style.display = "block";
+      banner.innerHTML = `<b>⛔ Analyse bloquée</b><br>${esc(payRulesLoadError || "Impossible de vérifier les règles de paie actuelles.")}`;
+    }
+  }
+  if(btn) btn.disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
+}
 function applyFetchedPayRules(config){
   if(!config) return;
   if(typeof config.reaRate === "number"){
@@ -1595,14 +1608,24 @@ function applyFetchedPayRules(config){
 async function fetchPayRulesConfig(){
   // Cet appel dépend d'une session Discord : ne pas le lancer avant le retour OAuth.
   if(!pillboxSessionToken) return;
+  payRulesReady = false;
+  payRulesLoadError = "Chargement des règles de paie en cours…";
+  updatePayRulesStatusUi();
   try{
-    const { payRules } = await fetchViaPillboxProxy();
-    applyFetchedPayRules(payRules);
+    const data = await fetchViaPillboxProxy();
+    if(data?.readStatus?.payRules === "error" || !data?.payRules){
+      throw new Error("Impossible de vérifier les règles de paie actuelles — analyse bloquée.");
+    }
+    applyFetchedPayRules(data.payRules);
+    payRulesReady = true;
+    payRulesLoadError = null;
   }catch(err){
-    // Échec silencieux — Pillbox continue avec les valeurs par défaut
-    // ci-dessus, identiques à l'ancien comportement codé en dur.
-    console.error("Chargement des réglages de paie impossible, valeurs par défaut utilisées:", err.message);
+    payRulesReady = false;
+    payRulesLoadError = err?.message || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.";
+    console.error("Chargement des réglages de paie impossible :", err);
   }
+  updatePayRulesStatusUi();
+  render();
 }
 
 // ── Signalements anonymes (qualité/inactivité, grades à responsabilité) —
@@ -1867,6 +1890,26 @@ function applyDiscordPings(text, employees, idMap, keepNameOnFirst){
   return {text: out, missing};
 }
 
+// Transforme aussi les rôles présents dans la liste copiée depuis le Roster
+// en vraies mentions Discord <@&ID>. Aucun réglage séparé dans Pillbox :
+// on réutilise directement les lignes "Nom du rôle : ID" déjà fournies
+// par le bouton "Copier la liste" du Roster.
+function applyRolePings(text, idMap){
+  const defs = [
+    {regex:/@Averto\s*1(?!\d)/giu, keys:["averto 1"]},
+    {regex:/@Averto\s*2(?!\d)/giu, keys:["averto 2"]},
+    {regex:/@Averto\s*3(?!\d)/giu, keys:["averto 3"]},
+    {regex:/@employ(?:é|e|és|es)(?![\p{L}\p{N}_-])/giu, keys:["employés","employé","employes","employe"]},
+    {regex:/@haut(?:s)?(?:[- ]?)grad(?:é|e|és|es)(?![\p{L}\p{N}_-])/giu, keys:["haut gradés","haut gradé","hauts gradés","hauts-gradés","hautgradés","hautgradé"]},
+  ];
+  let out = text;
+  defs.forEach(def=>{
+    const id = def.keys.map(k=>idMap?.[k]).find(Boolean);
+    if(id) out = out.replace(def.regex, `<@&${id}>`);
+  });
+  return out;
+}
+
 function parseTableau(text, weekStart){
   const chunks = text.split(/📂[︰:]/).slice(1);
   const rows = []; const anomalies = []; const wdvNames = [];
@@ -2092,7 +2135,10 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
   // chevauchent avec la semaine (Ambulancier absent, paye fixe, etc.)
   // utilisent bien la vraie date corrigée. Une chaîne vide efface l'absence.
   if(ov.absOverride !== undefined) row = { ...row, abs: parseAbsence(ov.absOverride, weekStart) };
-  const exempt = EXEMPT.has(row.grade) || row.benevole || ov.benevole;
+  // Compatibilité anciennes sauvegardes : un ancien override `ov.benevole`
+  // doit devenir le statut bénévole effectif de l'employé calculé.
+  const effectiveBenevole = !!(row.benevole || ov.benevole);
+  const exempt = EXEMPT.has(row.grade) || effectiveBenevole;
   const staff = row.info.staff;
   const quota = staff ? QUOTA_STAFF : QUOTA_STANDARD;
   const rawQuotaMet = exempt ? true : reaCount >= quota; // quota RÉELLEMENT atteint, avant toute exception manuelle
@@ -2241,6 +2287,7 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
     licenceReason = `Licenciement manuel décidé (inactivité prolongée, ${row.info.Z||0} semaine(s) à 0 réanimation)`;
   }
   let missingFormationOperation = false;
+  let formationOperationUnverifiable = false;
   let pendingStgLicence = false;
   let pendingALicence = false;
   let pendingInfLicence = false;
@@ -2260,6 +2307,11 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
     // restent tels quels (ni remis à zéro, ni incrémentés).
   } else if(isAbsentThisWeek && !quotaMet){
     if(absOverlapDays>=7) newAB = row.info.AB + 1;
+    // Règle métier confirmée 22/10 : une absence/excuse n'offre pas le
+    // salaire fixe si le quota n'est pas atteint. Financièrement, la
+    // personne est traitée comme n'importe quel quota raté : fixe retiré,
+    // mais réanimations / PPA / primes éligibles restent conservées.
+    deduction = FIXED_PAY[row.grade] || 0;
   } else if(quotaMet){
     // Règles S/Q exactes du prompt de référence (section 4, trouvé et
     // corrigé le 18/09 — bug réel confirmé avec Pablo Akada) : Q1 est
@@ -2284,7 +2336,11 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
         // NEXT_SINGLE mène à INF), jamais pour les autres promotions.
         // Remis en place le 07/09 sur demande explicite, en plus du
         // compteur du Tableau de bord (les deux coexistent désormais).
-        if(row.grade==="A") missingFormationOperation = !hasFormationOperation(row);
+        if(row.grade==="A"){
+          const formationState = formationOperationVerification(row);
+          missingFormationOperation = formationState === "missing";
+          formationOperationUnverifiable = formationState === "unverifiable";
+        }
       } else { upBlocked = true; }
     } else if(priorQ>=2){
       // Compensation −1, pas de S1 (Q2→Q1, Q3→Q2).
@@ -2404,11 +2460,15 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
   // 0 déjà faux, une pénalité de quota manquant viendrait s'y soustraire
   // et donnerait une paye deux fois plus négative qu'elle ne devrait.
   let payeTableauWasZeroBug = false;
-  if(payeTableau===0 && FIXED_PAY[row.grade]!==undefined && !row.benevole && !ov.benevole){
+  if(payeTableau===0 && FIXED_PAY[row.grade]!==undefined && !effectiveBenevole){
     payeTableau = FIXED_PAY[row.grade];
     payeTableauWasZeroBug = true;
   }
   let paye = payeTableau - deduction + reaCount*REA_RATE;
+  // BNVL = bénévole : règle métier confirmée 22/10. Zéro dollar quoi
+  // qu'il arrive, même avec des réanimations. Les autres composantes
+  // financières sont également neutralisées dans finalPaye()/bonusOf().
+  if(effectiveBenevole) paye = 0;
   if(paye<0){
     negatifPaye = true;
     if(!ov.forceDeduction){ paye = payeTableau + reaCount*REA_RATE; }
@@ -2447,7 +2507,7 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
   //  2. N'importe quel HG → grade inférieur si 0 réa pendant N semaines
   //     consécutives (état.hgRetrogradeWeeks), signe d'inactivité prolongée.
   const RETROGRADE_HG = {DG:"D", D:"CD", CD:"ADD", ADD:"MC", MC:"RF"};
-  const isHG = EXEMPT.has(row.grade) && !row.benevole && !ov.benevole;
+  const isHG = EXEMPT.has(row.grade) && !effectiveBenevole;
   let newZ = row.info.Z || 0;
   let pendingHgRetrograde = false, hgRetrogradeSuggested = null;
   let pendingMcAdd = false, mcAddSince = null, mcAddDuree = null, mcAddDecision;
@@ -2490,14 +2550,14 @@ function computeEmployee(row, reaCount, weekStart, weekEnd, overrides){
   const alCleared = row.info.AL && absExpired;
 
   return {
-    ...row, exempt, staff, quota, reaCount, quotaMet, rawQuotaMet, isAbsentThisWeek, absOverlapDays, arrivedThisWeek, newProtectedFromToday, payeTableauWasZeroBug,
+    ...row, benevole: effectiveBenevole, exempt, staff, quota, reaCount, quotaMet, rawQuotaMet, isAbsentThisWeek, absOverlapDays, arrivedThisWeek, newProtectedFromToday, payeTableauWasZeroBug,
     // (19/10) Reflète aussi bien le lien manuel que les anciens noms
     // automatiquement connus du Roster — pour que le badge "(ex-X)"
     // reste honnête sur ce qui a réellement été pris en compte, qu'il
     // ait été saisi à la main ou retrouvé tout seul.
     ancienNomApplique: (overrides[row.key]||{}).ancienNom || rosterAliasesForRow(row)[0] || null,
     newA, newAdate, newQ, newS, newAB, newZ, AL: alCleared ? false : row.info.AL,
-    pendingManualQ, wouldGetQThisWeek, licencie, licenceReason, autoPromote, upEligible, upBlocked, stgBlocked, pendingStgLicence, pendingALicence, pendingInfLicence, pendingExtraQLicence, specialtyMissing, pendingSpecialtyChoice, promoted, targetGrade, manualPromote, missingFormationOperation, pendingNearMissConfirm, nearMissCandidate,
+    pendingManualQ, wouldGetQThisWeek, licencie, licenceReason, autoPromote, upEligible, upBlocked, stgBlocked, pendingStgLicence, pendingALicence, pendingInfLicence, pendingExtraQLicence, specialtyMissing, pendingSpecialtyChoice, promoted, targetGrade, manualPromote, missingFormationOperation, formationOperationUnverifiable, pendingNearMissConfirm, nearMissCandidate,
     pendingHgRetrograde, hgRetrogradeSuggested, pendingMcAdd, mcAddSince, mcAddDuree, mcAddDecision,
     negatifPaye, paye, payeTableau, deduction, futureArrival, arriveeDate, weekStart,
     exceptionApplied, infoOverride: ov.infoOverride || null,
@@ -2582,13 +2642,16 @@ const state = {
   stgAbsenceSignalements: [],
   longAbsenceSignalements: [],
   absenceSignalementsLoaded: false,
+  absenceSignalementsLoadError: null,
   // Formation Opération : liste brute {name, idUnique}[] — récupérée une
   // fois au chargement (silencieusement, pas de bouton), utilisée pour la
   // mention "n'a pas la formation opération" sur les promotions A→INF
   // UNIQUEMENT (remis en place le 07/09, sur demande explicite — état
   // vide = fonctionnalité totalement silencieuse, y compris ici).
   formationOperationEntries: [],
+  formationOperationLoadState: "unknown", // found / absent / error / unknown
   activiteSuivi: {},
+  activiteSuiviLoadError: null,
 };
 
 // ???????????????????????????? ?TAPE 3 : WIPE / CHANGEMENT DE NOM ????????????????????????????
@@ -2605,7 +2668,7 @@ let nameMatchSelectedName = null;
 let nameMatchEmployeeSearch = "";
 let nameMatchOldNameSearch = "";
 let nameMatchGradeFilter = "";
-const NAME_MATCH_GRADE_ORDER = ["DG","D","CD","ADD","MC","RF","RP","RLP","MF","MP","MLP","M","INF","A","STG"];
+const NAME_MATCH_GRADE_ORDER = ["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","INF","A","STG"];
 // (03/10) Même jeu d'icônes que l'étape 4 — une par grade, pour cohérence
 // visuelle entre les deux étapes (avant, plusieurs grades partageaient la
 // même icône, ex: 📋 pour ADD/RF/RP/RL, 🩺 pour MC/MF/MP/MLP/M).
@@ -3674,7 +3737,7 @@ function buildAnnonce(ctx){
   const fmtMoney = n => n.toLocaleString("de-DE");
   const {greeting, moment} = computeAnnonceTiming();
   let out = `**${greeting} à tous,**\n@employé\nUne nouvelle semaine commence à l'hôpital Pillbox !\n🏆\n**Top 3 de la semaine :**\n`;
-  const medals = ["1️⃣","2️⃣","3️⃣"]; const bonuses=[3000000,2000000,1000000];
+  const medals = ["1️⃣","2️⃣","3️⃣"]; const bonuses=[BONUS_BY_RANK_CONFIG[1]||0,BONUS_BY_RANK_CONFIG[2]||0,BONUS_BY_RANK_CONFIG[3]||0];
   podiumTiers.forEach(t=>{
     t.people.forEach(e=>{ out += `${medals[t.rank-1]} @${e.name} gagne une prime de **${fmtMoney(bonuses[t.rank-1])}$** avec **${e.reaCount}** réanimations\n`; });
   });
@@ -3757,117 +3820,6 @@ function buildPromotions(ctx){
   return out;
 }
 
-function buildContexte(){
-  // Fichier statique (ne dépend pas de la semaine en cours) : explique le
-  // SYSTÈME lui-même, pour qu'une IA ou une personne sans aucun contexte
-  // comprenne l'outil à partir du seul contenu du ZIP.
-  return `════════════════════════════════════════════════════
-CONTEXTE — PILLBOX TERMINAL PAIE (à lire en premier)
-════════════════════════════════════════════════════
-
-Ce fichier n'est PAS un résultat de la semaine en cours (ça, ce sont les
-6 autres fichiers du ZIP). Il explique le SYSTÈME lui-même : à quoi sert
-cet outil, comment il fonctionne, et ce que signifient les codes qu'on
-retrouve dans les autres fichiers. Si tu es une IA à qui on vient de
-donner ce ZIP sans autre explication, lis ceci en premier.
-
-────────────────────────────────────────
-1. C'EST QUOI, PILLBOX ?
-────────────────────────────────────────
-Pillbox est un outil web (un site, pas un logiciel à installer) utilisé
-par les responsables d'une faction EMS (ambulanciers/médecins) sur un
-serveur de jeu de rôle GTA RP. Chaque semaine, le responsable y colle
-deux informations :
-  - le tableau des employés EMS (nom, grade, historique de la semaine
-    passée) ;
-  - la liste des réanimations effectuées par chacun cette semaine.
-Pillbox calcule alors automatiquement : la paye de chaque employé, les
-promotions et rétrogradations, les licenciements, les avertissements à
-donner, et génère des fichiers texte prêts à coller sur le serveur
-Discord de la faction.
-
-────────────────────────────────────────
-2. À QUOI SERT CHAQUE FICHIER DU ZIP
-────────────────────────────────────────
-- TABLEAU COMPLET.txt → usage interne, sert de base pour retraiter la
-  semaine suivante (contient le grade, l'info, les absences de chacun).
-- AVERTISSEMENTS DISCORD.txt → à coller dans le salon Discord dédié aux
-  avertissements.
-- PAYES.txt → à coller dans le salon Discord des payes.
-- ANNONCE DISCORD.txt → annonce hebdomadaire (top 3, record) à coller
-  dans le salon annonces.
-- LICENCIEMENTS.txt → usage interne, liste des licenciements de la
-  semaine et leur raison.
-- PROMOTIONS.txt → usage interne + messages prêts à copier dans les
-  tickets Discord des Stagiaires promus Ambulanciers.
-- CONTEXTE.txt (ce fichier) → explique le système, ne change jamais
-  d'une semaine à l'autre.
-
-────────────────────────────────────────
-3. HIÉRARCHIE DES GRADES (du plus bas au plus haut)
-────────────────────────────────────────
-STG (Stagiaire) < A (Ambulancier) < INF (Infirmier) < M (Médecin)
-< MF (Médecin Formateur) / MP (Médecin Psychologue) / MLP (Médecin
-Légiste/Pathologiste) < RP (Responsable Psychologue) / RF (Responsable
-Formateur) / RL (Responsable Légiste) < MC (Médecin Chef)
-< ADD (Assistant de Direction) < CD (Co-Directeur) < D (Directeur)
-< DG (Directeur Général)
-
-────────────────────────────────────────
-4. CODES DE LA COLONNE "INFO" (dans le Tableau Complet)
-────────────────────────────────────────
-- Q1/Q2/Q3 = avertissements de quota non atteint, accumulés semaine
-  après semaine.
-- S1 = quota déjà réussi une fois (encore une réussite = promotion,
-  sauf pour les Stagiaires qui suivent une règle à part).
-- A1/A2/A3 = avertissements comportementaux.
-- AB1/AB2/AB3 = semaines d'absence longue (7 jours ou plus).
-- Z1/Z2/Z3... = nombre de semaines consécutives à 0 réanimation pour un
-  grade normalement exempté de quota (MC, ADD, CD, D, DG) — sert à
-  proposer une rétrogradation une fois un seuil atteint (4 par défaut).
-- BNVL = bénévole : jamais d'avertissement, jamais d'absence suivie,
-  exempté de quota, mais reste visible dans le Tableau Complet avec ce
-  statut affiché tel quel (pas laissé vide).
-
-────────────────────────────────────────
-5. RÈGLES PRINCIPALES DE QUOTA / PROMOTION / LICENCIEMENT / ABSENCE
-────────────────────────────────────────
-- Semaine : du samedi au vendredi (7 jours).
-- Licenciement automatique à Q3 : si quelqu'un avait déjà Q3 la semaine
-  précédente ET rate encore son quota cette semaine, c'est un
-  licenciement direct, sans proposition.
-- Pour les Ambulanciers : la PROPOSITION de licenciement (à valider
-  Oui/Non) se déclenche en atteignant Q3 pour la première fois cette
-  semaine (le cas où on est déjà à Q3 reste automatique, voir
-  ci-dessus). C'est le même mécanisme que pour les Stagiaires, mais
-  décalé d'un cran (Stagiaires : proposé à Q2, automatique à Q3).
-- Absences qui chevauchent le retour en cours de semaine : si la
-  personne revient samedi, dimanche ou lundi (3 premiers jours), le
-  quota normal est exigé (avertissement possible si raté). Si elle
-  revient mardi ou plus tard, elle est excusée pour toute la semaine
-  (aucun avertissement, pas assez de jours restants). Si l'absence dure
-  toute la semaine sans retour, l'exemption complète s'applique comme
-  d'habitude.
-- BNVL (bénévole) : reconnu soit par l'étiquette "[BNVL]" devant le
-  nom, soit par le mot "BNVL" écrit dans la colonne Info. Dans les deux
-  cas, exempté de quota et jamais suivi pour les absences.
-
-────────────────────────────────────────
-6. À NE PAS FAIRE
-────────────────────────────────────────
-Ne jamais construire d'automatisation (extension navigateur, script,
-etc.) qui écrit directement sur le site EMS depuis le navigateur d'un
-utilisateur : une tentative précédente a saturé le site de requêtes et
-l'a fait planter. Si un import en masse doit exister un jour, il doit
-être ajouté côté serveur par l'administrateur du site EMS — jamais
-côté client.
-
-════════════════════════════════════════════════════
-Fin du fichier de contexte.
-════════════════════════════════════════════════════
-`;
-}
-
 function buildDetailPayesText(ctx){
   const {actifs, licencies, bonusOf, finalPaye, weekStart, weekEnd} = ctx;
   const rows = [...actifs, ...licencies].filter(e=>e.reaCount>0 || (EXEMPT.has(e.grade) && !e.benevole)).sort((a,b)=>a.name.localeCompare(b.name));
@@ -3883,8 +3835,8 @@ function buildDetailPayesText(ctx){
     const deductionApplied = e.payeTableau - (e.paye - e.reaCount*REA_RATE);
     const fixeVersee = fixedAmount - deductionApplied;
     const reaAmount = e.reaCount * REA_RATE;
-    const ppaAmount = ppaFor(e.name, state.ppaList, e.id);
-    const primeOptAmount = ppaFor(e.name, state.primeOptionnelleList, e.id);
+    const ppaAmount = e.benevole ? 0 : ppaFor(e.name, state.ppaList, e.id);
+    const primeOptAmount = e.benevole ? 0 : ppaFor(e.name, state.primeOptionnelleList, e.id);
     const bonus = e.licencie ? 0 : bonusOf(e);
     const total = e.licencie ? (e.paye + ppaAmount + primeOptAmount + bonus) : finalPaye(e);
     const fixeNote = (!e.exempt && !e.quotaMet && fixeVersee<=0) ? " (✕ quota non atteint)"
@@ -3929,8 +3881,8 @@ function buildPayeDetailStep(ctx){
     const deductionApplied = e.payeTableau - (e.paye - e.reaCount*REA_RATE);
     const fixeVersee = fixedAmount - deductionApplied;
     const reaAmount = e.reaCount * REA_RATE;
-    const ppaAmount = ppaFor(e.name, state.ppaList, e.id);
-    const primeOptAmount = ppaFor(e.name, state.primeOptionnelleList, e.id);
+    const ppaAmount = e.benevole ? 0 : ppaFor(e.name, state.ppaList, e.id);
+    const primeOptAmount = e.benevole ? 0 : ppaFor(e.name, state.primeOptionnelleList, e.id);
     const bonus = e.licencie ? 0 : bonusOf(e);
     const total = e.licencie ? (e.paye + ppaAmount + primeOptAmount + bonus) : finalPaye(e);
     html += `<tr data-name="${esc(e.name.toLowerCase())}">
@@ -3985,7 +3937,11 @@ async function fetchAbsenceSignalements(){
   // Pas de requête protégée avant que le jeton ait été restauré/généré.
   if(!pillboxSessionToken) return;
   try{
-    const { absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements } = await fetchViaPillboxProxy();
+    const proxy = await fetchViaPillboxProxy();
+    if(proxy?.readStatus?.absences === "error" || proxy?.readStatus?.alertDecisions === "error"){
+      throw new Error("Impossible de vérifier les absences/leurs décisions dans Firebase.");
+    }
+    const { absenceSignalements, stgAbsenceSignalements, longAbsenceSignalements } = proxy;
     state.absenceSignalements = Array.isArray(absenceSignalements) ? absenceSignalements : [];
     // (13/10, sections 2.6/2.8) Règle STG (2 absences/2 semaines) et
     // absence longue (>67j) — mêmes règles que le Roster, jamais
@@ -3993,12 +3949,15 @@ async function fetchAbsenceSignalements(){
     // côté serveur) arrive directement dans chaque entrée.
     state.stgAbsenceSignalements = Array.isArray(stgAbsenceSignalements) ? stgAbsenceSignalements : [];
     state.longAbsenceSignalements = Array.isArray(longAbsenceSignalements) ? longAbsenceSignalements : [];
+    state.absenceSignalementsLoadError = null;
+    state.absenceSignalementsLoaded = true;
   }catch(err){
-    state.absenceSignalements = [];
-    state.stgAbsenceSignalements = [];
-    state.longAbsenceSignalements = [];
+    // Ne remplace jamais une panne par "aucune absence". Conserve les
+    // dernières données connues et marque explicitement la lecture invalide.
+    state.absenceSignalementsLoadError = err?.message || String(err);
+    state.absenceSignalementsLoaded = false;
+    console.error("Erreur lecture absences:", err);
   }
-  state.absenceSignalementsLoaded = true;
   render();
 }
 
@@ -4087,6 +4046,8 @@ function computeAbsenceDecisionGroups(actifs){
 async function fetchFormationOperationEntries(){
   try{
     const proxy = await fetchViaPillboxProxy();
+    const readState = proxy?.readStatus?.formationOperation || "unknown";
+    if(readState === "error") throw new Error("Lecture Firebase Formation Opération impossible.");
     const data = proxy?.formationOperation || null;
     const lines = (data && data.text) ? data.text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean) : [];
     state.formationOperationEntries = lines.map(line=>{
@@ -4096,8 +4057,12 @@ async function fetchFormationOperationEntries(){
       }
       return { name: line.trim(), idUnique: "" };
     });
+    state.formationOperationLoadState = readState === "absent" ? "absent" : "found";
   }catch(err){
-    state.formationOperationEntries = [];
+    // Conserve la dernière liste connue, mais elle ne doit plus être utilisée
+    // comme preuve tant que la lecture courante est en erreur.
+    state.formationOperationLoadState = "error";
+    console.error("Erreur lecture Formation Opération:", err);
   }
   render();
 }
@@ -4116,6 +4081,15 @@ function hasFormationOperation(row){
     (f.name && row.name && f.name.trim().toLowerCase()===row.name.trim().toLowerCase())
   );
 }
+function formationOperationVerification(row){
+  // Ne change pas la logique historique de hasFormationOperation() : on
+  // l'appelle uniquement quand Firebase a réellement confirmé la liste.
+  if(state.formationOperationLoadState === "error" || state.formationOperationLoadState === "unknown") return "unverifiable";
+  // Comportement historique conservé : une liste Firebase réellement absente
+  // ou vide reste neutre (hasFormationOperation() renvoyait déjà true).
+  if(state.formationOperationLoadState === "absent" || !state.formationOperationEntries.length) return "present";
+  return hasFormationOperation(row) ? "present" : "missing";
+}
 
 // Suivi d'activité des spécialités : récupéré silencieusement depuis le
 // Roster. Sert aux avertissements quota ET au Tableau de bord. L'affichage
@@ -4124,10 +4098,14 @@ function hasFormationOperation(row){
 async function fetchActiviteSuivi(){
   try{
     const proxy = await fetchViaPillboxProxy();
+    if(proxy?.readStatus?.activite === "error") throw new Error("Lecture Firebase de l'activité Formateur/Psychologue impossible.");
     const data = proxy?.activite || null;
     state.activiteSuivi = (data && data.data) ? data.data : {};
+    state.activiteSuiviLoadError = null;
   }catch(err){
-    state.activiteSuivi = {};
+    // Ne remplace pas une panne par une fausse activité vide.
+    state.activiteSuiviLoadError = err?.message || String(err);
+    console.error("Erreur lecture activité:", err);
   }
   render();
 }
@@ -4139,6 +4117,11 @@ function getActiviteFor(row){
   if(row.id && data[`id:${row.id}`]) return data[`id:${row.id}`];
   const byName = data[`name:${row.name.trim().toLowerCase()}`];
   return byName || null;
+}
+function activiteVerification(row){
+  if(state.activiteSuiviLoadError) return { state:"unverifiable", data:null };
+  const data = getActiviteFor(row);
+  return { state:data ? "found" : "absent", data:data || {} };
 }
 
 // Regroupe les signalements bruts par personne (par ID en priorité, sinon
@@ -4227,6 +4210,14 @@ function buildContext(){
   const actifs = employees.filter(e=>!e.licencie);
   const pendingQ = actifs.filter(e=>e.pendingManualQ);
   const payeZeroBugList = actifs.filter(e=>e.payeTableauWasZeroBug);
+  const duplicateIdAnomalies = (state.parsed?.anomalies || []).filter(a=>/ID dossier .*risque de paye en double/i.test(a?.type || ""));
+  const hasBlockingDuplicateId = duplicateIdAnomalies.length > 0;
+  const criticalCloudReadErrors = [];
+  if(state.signalementsLoadError) criticalCloudReadErrors.push(`Signalements : ${state.signalementsLoadError}`);
+  else if(pillboxSessionToken && !state.signalementsLoaded) criticalCloudReadErrors.push("Signalements : chargement non terminé.");
+  if(state.absenceSignalementsLoadError) criticalCloudReadErrors.push(`Absences : ${state.absenceSignalementsLoadError}`);
+  else if(pillboxSessionToken && !state.absenceSignalementsLoaded) criticalCloudReadErrors.push("Absences : chargement non terminé.");
+  const hasCriticalCloudReadError = criticalCloudReadErrors.length > 0;
   const pendingUp = actifs.filter(e=>e.upEligible);
   const pendingNearMiss = actifs.filter(e=>e.nearMissCandidate);
   // "Restant(s) sans réponse" — pendingQ/pendingUp listent TOUS les cas
@@ -4257,15 +4248,20 @@ function buildContext(){
   // Même logique que unansweredQ/unansweredUp plus haut : ne compte que ce
   // qui n'a pas encore de réponse "tous" (le bouton répond pour tout le
   // groupe d'un coup, donc un seul suffit à vérifier).
-  const unansweredStgLicence = pendingStgLicenceList.length>0 && pendingStgLicenceList.every(e=>state.overrides[e.key]?.stgLicenceDecision===undefined) ? pendingStgLicenceList : [];
-  const unansweredALicence = pendingALicenceList.length>0 && pendingALicenceList.every(e=>state.overrides[e.key]?.aLicenceDecision===undefined) ? pendingALicenceList : [];
-  const unansweredInfLicence = pendingInfLicenceList.length>0 && pendingInfLicenceList.every(e=>state.overrides[e.key]?.infLicenceDecision===undefined) ? pendingInfLicenceList : [];
+  const unansweredStgLicence = pendingStgLicenceList.filter(e=>state.overrides[e.key]?.stgLicenceDecision===undefined);
+  const unansweredALicence = pendingALicenceList.filter(e=>state.overrides[e.key]?.aLicenceDecision===undefined);
+  const unansweredInfLicence = pendingInfLicenceList.filter(e=>state.overrides[e.key]?.infLicenceDecision===undefined);
+  const unansweredExtraQLicence = pendingExtraQLicenceList.filter(e=>state.overrides[e.key]?.extraQLicenceDecision===undefined);
   // Utilise "employees" (pas "actifs") pour cette liste précise (10/09) :
   // sinon, une fois "🔥 Licencier" choisi, la personne disparaîtrait de
   // "actifs" (filtré sur !licencie) et la ligne deviendrait impossible
   // à annuler, faute de bouton restant visible. pendingHgRetrograde
   // gère déjà correctement ce cas (voir plus haut).
   const hgRetrogradeList = employees.filter(e=>e.pendingHgRetrograde);
+  const unansweredHgRetrograde = hgRetrogradeList.filter(e=>{
+    const ov = state.overrides[e.key] || {};
+    return ov.hgManualFire!==true && !ov.manualPromoteTarget && ov.hgRetrogradeDismissed!==true;
+  });
   const mcAddList = actifs.filter(e=>e.pendingMcAdd);
   const unansweredMcAdd = mcAddList.filter(e=>e.mcAddDecision===undefined);
   // Utilise les actifs + ceux licenciés PAR CE MÊME mécanisme (pas
@@ -4295,7 +4291,8 @@ function buildContext(){
   const unansweredLongAbsenceGroups = pendingLongAbsenceGroups.filter(g=>!g.decision);
   const departs = actifs.filter(e=>state.overrides[e.key]?.depart);
   const activeForTableau = actifs.filter(e=>!state.overrides[e.key]?.depart).concat(futureArrivals);
-  const sortedRea = [...actifs].sort((a,b)=>b.reaCount-a.reaCount);
+  // Les bénévoles ne participent jamais au classement financier Top 3.
+  const sortedRea = actifs.filter(e=>!e.benevole && e.reaCount>0).sort((a,b)=>b.reaCount-a.reaCount);
   // Classement "sportif" (19/09, corrige un vrai bug) : le rang de
   // chacun est 1 + le nombre de personnes ayant STRICTEMENT plus de
   // réanimations — donc deux personnes à égalité partagent le même
@@ -4320,6 +4317,8 @@ function buildContext(){
   const top1Tier = rankTiers[0];
   const newRecord = top1Tier && top1Tier.reaCount>recordNum;
   function finalPaye(e){
+    // BNVL : zéro paie totale et zéro bonus financier, sans exception.
+    if(e.benevole) return 0;
     let p = e.paye;
     const bonus = BONUS_BY_RANK_CONFIG[bonusRankOf.get(e)] || 0;
     const total = p + bonus + ppaFor(e.name, state.ppaList, e.id) + ppaFor(e.name, state.primeOptionnelleList, e.id);
@@ -4329,7 +4328,10 @@ function buildContext(){
     // le remarque avant l'envoi sur Discord.
     return isNaN(total) ? (isNaN(p) ? 0 : p) : total;
   }
-  function bonusOf(e){ return BONUS_BY_RANK_CONFIG[bonusRankOf.get(e)] || 0; }
+  function bonusOf(e){ return e.benevole ? 0 : (BONUS_BY_RANK_CONFIG[bonusRankOf.get(e)] || 0); }
+  // Source numérique unique du total distribué, identique au calcul du coffre.
+  const payesPopulation = actifs.filter(e=>e.reaCount>0 || (EXEMPT.has(e.grade) && !e.benevole));
+  const totalPaye = payesPopulation.reduce((sum,e) => sum + finalPaye(e), 0);
   const hasPending = unansweredQ.length>0 || unansweredUp.length>0 || unansweredNearMiss.length>0 || stgBlockedList.length>0 || upBlockedList.length>0 || hgRetrogradeList.length>0 || mcAddList.length>0 || pendingStgLicenceList.length>0 || stgJustLicencedList.length>0 || pendingALicenceList.length>0 || aJustLicencedList.length>0 || pendingInfLicenceList.length>0 || infJustLicencedList.length>0 || pendingExtraQLicenceList.length>0 || extraQJustLicencedList.length>0 || pendingSignalementGroups.length>0;
   // hasUnresolvedDecisions : UNIQUEMENT les vraies décisions cliquables
   // encore sans réponse — utilisé pour bloquer le ZIP/les fichiers.
@@ -4342,8 +4344,12 @@ function buildContext(){
   // livrer le reste de la semaine. hasPending reste large pour que
   // l'étape 6 continue à les afficher comme rappel (bug remonté le 06/09
   // — le ZIP restait bloqué indéfiniment à cause d'un cas non cliquable).
-  const hasUnresolvedDecisions = unansweredQ.length>0 || unansweredUp.length>0 || unansweredNearMiss.length>0 || hgRetrogradeList.length>0 || unansweredMcAdd.length>0 || unansweredStgLicence.length>0 || unansweredALicence.length>0 || unansweredSignalementGroups.length>0;
-  return {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, activeForTableau, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, bonusOf, hasPending, hasUnresolvedDecisions};
+  const hasUnresolvedDecisions = unansweredQ.length>0 || unansweredUp.length>0 || unansweredNearMiss.length>0 ||
+    unansweredHgRetrograde.length>0 || unansweredMcAdd.length>0 || unansweredStgLicence.length>0 ||
+    unansweredALicence.length>0 || unansweredInfLicence.length>0 || unansweredExtraQLicence.length>0 ||
+    unansweredSignalementGroups.length>0 || unansweredAbsenceGroups.length>0 ||
+    unansweredStgAbsenceGroups.length>0 || unansweredLongAbsenceGroups.length>0;
+  return {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, activeForTableau, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, bonusOf, totalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, criticalCloudReadErrors, hasCriticalCloudReadError};
 }
 
 
@@ -4366,14 +4372,14 @@ function employeeOptionsByGrade(list, selectedKey, mode="key"){
 
 function render(){
   document.getElementById('weekRangeLabel').textContent = `Semaine du ${fmtDate(getWeekStart())} au ${fmtDate(getWeekEnd())}`;
-  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim();
+  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
   renderNameMatchStep();
 
   const results = document.getElementById('results');
   if(!state.parsed){ results.innerHTML = ""; applyWizardMode(); return; }
 
   const ctx = buildContext();
-  const {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, hasPending, hasUnresolvedDecisions} = ctx;
+  const {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, criticalCloudReadErrors, hasCriticalCloudReadError} = ctx;
   const fileRange = weekRangeTag(weekStart, weekEnd);
 
   let html = "";
@@ -4386,7 +4392,10 @@ function render(){
   <span class="tuto-example">Exemple : si tu vois "3 à valider", ça veut dire que 3 décisions t'attendent à l'étape 5 (Points à valider) — le reste du travail (calculs, quotas) est déjà fait automatiquement.</span></div>`;
   html += `<div class="stat-grid">`;
   html += `<div class="stat-tile"><span class="stat-icon">👥</span><span class="stat-num">${actifs.length}</span><span class="stat-label">Actifs</span></div>`;
-  const nbAValider = unansweredQ.length+unansweredUp.length+unansweredNearMiss.length+stgBlockedList.length+upBlockedList.length+hgRetrogradeList.length+unansweredMcAdd.length+pendingStgLicenceList.length+pendingSignalementGroups.length;
+  const nbAValider = unansweredQ.length + unansweredNearMiss.length + unansweredUp.length +
+    unansweredStgLicence.length + unansweredALicence.length + unansweredInfLicence.length + unansweredExtraQLicence.length +
+    unansweredHgRetrograde.length + unansweredMcAdd.length + unansweredSignalementGroups.length +
+    unansweredAbsenceGroups.length + unansweredStgAbsenceGroups.length + unansweredLongAbsenceGroups.length;
   html += `<div class="stat-tile t-amber"><span class="stat-icon">⚠</span><span class="stat-num">${nbAValider}</span><span class="stat-label">À valider</span></div>`;
   html += `<div class="stat-tile t-red"><span class="stat-icon">✕</span><span class="stat-num">${licencies.length}</span><span class="stat-label">Licenciement${licencies.length>1?'s':''}</span></div>`;
   html += `<div class="stat-tile t-green"><span class="stat-icon">↑</span><span class="stat-num">${autoPromotions.length+manualPromotions.length+forcedPromotions.length}</span><span class="stat-label">Promotion${(autoPromotions.length+manualPromotions.length+forcedPromotions.length)>1?'s':''}</span></div>`;
@@ -4412,10 +4421,7 @@ function render(){
   // cas, pas comptée comme sortant du coffre.
   const coffreActuel = getCoffre();
   if(coffreActuel !== null){
-    const payesPopulation = [...actifs].filter(e=>e.reaCount>0 || (EXEMPT.has(e.grade) && !e.benevole));
-    const totalPayes = payesPopulation
-      .filter(e => !(EXEMPT.has(e.grade) && e.reaCount===0))
-      .reduce((sum,e) => sum + finalPaye(e), 0);
+    const totalPayes = totalPaye;
     const coffreApres = coffreActuel - totalPayes;
     const coffreColor = coffreApres < 0 ? "var(--danger)" : "var(--ink)";
     html += `<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
@@ -4445,7 +4451,7 @@ function render(){
     // Si un NOUVEAU cas apparaît en cours de route (ex: une absence
     // modifiée révèle un quota manqué), le total s'ajuste vers le haut
     // pour l'inclure, jamais vers le bas.
-    const decisionsRemaining = unansweredQ.length + unansweredUp.length + unansweredNearMiss.length + unansweredStgLicence.length + unansweredALicence.length + hgRetrogradeList.length + unansweredMcAdd.length + unansweredSignalementGroups.length + unansweredAbsenceGroups.length + unansweredStgAbsenceGroups.length + unansweredLongAbsenceGroups.length;
+    const decisionsRemaining = unansweredQ.length + unansweredUp.length + unansweredNearMiss.length + unansweredStgLicence.length + unansweredALicence.length + unansweredInfLicence.length + unansweredExtraQLicence.length + hgRetrogradeList.length + unansweredMcAdd.length + unansweredSignalementGroups.length + unansweredAbsenceGroups.length + unansweredStgAbsenceGroups.length + unansweredLongAbsenceGroups.length;
     if(state.decisionsSessionTotal===undefined || state.decisionsSessionTotal===null || decisionsRemaining > state.decisionsSessionTotal){
       state.decisionsSessionTotal = decisionsRemaining;
     }
@@ -4544,9 +4550,12 @@ function render(){
       // de revenir à la phrase simple — c'est la même chose en pratique
       // (demandé le 07/09).
       const gradeConcerne = ["MF","RF","MP","RP"].includes((e.grade||"").toUpperCase());
-      const act = gradeConcerne ? (getActiviteFor(e) || {}) : null;
+      const actCheck = gradeConcerne ? activiteVerification(e) : null;
+      const act = actCheck?.data || null;
       let quotaSentence;
-      if(act && (e.grade==="MF" || e.grade==="RF")){
+      if(actCheck?.state==="unverifiable"){
+        quotaSentence = `<b>${esc(e.name)}</b> (${esc(GRADE_LABEL[e.grade])}) n'a pas atteint son quota cette semaine (${e.reaCount} réa) — <b>activité Formateur/Psychologue non vérifiable</b>. Mettre un avertissement quota ?`;
+      } else if(act && (e.grade==="MF" || e.grade==="RF")){
         quotaSentence = `<b>${esc(e.name)}</b> (${esc(GRADE_LABEL[e.grade])}) n'a pas atteint son quota cette semaine (${e.reaCount} réa), mais a fait ${act.recrutements||0} recrutements et ${act.formations||0} formations. Mettre un avertissement quota ?`;
       } else if(act && (e.grade==="MP" || e.grade==="RP")){
         quotaSentence = `<b>${esc(e.name)}</b> (${esc(GRADE_LABEL[e.grade])}) n'a pas atteint son quota cette semaine (${e.reaCount} réa), mais a fait ${act.testsPsy||0} tests psy, ${act.ppa||0} PPA et ${act.consultations||0} consultation${(act.consultations||0)>1?'s':''}. Mettre un avertissement quota ?`;
@@ -4578,14 +4587,17 @@ function render(){
       // personne proposée à l'UP fait aussi correctement son vrai travail
       // avant de valider.
       const upGradeConcerne = ["MF","RF","MP","RP"].includes((e.grade||"").toUpperCase());
-      const upAct = upGradeConcerne ? (getActiviteFor(e) || {}) : null;
+      const upActCheck = upGradeConcerne ? activiteVerification(e) : null;
+      const upAct = upActCheck?.data || null;
       let upActiviteTxt = "";
-      if(upAct && (e.grade==="MF" || e.grade==="RF")){
+      if(upActCheck?.state==="unverifiable"){
+        upActiviteTxt = ` — activité Formateur/Psychologue non vérifiable`;
+      } else if(upAct && (e.grade==="MF" || e.grade==="RF")){
         upActiviteTxt = ` — a fait ${upAct.recrutements||0} recrutement${(upAct.recrutements||0)>1?'s':''} et ${upAct.formations||0} formation${(upAct.formations||0)>1?'s':''} cette semaine`;
       } else if(upAct && (e.grade==="MP" || e.grade==="RP")){
         upActiviteTxt = ` — a fait ${upAct.testsPsy||0} test${(upAct.testsPsy||0)>1?'s':''} psy, ${upAct.ppa||0} PPA et ${upAct.consultations||0} consultation${(upAct.consultations||0)>1?'s':''} cette semaine`;
       }
-      const upDetails = `${GRADE_LABEL[e.grade]}, ${e.reaCount} réa, quota atteint, S déjà présent${dureeTxt ? " — " + dureeTxt : ""}${e.missingFormationOperation ? " — n'a pas la formation opération" : ""}${upActiviteTxt}`;
+      const upDetails = `${GRADE_LABEL[e.grade]}, ${e.reaCount} réa, quota atteint, S déjà présent${dureeTxt ? " — " + dureeTxt : ""}${e.missingFormationOperation ? " — n'a pas la formation opération" : ""}${e.formationOperationUnverifiable ? " — Formation Opération non vérifiable" : ""}${upActiviteTxt}`;
       const upSentence = targetLabel
         ? `<b>${esc(e.name)} est éligible à une promotion au grade de ${esc(targetLabel)}.</b>`
         : `<b>${esc(e.name)} est éligible à une promotion.</b>`;
@@ -4893,9 +4905,9 @@ function render(){
   html += `<div class="step"><div class="step-head"><div class="step-num">10</div><h2>Primes — Top 3 réanimations &amp; PPA</h2><div class="sub">calculées automatiquement, PPA à ajouter à la main si besoin</div></div><div class="step-body">`;
   html += `<div class="hint" style="margin-bottom:10px;">👉 Le Top 3 ci-dessous est calculé tout seul. Si quelqu'un a une PPA (permis port d'arme), ajoute-la avec le petit formulaire — sinon tu peux passer directement à l'étape suivante.</div>`;
   html += `<div class="tuto-box"><b class="tuto-title">🎓 En détail</b>
-  Les 3 employés avec le plus de réanimations cette semaine touchent une prime automatique (3 000 000 $ / 2 000 000 $ / 1 000 000 $ pour le podium) — pas besoin de faire quoi que ce soit, c'est déjà calculé et intégré à leur paye. La PPA, elle, est une prime distincte liée au permis port d'arme, à ajouter manuellement pour chaque personne concernée.
+  Les 3 meilleurs rangs de réanimations cette semaine touchent une prime automatique (${[1,2,3].map(r=>(BONUS_BY_RANK_CONFIG[r]||0).toLocaleString("fr-FR")+" $").join(" / ")} pour le podium) — pas besoin de faire quoi que ce soit, c'est déjà calculé et intégré à leur paye. La PPA, elle, est une prime distincte liée au permis port d'arme, à ajouter manuellement pour chaque personne concernée.
   <span class="tuto-example">Exemple : Aaron Bright a passé son permis port d'arme cette semaine → tu tapes son nom, le montant de la prime, puis "Ajouter". Elle s'ajoutera à sa paye finale, en plus de son grade et de ses réanimations.</span></div>`;
-  const top3Bonuses = [3000000, 2000000, 1000000];
+  const top3Bonuses = [BONUS_BY_RANK_CONFIG[1]||0, BONUS_BY_RANK_CONFIG[2]||0, BONUS_BY_RANK_CONFIG[3]||0];
   const top3Max = podiumTiers[0] ? podiumTiers[0].reaCount : 1;
   html += `<div class="top3-bars" style="margin-bottom:16px">`;
   const medals=["🥇","🥈","🥉"];
@@ -4911,7 +4923,7 @@ function render(){
   });
   html += `</div>`;
 
-  const ppaEligibles = actifs.filter(e=>PPA_ELIGIBLE_GRADES.includes(e.grade));
+  const ppaEligibles = actifs.filter(e=>!e.benevole && PPA_ELIGIBLE_GRADES.includes(e.grade));
   html += `<label class="field-label">Ajouter une PPA (permis port d'arme) <span style="font-weight:400; color:var(--ink-dim); font-size:11px; text-transform:none;">— réservée aux grades MP et au-dessus</span></label>`;
   html += `<div class="ppa-form">
     <select id="ppaNameSelect">
@@ -4944,12 +4956,13 @@ function render(){
     html += `<button class="dl-btn" style="margin-top:12px;${doneAll?'background:var(--green);border-color:var(--green);color:#fff':''}" data-action="copyAllPpa">${doneAll? "✓ Bloc PPA copié":"📋 Copier tout le bloc PPA (pour Discord)"}</button>`;
   }
 
+  const financialActifs = actifs.filter(e=>!e.benevole);
   html += `<hr style="border:none;border-top:1px solid var(--line);margin:20px 0 14px;">
     <div style="font-size:11px; color:var(--ink-dim); margin-bottom:8px;">Prime optionnelle <span style="font-weight:400;">— une prime libre, ouverte à n'importe quel grade (contrairement à la PPA, réservée à MP et au-dessus)</span></div>`;
   html += `<div class="ppa-form">
     <select id="primeOptNameSelect">
       <option value="">— choisir un employé —</option>
-      ${employeeOptionsByGrade(actifs, "", "name")}
+      ${employeeOptionsByGrade(financialActifs, "", "name")}
     </select>
     <input type="text" id="primeOptAmount" placeholder="montant $" style="width:110px">
     <input type="text" id="primeOptReason" placeholder="raison (optionnel)" style="width:200px">
@@ -4981,7 +4994,7 @@ function render(){
   employees.slice().sort((a,b)=>gradeSortIdx(a.grade)-gradeSortIdx(b.grade) || a.name.localeCompare(b.name)).forEach(e=>{
     const dotClass = e.licencie? "dot-red" : ((e.pendingManualQ && state.overrides[e.key]?.applyQ===undefined) || (e.upEligible && state.overrides[e.key]?.upDecision===undefined)) ? "dot-amber" : "dot-green";
     const deductionApplied = e.payeTableau - (e.paye - e.reaCount*REA_RATE);
-    const noFixe = !e.exempt && !e.quotaMet && !e.isAbsentThisWeek && deductionApplied>0;
+    const noFixe = !e.exempt && !e.quotaMet && deductionApplied>0;
     const editingAbs = state.editingAbsKey === e.key;
     const gradeBg = GRADE_BADGE_BG[e.grade] || "#e0e0e0";
     const gradeFg = GRADE_BADGE_FG[e.grade] || "#333333";
@@ -5012,16 +5025,15 @@ function render(){
   html += `<div class="step"><div class="step-head"><div class="step-num">12</div><h2>Télécharger les fichiers de la semaine</h2><div class="sub">la dernière étape — c'est ici que tu récupères tout</div></div><div class="step-body">`;
   html += `<div class="hint" style="margin-bottom:10px;">👉 Le bouton "📦 Télécharger PAIE EMS (.ZIP)" crée automatiquement "PAYE SEMAINE DU [dates].zip" dans ton dossier Téléchargements, avec les 6 fichiers à l'intérieur. Sinon, chaque fichier a son propre bouton "📋 copier" juste en dessous, à coller directement là où il doit aller sur Discord.</div>`;
   html += `<div class="tuto-box"><b class="tuto-title">🎓 En détail</b>
-  Les 7 fichiers, et où ils vont : <b>Tableau Complet</b> (usage interne, pour la semaine prochaine), <b>Avertissements Discord</b> (canal Avertissements, avec les rôles à ping), <b>Payes</b> (Discord EMS V2), <b>Annonce Discord</b> (canal annonces, avec ping), <b>Licenciements</b> (interne), <b>Promotions</b> (interne + messages tickets Stagiaires), <b>Contexte</b> (statique, explique le système — inclus uniquement dans le ZIP, pas de bouton dédié, pour qu'une IA à qui tu montres le ZIP l'ait automatiquement).
+  Les 6 fichiers, et où ils vont : <b>Tableau Complet</b> (usage interne, pour la semaine prochaine), <b>Avertissements Discord</b> (canal Avertissements, avec les rôles à ping), <b>Payes</b> (Discord EMS V2), <b>Annonce Discord</b> (canal annonces, avec ping), <b>Licenciements</b> (interne), <b>Promotions</b> (interne + messages tickets Stagiaires).
   <span class="tuto-example">Le plus simple : clique le gros bouton ZIP une fois, ouvre le dossier Téléchargements, et copie-colle chaque fichier texte au bon endroit sur Discord un par un. Ou utilise directement les boutons "📋 copier" si tu as déjà les bons salons Discord ouverts dans d'autres onglets.
 💻 Astuce PC : le dossier Téléchargements s'ouvre avec la touche Windows + E (ou l'icône dossier dans la barre des tâches), puis clique sur "Téléchargements" à gauche. Pour ouvrir un fichier .txt, double-clique dessus. Pour aller vite entre plusieurs onglets Discord, "Ctrl+Tab" passe à l'onglet suivant, "Ctrl+Shift+Tab" au précédent.</span></div>`;
   html += `<div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
-    <button class="dl-btn${hasUnresolvedDecisions?' dl-btn-disabled':''}" data-action="${hasUnresolvedDecisions?'jumpToPending':'downloadAll'}" style="font-weight:700"${hasUnresolvedDecisions?` title="Termine d'abord l'étape 5"`:''}>📦 Télécharger PAIE EMS (.ZIP)</button>
+    <button class="dl-btn${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasCriticalCloudReadError)?' dl-btn-disabled':''}" data-action="${hasUnresolvedDecisions?'jumpToPending':(hasBlockingDuplicateId?'jumpToCriticalDuplicate':(hasCriticalCloudReadError?'jumpToCloudReadError':'downloadAll'))}" style="font-weight:700"${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasCriticalCloudReadError)?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":"Réessaie le chargement des données cloud")}"`:''}>📦 Télécharger PAIE EMS (.ZIP)</button>
   </div>`;
   // Tant que les VRAIES décisions cliquables ne sont pas toutes répondues
-  // (hasUnresolvedDecisions), le ZIP ET les fichiers individuels restent
-  // grisés et bloqués — sauf le fichier Contexte, statique, qui ne dépend
-  // jamais des décisions de la semaine. Les "cas bloqués" (fiche non
+  // ou qu'un ID dossier est dupliqué, le ZIP ET les fichiers individuels
+  // restent grisés et bloqués. Les "cas bloqués" (fiche non
   // clean) et récapitulatifs déjà confirmés restent visibles à l'étape 6
   // comme rappel, mais NE bloquent PLUS le téléchargement (corrigé le
   // 06/09 — un cas sans bouton Oui/Non ne devrait jamais empêcher de
@@ -5036,9 +5048,14 @@ function render(){
       [unansweredUp.length, "promotion(s) à valider"],
       [unansweredStgLicence.length, "licenciement(s) stagiaire à valider"],
       [unansweredALicence.length, "licenciement(s) ambulancier à valider"],
-      [hgRetrogradeList.length, "rétrogradation(s) HG à valider"],
+      [unansweredInfLicence.length, "licenciement(s) infirmier à valider"],
+      [unansweredExtraQLicence.length, "licenciement(s) Q supplémentaire à valider"],
+      [unansweredHgRetrograde.length, "rétrogradation(s) HG à valider"],
       [unansweredMcAdd.length, "passage(s) MC→ADD à valider"],
       [unansweredSignalementGroups.length, "poste(s) à réévaluer"],
+      [unansweredAbsenceGroups.length, "absence(s) répétée(s) à valider"],
+      [unansweredStgAbsenceGroups.length, "absence(s) STG à valider"],
+      [unansweredLongAbsenceGroups.length, "absence(s) longue(s) à valider"],
     ].filter(([n])=>n>0).map(([n,label])=>`${n} ${label}`);
     html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;">
       <div>
@@ -5049,6 +5066,20 @@ function render(){
       <button type="button" class="dl-btn" data-action="jumpToPending" style="background:var(--amber);border-color:var(--amber);color:#fff;flex:0 0 auto;">↑ Y aller</button>
     </div>`;
   }
+  if(hasCriticalCloudReadError){
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--red);">
+      <div><div style="font-weight:800;margin-bottom:2px;">⛔ Données cloud non vérifiables — fichiers bloqués</div>
+      <div style="font-size:12px;">${esc(criticalCloudReadErrors.join(" · "))}. Une panne ne peut pas être assimilée à « aucune décision ».</div></div>
+      <button type="button" class="dl-btn" data-action="jumpToCloudReadError" style="background:var(--red);border-color:var(--red);color:#fff;flex:0 0 auto;">↻ Réessayer</button>
+    </div>`;
+  }
+  if(hasBlockingDuplicateId){
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--red);">
+      <div><div style="font-weight:800;margin-bottom:2px;">⛔ ID dossier dupliqué — fichiers de paie bloqués</div>
+      <div style="font-size:12px;">${esc(duplicateIdAnomalies.map(a=>a.type).join(" · "))}. Corrige le tableau EMS avant tout téléchargement ou clôture.</div></div>
+      <button type="button" class="dl-btn" data-action="jumpToCriticalDuplicate" style="background:var(--red);border-color:var(--red);color:#fff;flex:0 0 auto;">↑ Voir l'anomalie</button>
+    </div>`;
+  }
   if(payeZeroBugList.length){
     html += `<div class="warn-box" style="margin-bottom:12px;">
       <div style="font-weight:800;margin-bottom:2px;">ℹ️ Paye à 0 $ corrigée automatiquement (bug connu du tableau EMS)</div>
@@ -5057,11 +5088,9 @@ function render(){
   }
   html += `<div style="display:flex;gap:10px;flex-wrap:wrap">`;
   files.forEach((f,i)=>{
-    // Contexte n'a pas de bouton dédié (voir hideButton plus haut) — reste
-    // uniquement dans le ZIP, jamais dans cette liste.
-    if(f.hideButton) return;
-    const blocked = hasUnresolvedDecisions;
-    html += `<button class="dl-btn${blocked?' dl-btn-disabled':''}" data-action="${blocked?'jumpToPending':'download'}" data-file="${i}"${blocked?` title="Termine d'abord l'étape 5"`:''}>${f.label}</button>`;
+    const blocked = hasUnresolvedDecisions || hasBlockingDuplicateId || hasCriticalCloudReadError;
+    const blockedAction = hasUnresolvedDecisions ? "jumpToPending" : (hasBlockingDuplicateId ? "jumpToCriticalDuplicate" : (hasCriticalCloudReadError ? "jumpToCloudReadError" : "download"));
+    html += `<button class="dl-btn${blocked?' dl-btn-disabled':''}" data-action="${blockedAction}" data-file="${i}"${blocked?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":"Réessaie le chargement des données cloud")}"`:''}>${f.label}</button>`;
   });
   html += `</div>`;
 
@@ -5287,11 +5316,12 @@ function addPpaBulk(){
     added.push(parsed.name);
   });
   let msg = "";
-  if(added.length) msg += `<div class="hint" style="color:var(--green);margin-top:8px;">✓ ${added.length} PPA ajoutée(s) : ${added.join(", ")}</div>`;
-  if(capped.length) msg += `<div class="hint" style="color:var(--amber);margin-top:8px;">🔒 Plafond de ${PPA_WEEKLY_CAP.toLocaleString("fr-FR")} $ par personne appliqué : ${capped.join(" · ")}</div>`;
-  if(gradeMismatch.length) msg += `<div class="hint" style="color:var(--amber);margin-top:8px;">⚠ Grade différent du tableau, vérifie que c'est bien la même personne : ${gradeMismatch.join(" · ")}</div>`;
-  if(notEligible.length) msg += `<div class="hint" style="color:var(--danger);margin-top:8px;">✕ Grade non éligible aux PPA, non ajouté(s) : ${notEligible.join(" · ")}</div>`;
-  if(notFound.length) msg += `<div class="hint" style="color:var(--danger);margin-top:8px;">✕ Introuvable(s) dans le tableau, non ajouté(s) : ${notFound.join(", ")}</div>`;
+  const safeList = (arr, sep) => arr.map(x=>esc(String(x))).join(sep);
+  if(added.length) msg += `<div class="hint" style="color:var(--green);margin-top:8px;">✓ ${added.length} PPA ajoutée(s) : ${safeList(added, ", ")}</div>`;
+  if(capped.length) msg += `<div class="hint" style="color:var(--amber);margin-top:8px;">🔒 Plafond de ${PPA_WEEKLY_CAP.toLocaleString("fr-FR")} $ par personne appliqué : ${safeList(capped, " · ")}</div>`;
+  if(gradeMismatch.length) msg += `<div class="hint" style="color:var(--amber);margin-top:8px;">⚠ Grade différent du tableau, vérifie que c'est bien la même personne : ${safeList(gradeMismatch, " · ")}</div>`;
+  if(notEligible.length) msg += `<div class="hint" style="color:var(--danger);margin-top:8px;">✕ Grade non éligible aux PPA, non ajouté(s) : ${safeList(notEligible, " · ")}</div>`;
+  if(notFound.length) msg += `<div class="hint" style="color:var(--danger);margin-top:8px;">✕ Introuvable(s) dans le tableau, non ajouté(s) : ${safeList(notFound, ", ")}</div>`;
   state.ppaBulkFeedback = msg;
   if(added.length) state.pendingSelections.ppaBulkText = "";
   render();
@@ -5440,9 +5470,28 @@ function addManualForceS1(){
 // promotion cette même semaine), pour prévenir l'utilisateur plutôt que
 // de le laisser la manquer plus haut dans la liste.
 function countPending(ctx){
-  return ctx.unansweredQ.length + ctx.unansweredUp.length + ctx.unansweredNearMiss.length + ctx.hgRetrogradeList.length +
+  return ctx.unansweredQ.length + ctx.unansweredUp.length + ctx.unansweredNearMiss.length + ctx.unansweredHgRetrograde.length +
     ctx.unansweredMcAdd.length + ctx.unansweredStgLicence.length + ctx.unansweredALicence.length +
-    ctx.pendingSignalementGroups.length;
+    ctx.unansweredInfLicence.length + ctx.unansweredExtraQLicence.length + ctx.unansweredSignalementGroups.length +
+    ctx.unansweredAbsenceGroups.length + ctx.unansweredStgAbsenceGroups.length + ctx.unansweredLongAbsenceGroups.length;
+}
+
+function unresolvedDecisionDetails(ctx){
+  return [
+    [ctx.unansweredQ.length, "avertissement(s) quota"],
+    [ctx.unansweredNearMiss.length, "quota(s) presque atteint"],
+    [ctx.unansweredUp.length, "promotion(s)"],
+    [ctx.unansweredStgLicence.length, "licenciement(s) STG"],
+    [ctx.unansweredALicence.length, "licenciement(s) A"],
+    [ctx.unansweredInfLicence.length, "licenciement(s) INF"],
+    [ctx.unansweredExtraQLicence.length, "licenciement(s) Q supplémentaire"],
+    [ctx.unansweredHgRetrograde.length, "rétrogradation(s) HG"],
+    [ctx.unansweredMcAdd.length, "passage(s) MC→ADD"],
+    [ctx.unansweredSignalementGroups.length, "poste(s) à réévaluer"],
+    [ctx.unansweredAbsenceGroups.length, "absence(s) répétée(s)"],
+    [ctx.unansweredStgAbsenceGroups.length, "absence(s) STG"],
+    [ctx.unansweredLongAbsenceGroups.length, "absence(s) longue(s)"],
+  ].filter(([n])=>n>0).map(([n,label])=>`${n} ${label}`);
 }
 
 // Retrouve l'étape "⚠ Points à valider" (étape 6) et scrolle jusqu'à la
@@ -5451,6 +5500,26 @@ function countPending(ctx){
 // car utilisé à la fois par la notification flottante ci-dessous ET par
 // le bouton "↑ Y aller" du bandeau d'avertissement de l'étape 11
 // (téléchargements) — même geste, deux points d'entrée différents.
+async function retryCriticalCloudReads(){
+  try{
+    await Promise.all([fetchSignalements(), fetchAbsenceSignalements()]);
+    const ctx = buildContext();
+    if(ctx.hasCriticalCloudReadError){
+      alert(`⛔ Certaines données restent non vérifiables :\n\n${ctx.criticalCloudReadErrors.map(x=>"• "+x).join("\n")}`);
+    }else{
+      pillboxNotice("✓ Données cloud revérifiées.");
+      render();
+    }
+  }catch(err){ alert(`⛔ Réessai impossible : ${err.message || err}`); }
+}
+
+function jumpToCriticalDuplicate(){
+  const nodes = Array.from(document.querySelectorAll('.anomaly-item, .warn-box, [class*="anomal"]'));
+  const target = nodes.find(el=>/ID dossier .*risque de paye en double|ID dossier dupliqué/i.test(el.textContent||""));
+  if(target){ target.scrollIntoView({behavior:"smooth", block:"center"}); target.classList.add("attention-flash"); setTimeout(()=>target.classList.remove("attention-flash"),1600); }
+  else alert("⛔ Un ID dossier est dupliqué dans le tableau EMS. Corrige le tableau puis relance l'analyse.");
+}
+
 function jumpToPendingStep(){
   const step6 = Array.from(document.querySelectorAll('.step')).find(s => s.querySelector('h2')?.textContent.includes("Points à valider"));
   const firstUnanswered = step6?.querySelector('.valid-row .dot-amber')?.closest('.valid-row');
@@ -5548,7 +5617,7 @@ function copyWithFeedback(id, text){
 
 // ═══════════════════════ EVENEMENTS ═══════════════════════
 document.getElementById('tableauText').addEventListener('input', ()=>{
-  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim();
+  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
   state.exported = false;
   autosave();
   renderNameMatchStep();
@@ -5591,7 +5660,7 @@ function getDefaultWeekStart(){
 document.getElementById('weekStartInput').value = getDefaultWeekStart();
 
 // ═══════════════════════ SAUVEGARDE AUTOMATIQUE LOCALE ═══════════════════════
-// Tout est stocké dans le navigateur (localStorage), rien n'est envoyé nulle part.
+// Les données de semaine sont aussi autosauvegardées localement dans localStorage.
 // Objectif : ne rien perdre (tableau collé, corrections manuelles, PPA...) si l'onglet
 // se ferme par erreur en pleine vérification.
 const SAVE_KEY = "pillboxTerminalEmsAutosave_v1";
@@ -5720,12 +5789,9 @@ function resetAll(){
 document.getElementById('resetAllBtn').addEventListener('click', resetAll);
 
 // ═══════════════════════ SAUVEGARDE CLOUD — LISTE ID DISCORD ═══════════════════════
-// Seule fonctionnalité de tout l'outil qui envoie quelque chose sur internet,
-// et uniquement quand l'utilisateur clique explicitement dessus. Sert juste
-// à ne pas avoir à recoller la liste des ID Discord chaque semaine — rien
-// d'autre (tableau, corrections, etc.) n'est concerné ni envoyé.
-// Utilise Firebase Realtime Database via son API REST brute (pas de SDK à
-// charger) : un simple GET/PUT sur une URL, sans backend à maintenir.
+// Accès cloud utilisé pour les données partagées Pillbox/Roster. Les lectures
+// et écritures protégées passent par les fonctions Netlify et Firebase avec
+// la session Discord signée ; l'autosauvegarde de la semaine reste locale.
 const CLOUD_DB_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/discordIdsList.json";
 const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
 // Depuis le 09/09, la lecture directe de rosterEmsData/discordIdsList sur
@@ -5979,9 +6045,21 @@ function rosterAliasesForRow(row){
 // une semaine passée. En cloud plutôt que localStorage : accessible même
 // si quelqu'un d'autre reprend la paie sur un autre appareil.
 
+async function fetchCurrentWeekHistoryEntry(weekKey){
+  // Chemin ultra-léger : une seule entrée Firebase au lieu du proxy GET
+  // complet. Utilisé uniquement au clic « Analyser la semaine » afin que
+  // l'animation démarre sans attendre le chargement du Roster/activité/etc.
+  const data = await pillboxProxyPost("getWeekHistoryEntry", {weekKey});
+  return data?.entry || null;
+}
+
 async function fetchWeekHistory(){
   try{
     const data = await fetchViaPillboxProxy();
+    if(data?.readStatus?.weekHistory === "error"){
+      console.error("Firebase: historique des semaines non lisible", data.readStatus.weekHistory);
+      return null;
+    }
     return (data && data.weekHistory) ? data.weekHistory : {};
   }catch(err){
     console.error("Erreur lecture historique des semaines:", err);
@@ -6064,8 +6142,12 @@ async function deleteWeekFromHistory(weekKey){
 async function fetchDiscordIdsListSilent(attempt = 1){
   if(!pillboxSessionToken) return; // sera relancé après la connexion Discord
   try{
-    const { discordIds } = await fetchViaPillboxProxy();
-    document.getElementById('discordIdText').value = (discordIds && discordIds.text) ? discordIds.text : "";
+    const proxy = await fetchViaPillboxProxy();
+    if(proxy?.readStatus?.discordIds === "error" && proxy?.readStatus?.roster === "error") throw new Error("IDs Discord et Roster indisponibles");
+    const { discordIds } = proxy;
+    if(proxy?.readStatus?.discordIds !== "error" || (discordIds && discordIds.text)){
+      document.getElementById('discordIdText').value = (discordIds && discordIds.text) ? discordIds.text : "";
+    }
     render();
     return;
   }catch(err){
@@ -6242,7 +6324,7 @@ function applySnapshotToWorkingState(data, bannerLabel){
     decisionsSessionTotal: (data.state && data.state.decisionsSessionTotal) ?? null,
   });
 
-  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim();
+  document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
   updateClearSaveBtn(true);
   render();
 
@@ -6382,7 +6464,7 @@ document.getElementById('importSessionInput').addEventListener('change', (e)=>{
         pendingSelections: savedState.pendingSelections && typeof savedState.pendingSelections === 'object' ? savedState.pendingSelections : {},
         decisionsSessionTotal: savedState.decisionsSessionTotal ?? null,
       });
-      document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim();
+      document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
       render();
       autosave();
       if(pillboxSessionToken) fetchDiscordIdsListSilent();
@@ -6432,6 +6514,7 @@ async function fetchRosterData(){
   // été sauvegardé dans le cloud, ce qui n'est pas une panne.
   try{
     const proxyData = await fetchViaPillboxProxy();
+    if(proxyData?.readStatus?.roster === "error") return {error:true};
     const data = proxyData?.roster || null;
     return {employees: (data && data.employees) ? data.employees : [], savedAt: data?.savedAt||null, syncMeta: proxyData?.rosterSyncMeta || null};
   }catch(err){
@@ -6450,6 +6533,7 @@ async function fetchRosterData(){
 async function fetchFormationOperationCount(){
   try{
     const proxy = await fetchViaPillboxProxy();
+    if(proxy?.readStatus?.formationOperation === "error") return {error:true};
     const data = proxy?.formationOperation || null;
     const lines = (data && data.text) ? data.text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean) : [];
     return {count: lines.length, savedAt: data?.savedAt||null};
@@ -6462,6 +6546,8 @@ async function fetchFormationOperationCount(){
 async function fetchAllSignalements(){
   try{
     const proxy = await fetchViaPillboxProxy();
+    const statusKey = signalementSandboxMode ? "signalementsTest" : "signalements";
+    if(proxy?.readStatus?.[statusKey] === "error") return null;
     const data = signalementSandboxMode ? proxy?.signalementsTest : proxy?.signalements;
     return data ? Object.entries(data).map(([key,v])=>({key, ...v})) : [];
   }catch(err){
@@ -6663,6 +6749,9 @@ function specialtyCard(title, icon, employees, recordByEmployee){
 function renderActiviteDiagnostic(rosterResult){
   const activite = state.activiteSuivi || {};
   const activiteKeys = Object.keys(activite);
+  if(state.activiteSuiviLoadError){
+    return `<div class="hint" style="margin:0;">✕ Activité Formateur/Psychologue non vérifiable : ${esc(state.activiteSuiviLoadError)}. Les dernières données éventuellement connues ne sont pas présentées comme une liste vide.</div>`;
+  }
   if(rosterResult.error){
     return `<div class="hint" style="margin:0;">✕ Impossible de joindre le Roster : les spécialités actuelles ne peuvent pas être vérifiées pour l'instant. Réessaie dans un instant.</div>`;
   }
@@ -6933,7 +7022,11 @@ function upEvaluateEligibility(emp, quotaStandard, quotaStaff){
   if(info.S>=1){
     const targetGrade = NEXT_SINGLE[grade] || null;
     const result = { status:"eligible", targetGrade, ambiguousSpecialty: grade==="M", info, grade, quota };
-    if(grade==="A") result.missingFormationOperation = !hasFormationOperation(emp);
+    if(grade==="A"){
+      const formationState = formationOperationVerification(emp);
+      result.missingFormationOperation = formationState === "missing";
+      result.formationOperationUnverifiable = formationState === "unverifiable";
+    }
     return result;
   }
 
@@ -6950,8 +7043,10 @@ function upBuildMessage(emp, ev, refDate){
 
   let upActiviteTxt = "";
   if(["MF","RF","MP","RP"].includes(ev.grade)){
-    const act = getActiviteFor(emp) || {};
-    if(ev.grade==="MF" || ev.grade==="RF") upActiviteTxt = ` — a fait ${act.recrutements||0} recrutement(s) et ${act.formations||0} formation(s) cette semaine (Pillbox)`;
+    const actCheck = activiteVerification(emp);
+    const act = actCheck.data || {};
+    if(actCheck.state==="unverifiable") upActiviteTxt = ` — activité Formateur/Psychologue non vérifiable`;
+    else if(ev.grade==="MF" || ev.grade==="RF") upActiviteTxt = ` — a fait ${act.recrutements||0} recrutement(s) et ${act.formations||0} formation(s) cette semaine (Pillbox)`;
     else upActiviteTxt = ` — a fait ${act.testsPsy||0} test(s) psy, ${act.ppa||0} PPA et ${act.consultations||0} consultation(s) cette semaine (Pillbox)`;
   } else if(["MLP","RL"].includes(ev.grade)){
     upActiviteTxt = " — pas de compteur d'activité suivi pour ce grade";
@@ -6959,6 +7054,7 @@ function upBuildMessage(emp, ev, refDate){
 
   const upDetails = `${gradeLabel}, ${emp.reaCount} réa (quota ${ev.quota}), S1 déjà présent, dans ce grade depuis le ${esc(dateUpText)} (${upFormatSeniority(sen)})`
     + (ev.missingFormationOperation ? " — ⚠️ n'a PAS la formation Opération (obligatoire pour Ambulancier → Infirmier)" : "")
+    + (ev.formationOperationUnverifiable ? " — ⚠️ Formation Opération non vérifiable" : "")
     + upActiviteTxt
     + (emp.absences && !/^vide$/i.test(emp.absences||"") ? ` — absences signalées : ${esc(emp.absences)}` : "");
 
@@ -7064,7 +7160,11 @@ function upEvaluateEligibilityTheorique(emp, quotaStandard, quotaStaff){
   if(info.S>=1){
     const targetGrade = NEXT_SINGLE[grade] || null;
     const result = { status:"eligible", targetGrade, ambiguousSpecialty: grade==="M", info, grade, quota };
-    if(grade==="A") result.missingFormationOperation = !hasFormationOperation(emp);
+    if(grade==="A"){
+      const formationState = formationOperationVerification(emp);
+      result.missingFormationOperation = formationState === "missing";
+      result.formationOperationUnverifiable = formationState === "unverifiable";
+    }
     return result;
   }
 
@@ -7076,7 +7176,8 @@ function upBuildMessageTheorique(emp, ev){
   const targetLabel = ev.ambiguousSpecialty ? "une spécialisation (MF / MP / MLP)" : (GRADE_LABEL[ev.targetGrade] || ev.targetGrade || "un grade supérieur");
   const upSentence = `<b>${esc(emp.name)}</b> serait éligible à ${ev.ambiguousSpecialty ? targetLabel : "une promotion au grade de "+targetLabel} <i>si son quota de réanimations était complet</i> (vue théorique).`;
   const upDetails = `${gradeLabel} — quota considéré comme atteint (${ev.quota}/${ev.quota}, théorique, réa non consultées)`
-    + (ev.missingFormationOperation ? " — ⚠️ n'a PAS la formation Opération (obligatoire pour Ambulancier → Infirmier)" : "");
+    + (ev.missingFormationOperation ? " — ⚠️ n'a PAS la formation Opération (obligatoire pour Ambulancier → Infirmier)" : "")
+    + (ev.formationOperationUnverifiable ? " — ⚠️ Formation Opération non vérifiable" : "");
   return { upSentence, upDetails };
 }
 
@@ -7366,68 +7467,14 @@ function fileToBase64(file){
 async function analyzeReaScreenshotWithGemini(file){
   const base64 = await fileToBase64(file);
 
-  // OCR spécialisé pour ce tableau : on ne demande QUE les 3 informations
-  // réellement utiles ici. Les colonnes Contribution / Factures / Montant
-  // sont volontairement ignorées : demander moins de choses réduit fortement
-  // les confusions entre colonnes sur les captures avec un fond chargé.
-  let rosterHint = "";
+  // Le serveur impose désormais lui-même le prompt, le modèle et le schéma
+  // de réponse OCR. Le navigateur ne transmet que l'image et, au besoin,
+  // la liste des noms EMS déjà connus pour améliorer la correspondance.
+  let rosterNamesForOcr = [];
   try{
     const rosterMap = parseTableauNamesOnly(document.getElementById('tableauText')?.value || "");
-    const rosterNames = [...new Set(Object.values(rosterMap))].filter(Boolean);
-    if(rosterNames.length){
-      rosterHint = `\n\nLISTE DES EMPLOYÉS CONNUS (utilise exactement l'orthographe d'un nom de cette liste quand il correspond à ce que tu vois) :\n${rosterNames.join("\n")}`;
-    }
+    rosterNamesForOcr = [...new Set(Object.values(rosterMap))].filter(Boolean);
   }catch(e){}
-
-  const prompt = `Tu es un OCR spécialisé dans la lecture de tableaux de jeux vidéo. Analyse visuellement la capture d'écran fournie.
-
-Le tableau contient notamment ces colonnes :
-- RANG : numéro tout à gauche
-- EMPLOYÉ : nom de la personne
-- CONTRIBUTION : pourcentage (À IGNORER)
-- RÉANIMATIONS : nombre de réanimations
-- FACTURES ENCAISSÉES : À IGNORER
-- MONTANT FACTURES : À IGNORER
-
-MISSION : extraire CHAQUE ligne visible du tableau et UNIQUEMENT ces 3 champs :
-1. rank = numéro exact affiché dans la colonne RANG
-2. name = nom exact affiché dans la colonne EMPLOYÉ
-3. rea = nombre exact affiché dans la colonne RÉANIMATIONS
-
-RÈGLES TRÈS IMPORTANTES :
-- Lis ligne par ligne, de haut en bas.
-- Le numéro de RANG est indépendant du nombre de lignes détectées : ne le renumérote jamais.
-- Le nombre RÉANIMATIONS est la colonne située après CONTRIBUTION. Ne prends JAMAIS le pourcentage (ex: 0%) comme réanimation.
-- Ne prends JAMAIS un nombre provenant de FACTURES ou MONTANT FACTURES.
-- Un 0 visible dans RÉANIMATIONS doit être retourné comme 0.
-- Si une ligne est légèrement masquée par le fond, concentre-toi sur le texte blanc de la ligne et ses alignements avec les en-têtes.
-- Ne fusionne jamais deux lignes.
-- N'invente aucune ligne et n'en oublie aucune.
-- Si le nom ressemble à un nom connu de la liste ci-dessous, utilise exactement ce nom.
-- Retourne uniquement le JSON demandé, sans commentaire.${rosterHint}`;
-
-  const body = JSON.stringify({
-    contents: [{ parts: [
-      { text: prompt },
-      { inline_data: { mime_type: file.type || "image/png", data: base64 } },
-    ]}],
-    generationConfig: {
-      response_mime_type: "application/json",
-      response_schema: {
-        type: "ARRAY",
-        items: {
-          type: "OBJECT",
-          properties: {
-            rank: { type: "INTEGER" },
-            name: { type: "STRING" },
-            rea: { type: "INTEGER" }
-          },
-          required: ["rank", "name", "rea"]
-        }
-      },
-      temperature: 0
-    }
-  });
 
   let lastErr;
   for(let attempt=1; attempt<=3; attempt++){
@@ -7437,7 +7484,7 @@ RÈGLES TRÈS IMPORTANTES :
     const res = await fetch(GEMINI_OCR_PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Pillbox-Session": pillboxSessionToken || "" },
-      body: JSON.stringify({ model: GEMINI_MODEL, payload: JSON.parse(body) }),
+      body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/png", rosterNames: rosterNamesForOcr }),
     });
     if(res.ok){
       const data = await res.json();
@@ -8131,6 +8178,7 @@ document.getElementById('showWeekHistoryBtn').addEventListener('click', ()=>{
 // (Gestionnaires "Importer une semaine (fichiers)" retirés le 09/09)
 
 function runAnalysis(resetOverrides){
+  if(!payRulesReady) throw new Error(payRulesLoadError || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.");
   const weekStart = getWeekStart();
   const {rows, anomalies, wdvNames} = parseTableau(document.getElementById('tableauText').value, weekStart);
   const reaTextRaw = document.getElementById('reaText').value;
@@ -8248,9 +8296,11 @@ function buildAllPendingEntries(ctx){
   pendingQ.forEach(e=>{
     const decided = state.overrides[e.key]?.applyQ===true ? true : (state.overrides[e.key]?.applyQ===false ? false : undefined);
     const gradeConcerne = ["MF","RF","MP","RP"].includes((e.grade||"").toUpperCase());
-    const act = gradeConcerne ? (getActiviteFor(e)||{}) : null;
+    const actCheck = gradeConcerne ? activiteVerification(e) : null;
+    const act = actCheck?.data || null;
     let sentence;
-    if(act && (e.grade==="MF"||e.grade==="RF")) sentence = `${e.name} (${GRADE_LABEL[e.grade]}) n'a pas atteint son quota (${e.reaCount} réa), mais a fait ${act.recrutements||0} recrutements et ${act.formations||0} formations. Mettre un avertissement quota ?`;
+    if(actCheck?.state==="unverifiable") sentence = `${e.name} (${GRADE_LABEL[e.grade]}) n'a pas atteint son quota (${e.reaCount} réa) — activité Formateur/Psychologue non vérifiable. Mettre un avertissement quota ?`;
+    else if(act && (e.grade==="MF"||e.grade==="RF")) sentence = `${e.name} (${GRADE_LABEL[e.grade]}) n'a pas atteint son quota (${e.reaCount} réa), mais a fait ${act.recrutements||0} recrutements et ${act.formations||0} formations. Mettre un avertissement quota ?`;
     else if(act && (e.grade==="MP"||e.grade==="RP")) sentence = `${e.name} (${GRADE_LABEL[e.grade]}) n'a pas atteint son quota (${e.reaCount} réa), mais a fait ${act.testsPsy||0} tests psy, ${act.ppa||0} PPA, ${act.consultations||0} consultations. Mettre un avertissement quota ?`;
     else sentence = `Mettre un avertissement quota pour ${e.name} (${GRADE_LABEL[e.grade]}, ${e.reaCount} réa) ?`;
     push("⚠️ Avertissements quota", employeeLiveKey(e), sentence, "", decided);
@@ -8268,11 +8318,13 @@ function buildAllPendingEntries(ctx){
     const dureeTxt = depuisUp ? `dans ce grade depuis le ${depuisUp} (${dureeUp})` : "";
     const targetLabel = GRADE_LABEL[e.targetGrade] || GRADE_LABEL[state.overrides[e.key]?.upTarget] || "";
     const upGradeConcerne = ["MF","RF","MP","RP"].includes((e.grade||"").toUpperCase());
-    const upAct = upGradeConcerne ? (getActiviteFor(e)||{}) : null;
+    const upActCheck = upGradeConcerne ? activiteVerification(e) : null;
+    const upAct = upActCheck?.data || null;
     let upActiviteTxt = "";
-    if(upAct && (e.grade==="MF"||e.grade==="RF")) upActiviteTxt = ` — a fait ${upAct.recrutements||0} recrutement(s) et ${upAct.formations||0} formation(s) cette semaine`;
+    if(upActCheck?.state==="unverifiable") upActiviteTxt = ` — activité Formateur/Psychologue non vérifiable`;
+    else if(upAct && (e.grade==="MF"||e.grade==="RF")) upActiviteTxt = ` — a fait ${upAct.recrutements||0} recrutement(s) et ${upAct.formations||0} formation(s) cette semaine`;
     else if(upAct && (e.grade==="MP"||e.grade==="RP")) upActiviteTxt = ` — a fait ${upAct.testsPsy||0} test(s) psy, ${upAct.ppa||0} PPA et ${upAct.consultations||0} consultation(s) cette semaine`;
-    const details = `${GRADE_LABEL[e.grade]}, ${e.reaCount} réa, quota atteint, S déjà présent${dureeTxt?" — "+dureeTxt:""}${e.missingFormationOperation?" — n'a pas la formation opération":""}${upActiviteTxt}`;
+    const details = `${GRADE_LABEL[e.grade]}, ${e.reaCount} réa, quota atteint, S déjà présent${dureeTxt?" — "+dureeTxt:""}${e.missingFormationOperation?" — n'a pas la formation opération":""}${e.formationOperationUnverifiable?" — Formation Opération non vérifiable":""}${upActiviteTxt}`;
     const sentence = (e.grade==="M")
       ? `${e.name} est éligible à une spécialisation (Médecin Formateur / Médecin Psychologue / Médecin Légiste Pompier) — à déterminer.`
       : (targetLabel ? `${e.name} est éligible à une promotion au grade de ${targetLabel}.` : `${e.name} est éligible à une promotion.`);
@@ -8403,10 +8455,26 @@ function showAnalysisAnimation(runRealAnalysis){
 updatePillboxAnimationStatusHint();
 
 document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
+  if(!payRulesReady){
+    alert(payRulesLoadError || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.");
+    updatePayRulesStatusUi();
+    return;
+  }
   const weekStart = getWeekStart(), weekEnd = getWeekEnd();
   const key = weekHistoryKey(weekStart, weekEnd);
-  const history = await fetchWeekHistory();
-  const already = history ? history[key] : null;
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const analyzeBtnText = analyzeBtn?.innerHTML;
+  if(analyzeBtn){ analyzeBtn.disabled = true; analyzeBtn.innerHTML = "⏳ Vérification rapide…"; }
+  let already = null;
+  try{
+    already = await fetchCurrentWeekHistoryEntry(key);
+  }catch(err){
+    console.error("Erreur vérification rapide historique:", err);
+    alert("⚠️ Impossible de vérifier l'historique des semaines. Analyse bloquée pour éviter de retraiter une semaine déjà clôturée.");
+    if(analyzeBtn){ analyzeBtn.innerHTML = analyzeBtnText; analyzeBtn.disabled = false; }
+    return;
+  }
+  if(analyzeBtn){ analyzeBtn.innerHTML = analyzeBtnText; analyzeBtn.disabled = false; }
   if(already){
     const when = new Date(already.processedAt).toLocaleString("fr-FR");
     const proceed = confirm(
@@ -8435,7 +8503,7 @@ function tryAutoImportFromHash(){
     // Nettoie l'URL pour ne pas re-déclencher l'import si la page est
     // rechargée ou mise en favori telle quelle.
     history.replaceState(null, '', window.location.pathname + window.location.search);
-    document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim();
+    document.getElementById('analyzeBtn').disabled = !document.getElementById('tableauText').value.trim() || !payRulesReady;
     resetNameMatchSelection();
     state.parsed = null;
     state.preserveRestoredOverrides = false;
@@ -8495,17 +8563,19 @@ document.getElementById('results').addEventListener('click', (e)=>{
     const ctx = buildContext();
     const discordIdMap = parseDiscordIds(document.getElementById('discordIdText')?.value || "");
     const pinged = applyDiscordPings(buildAnnonce(ctx), ctx.actifs, discordIdMap);
-    copyWithFeedback("annonce-ping", pinged.text);
+    copyWithFeedback("annonce-ping", applyRolePings(pinged.text, discordIdMap));
   }
   else if(action==="copyAvertoPing"){
     const ctx = buildContext();
     const discordIdMap = parseDiscordIds(document.getElementById('discordIdText')?.value || "");
     const pinged = applyDiscordPings(buildAvertissements(ctx), ctx.actifs, discordIdMap);
-    copyWithFeedback("averto-ping", pinged.text);
+    copyWithFeedback("averto-ping", applyRolePings(pinged.text, discordIdMap));
   }
   else if(action==="download"){ const f = window.__files[+t.dataset.file]; downloadText(f.name, f.build()); state.exported = true; autosave(); }
   else if(action==="jumpToPending"){ jumpToPendingStep(); }
   else if(action==="downloadPayeDetail"){ const f = window.__payeDetailFile; if(f) downloadText(f.name, f.build()); }
+  else if(action==="jumpToCriticalDuplicate"){ jumpToCriticalDuplicate(); }
+  else if(action==="jumpToCloudReadError"){ retryCriticalCloudReads(); }
   else if(action==="downloadAll"){
     const zipName = window.__zipFilename || "paie ems.zip";
     const result = downloadZip(window.__files, zipName);
@@ -8522,6 +8592,24 @@ document.getElementById('results').addEventListener('click', (e)=>{
     finishWeekInFlight = true;
     (async ()=>{ try{
       const ctx = buildContext();
+      // Dernier verrou AU MOMENT DU CLIC : impossible de clôturer une
+      // semaine tant qu'une décision humaine reste réellement en attente.
+      if(ctx.hasUnresolvedDecisions){
+        const details = unresolvedDecisionDetails(ctx);
+        alert(`⚠️ Impossible de terminer la semaine : il reste des décisions à prendre.\n\n${details.map(x=>"• "+x).join("\n")}\n\nRéponds à ces points avant de clôturer.`);
+        jumpToPendingStep();
+        return;
+      }
+      if(ctx.hasBlockingDuplicateId){
+        alert("⛔ Impossible de terminer la semaine : un ID dossier est dupliqué dans le tableau EMS. Corrige-le puis relance l'analyse.");
+        jumpToCriticalDuplicate();
+        return;
+      }
+      if(ctx.hasCriticalCloudReadError){
+        alert(`⛔ Impossible de terminer la semaine : certaines données cloud ne sont pas vérifiables.\n\n${ctx.criticalCloudReadErrors.map(x=>"• "+x).join("\n")}\n\nRéessaie avant de clôturer.`);
+        retryCriticalCloudReads();
+        return;
+      }
       const key = weekHistoryKey(ctx.weekStart, ctx.weekEnd);
       const fileRange = weekRangeTag(ctx.weekStart, ctx.weekEnd);
       const historyChanges = buildWeekHistoryChanges(ctx);
@@ -8531,7 +8619,7 @@ document.getElementById('results').addEventListener('click', (e)=>{
       const proceed = confirm(
         `Semaine du ${fileRange.replace(/\./g,"/")} terminée ?\n\n` +
         `Résumé : ${promotionsCount} promotion(s), ${licenciementsCount} licenciement(s), ` +
-        `total payes ${Math.round(ctx.finalPaye).toLocaleString("fr-FR")} $.\n\n` +
+        `total payes ${Math.round(ctx.totalPaye).toLocaleString("fr-FR")} $.\n\n` +
         `Es-tu sûr(e) que tout a bien été envoyé (ZIP ou fichiers un par un) ?\n\n` +
         `Oui : sauvegarde cette semaine et passe directement à la suivante.\n` +
         `Non : ne change rien, tu peux continuer à travailler sur cette semaine.`
@@ -8555,7 +8643,7 @@ document.getElementById('results').addEventListener('click', (e)=>{
             promotions: promotionsCount,
             retrogradations: historyChanges.retrogradations.length,
             licenciements: licenciementsCount,
-            totalPaye: ctx.finalPaye,
+            totalPaye: ctx.totalPaye,
             promotedDetails,
             retrogradedDetails,
             licenciedDetails,
@@ -8862,54 +8950,7 @@ checkLaunchQuestions();
 renderEmsReprisPending(); // (11/10) phrases EMS Repris encore en attente après actualisation
 </script>
 
-<script>
-(function(){
-  let deferredPrompt = null;
-  const btn = document.getElementById('installAppBtn');
 
-  function isStandalone(){
-    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  }
-
-  function showInstallButton(){
-    if(btn && !isStandalone()) btn.hidden = false;
-  }
-
-  window.addEventListener('beforeinstallprompt', function(event){
-    event.preventDefault();
-    deferredPrompt = event;
-    showInstallButton();
-  });
-
-  if(btn){
-    btn.addEventListener('click', async function(){
-      if(!deferredPrompt){
-        alert('L’installation sera proposée par votre navigateur dès que cette page est reconnue comme installable. Sur Chrome/Edge, vérifiez aussi l’icône d’installation dans la barre d’adresse.');
-        return;
-      }
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      btn.hidden = true;
-    });
-  }
-
-  window.addEventListener('appinstalled', function(){
-    deferredPrompt = null;
-    if(btn) btn.hidden = true;
-  });
-
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('./sw.js').catch(function(err){
-        console.warn('Service Worker Pillbox non enregistré :', err);
-      });
-    });
-  }
-
-  if(isStandalone() && btn) btn.hidden = true;
-})();
-</script>
 <script async src="/.netlify/scripts/ar" data-netlify-deploy-id="6abea3718cbd3e0008409987" data-netlify-site-id="ca474682-783a-4668-843b-9e73ec521f23" data-agent-runner-id="6abea30911cd4be3c1a70c5c"></script>
 
 <div id="analysisAnimationModal" role="dialog" aria-modal="true" aria-labelledby="analysisAnimationTitle" aria-describedby="analysisAnimationSubtitle">
