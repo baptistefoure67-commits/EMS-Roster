@@ -1,5 +1,5 @@
-import subprocess,time,json,urllib.request,websocket,pathlib,sys
-HTML=pathlib.Path('/mnt/data/pillbox_urgent_work/index.html').read_text(encoding='utf-8')
+import subprocess,time,json,urllib.request,websocket,pathlib,sys,os
+HTML=pathlib.Path(os.environ.get('PILLBOX_HTML','/mnt/data/pillbox_urgent_work/index.html')).read_text(encoding='utf-8')
 checks=0
 
 def chk(cond,msg):
