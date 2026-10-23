@@ -249,26 +249,42 @@ function resolveUserLevel(discordId, rosterGrade){
 const PERM_FIREBASE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 async function loadPermissionContext(idToken, options={}){
   const strict = !!options.strict;
-  let custom = null, individual = null;
-  try{
-    const r = await fetch(`${PERM_FIREBASE_BASE}/rosterPermissionsOverride.json?auth=${idToken}`);
-    if(!r.ok){ if(strict) throw new Error(`Lecture permissions par grade refusée (${r.status}).`); }
-    else{
-      const d = await r.json();
-      if(d && typeof d === "object"){
-        custom = {};
-        for(const lv of LEVELS){
-          if(d[lv] && typeof d[lv] === "object") custom[lv] = normalizeGradeOverride(d[lv]);
+  // (23/10, 12.4) Les deux lectures sont lancées EN PARALLÈLE (avant : l'une après
+  // l'autre, soit un aller-retour réseau de plus sur chaque appel). La sémantique
+  // est strictement la même : en mode strict, l'échec de l'une OU de l'autre lève
+  // une erreur (fail-closed, l'erreur de la branche « par grade » prime comme
+  // avant) ; hors mode strict, une branche illisible reste à null.
+  // AUCUN cache : un droit retiré doit être refusé dès l'appel suivant.
+  const readCustom = async ()=>{
+    let custom = null;
+    try{
+      const r = await fetch(`${PERM_FIREBASE_BASE}/rosterPermissionsOverride.json?auth=${idToken}`);
+      if(!r.ok){ if(strict) throw new Error(`Lecture permissions par grade refusée (${r.status}).`); }
+      else{
+        const d = await r.json();
+        if(d && typeof d === "object"){
+          custom = {};
+          for(const lv of LEVELS){
+            if(d[lv] && typeof d[lv] === "object") custom[lv] = normalizeGradeOverride(d[lv]);
+          }
         }
       }
-    }
-  }catch(e){ if(strict) throw e; }
-  try{
-    const r = await fetch(`${PERM_FIREBASE_BASE}/rosterIndividualPermissions.json?auth=${idToken}`);
-    if(!r.ok){ if(strict) throw new Error(`Lecture permissions individuelles refusée (${r.status}).`); }
-    else individual = await r.json();
-  }catch(e){ if(strict) throw e; }
-  return { custom, individual };
+    }catch(e){ if(strict) throw e; }
+    return custom;
+  };
+  const readIndividual = async ()=>{
+    let individual = null;
+    try{
+      const r = await fetch(`${PERM_FIREBASE_BASE}/rosterIndividualPermissions.json?auth=${idToken}`);
+      if(!r.ok){ if(strict) throw new Error(`Lecture permissions individuelles refusée (${r.status}).`); }
+      else individual = await r.json();
+    }catch(e){ if(strict) throw e; }
+    return individual;
+  };
+  const [customRes, individualRes] = await Promise.allSettled([readCustom(), readIndividual()]);
+  if(customRes.status === "rejected") throw customRes.reason;
+  if(individualRes.status === "rejected") throw individualRes.reason;
+  return { custom: customRes.value, individual: individualRes.value };
 }
 
 const LEVEL_LABEL = {
