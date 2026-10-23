@@ -880,7 +880,7 @@
     "rosterAnimPrefs": {
       ".read": "auth != null",
       "$discordId": {
-        ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D' || (auth.uid == $discordId && (!data.exists() || data.child('lockedByOwner').val() != true)))",
+        ".write": "auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D' || ((auth.uid == $discordId || auth.uid == 'discord:' + $discordId) && (!data.exists() || data.child('lockedByOwner').val() != true)))",
         ".validate": "newData.hasChildren(['enabled','updatedAt']) && (!newData.child('lockedByOwner').exists() || newData.child('lockedByOwner').isBoolean()) && ((auth != null && (auth.token.level == 'OWNER' || auth.token.level == 'DG' || auth.token.level == 'D')) || (data.child('lockedByOwner').val() == newData.child('lockedByOwner').val()) || (!data.child('lockedByOwner').exists() && (!newData.child('lockedByOwner').exists() || newData.child('lockedByOwner').val() == false)) || (data.child('lockedByOwner').val() == false && !newData.child('lockedByOwner').exists()))",
         "enabled": {
           ".validate": "newData.isBoolean()"
