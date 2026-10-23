@@ -64,7 +64,7 @@ test('Une clôture Pillbox ne réinjecte pas les vieilles entrées',()=>{
 });
 
 // Teste le vrai renderer Pillbox modifié via VM.
-const pillboxPath=process.env.PILLBOX_TEST_HTML || '/mnt/data/pillbox_dash_work/index.html';
+const pillboxPath=require('./_helpers').pillboxHtmlPath();
 const html=fs.readFileSync(pillboxPath,'utf8');
 const s=html.indexOf('const ACTIVITE_FIELD_LABEL = {');
 const e=html.indexOf("document.getElementById('showDashboardBtn').addEventListener",s);
