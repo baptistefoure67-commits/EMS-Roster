@@ -47,10 +47,11 @@ has(html,/formationOperationLoadState === "absent"[\s\S]{0,120}return "present"/
 has(html,/Formation Opération non vérifiable/,'promotion text exposes unverifiable state');
 
 // P6 BNVL
-has(html,/if\(row\.benevole \|\| ov\.benevole\) paye = 0/,'BNVL base pay forced to zero');
+has(html,/const effectiveBenevole = !!\(row\.benevole \|\| ov\.benevole\)/,'BNVL legacy override becomes effective status');
+has(html,/if\(effectiveBenevole\) paye = 0/,'BNVL base pay forced to zero');
 has(html,/if\(e\.benevole\) return 0/,'BNVL final pay forced to zero');
 has(html,/function bonusOf\(e\)\{ return e\.benevole \? 0/,'BNVL bonus forced to zero');
-has(html,/actifs\.filter\(e=>!e\.benevole\)\.sort/,'BNVL excluded from Top3 ranking');
+has(html,/actifs\.filter\(e=>!e\.benevole && e\.reaCount>0\)\.sort/,'BNVL and zero-rea employees excluded from Top3 ranking');
 has(html,/ppaEligibles = actifs\.filter\(e=>!e\.benevole/,'BNVL excluded from PPA manual assignment');
 has(html,/financialActifs = actifs\.filter\(e=>!e\.benevole\)/,'BNVL excluded from optional financial bonus selector');
 
