@@ -1,0 +1,44 @@
+RAPPORT TEST LIAISON ROSTER ↔ PILLBOX — 23/10/2026
+
+Version testée : Roster 14.4 + Backend Pillbox 12.3 + Pillbox 12.3
+
+1) Cadences temps réel
+- Roster live refresh : 3000 ms — inchangé.
+- Pillbox Paye active publication : 3000 ms — inchangé.
+- Pillbox Paye active OWNER refresh (fenêtre ouverte) : 3000 ms — inchangé.
+- Présence / signalements / règles Pillbox : 25000 ms — inchangé.
+- Le frontend Roster est bit pour bit identique à la 14.4 précédente.
+
+2) Animation Analyser la semaine
+- La fonction d'animation est strictement identique à la 11.1 : même SHA-256.
+- Calcul réel vers 5,66 s ; fin de scène vers 6,25 s.
+- Le lag observé venait de la vérification historique AVANT l'animation : elle utilisait le proxy GET complet.
+- Correction 12.3 : action serveur getWeekHistoryEntry, une seule lecture de l'entrée de semaine.
+- Test de latence simulé avec une ressource secondaire lente : ancien GET complet 1403 ms ; nouveau chemin 26 ms.
+
+3) Test de liaison Roster → Pillbox → Roster
+23 contrôles spécifiques réussis :
+- synchronisation IDs/rôles ;
+- métadonnée de synchronisation ;
+- Formation Opération ;
+- lecture Roster par Pillbox ;
+- génération pings joueurs depuis le Roster ;
+- conservation des rôles ;
+- préférence animation partagée ;
+- vérification rapide historique ;
+- semaine déjà traitée détectée ;
+- publication Paye active ;
+- opérateur + décision transmis ;
+- signal fin de semaine vers le backend Roster ;
+- clôture activité appelée une seule fois sur la bonne semaine.
+
+4) Tests calcul semaine
+- Browser E2E Chromium : 19 scénarios réussis.
+- Inclut Top 3, 0 réa, HG exempté, BNVL, bénévole legacy, absent sous quota, total fichier Payes, rétrogradation HG, décisions partielles STG/A/INF/Q+, Formation Opération non vérifiable, activité non vérifiable, PPA/XSS.
+
+5) Batterie complète
+- 17 suites Node : 379 contrôles réussis.
+- Chromium E2E : 19 contrôles réussis.
+- Total : 398 contrôles réussis, 0 échec après correction des chemins de test temporaires.
+
+Aucune règle Firebase à modifier pour la 12.3.
