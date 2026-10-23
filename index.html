@@ -3604,13 +3604,21 @@ async function loadAnimPrefFromCloud(){
   }catch(e){ /* best-effort — on garde la valeur locale déjà affichée */ }
 }
 async function writeAnimPrefToCloud(enabled){
-  if(!currentUserDiscordId || !currentFirebaseIdToken) return;
+  if(!currentUserDiscordId || !currentFirebaseIdToken) return false;
   try{
-    await fetch(`${ANIM_PREFS_URL}/${currentUserDiscordId}.json?auth=${currentFirebaseIdToken}`, {
+    const res = await fetch(`${ANIM_PREFS_URL}/${currentUserDiscordId}.json?auth=${currentFirebaseIdToken}`, {
       method: "PATCH", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ enabled, updatedAt: Date.now(), updatedByDiscordId: currentUserDiscordId, updatedByName: currentUserName||"" }),
     });
-  }catch(e){ /* best-effort — l'affichage local a déjà changé, Pillbox se resynchronisera au prochain chargement */ }
+    if(!res.ok){
+      console.error(`[Animations Roster] sauvegarde Firebase refusée (${res.status})`);
+      return false;
+    }
+    return true;
+  }catch(e){
+    console.error("[Animations Roster] sauvegarde Firebase impossible", e);
+    return false;
+  }
 }
 // (21/10) OWNER / DG / D : verrouille ou déverrouille les
 // animations d'une personne — elle ne peut alors plus les
@@ -3984,16 +3992,26 @@ document.getElementById("liaisonSkipBtn").addEventListener("click", ()=>{
   liaisonSkipped = true;
   hideLiaisonOverlay(true);
 });
-document.getElementById("animsToggleBtn").addEventListener("click", ()=>{
+document.getElementById("animsToggleBtn").addEventListener("click", async ()=>{
   if(rosterAnimsLocked){
     toast("🔒 Tes animations ont été désactivées par la Direction — tu ne peux pas les réactiver toi-même.");
     return;
   }
-  rosterAnimsEnabled = !rosterAnimsEnabled;
-  try{ localStorage.setItem("rosterAnimsEnabled", rosterAnimsEnabled ? "1" : "0"); }catch(e){}
+  const previous = rosterAnimsEnabled;
+  const next = !previous;
+  rosterAnimsEnabled = next;
+  try{ localStorage.setItem("rosterAnimsEnabled", next ? "1" : "0"); }catch(e){}
   applyAnimsToggleUi();
-  toast(rosterAnimsEnabled ? "🎬 Animations réactivées (Roster + Pillbox)" : "⏸️ Animations désactivées (Roster + Pillbox)");
-  writeAnimPrefToCloud(rosterAnimsEnabled);
+
+  const saved = await writeAnimPrefToCloud(next);
+  if(!saved){
+    rosterAnimsEnabled = previous;
+    try{ localStorage.setItem("rosterAnimsEnabled", previous ? "1" : "0"); }catch(e){}
+    applyAnimsToggleUi();
+    toast("✕ Impossible d'enregistrer le réglage animations dans Firebase — changement annulé.");
+    return;
+  }
+  toast(next ? "🎬 Animations réactivées (Roster + Pillbox)" : "⏸️ Animations désactivées (Roster + Pillbox)");
 });
 document.addEventListener("keydown", event=>{
   const overlay = document.getElementById("liaisonOverlay");
