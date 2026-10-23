@@ -3,7 +3,7 @@ const path = require('path');
 const assert = require('assert');
 
 const root = path.join(__dirname, '..');
-const pillboxPath = path.join(root, '..', '__pillbox_for_test.html');
+const pillboxPath = require('./_helpers').pillboxHtmlPath();
 const pillbox = fs.readFileSync(pillboxPath, 'utf8');
 const proxy = fs.readFileSync(path.join(root, 'netlify', 'functions', 'pillbox-proxy.js'), 'utf8');
 const rules = fs.readFileSync(path.join(root, 'firebase-rules.permissions-regroupees.json'), 'utf8');
