@@ -16,6 +16,7 @@ const { createFirebaseCustomToken } = require("./firebase-token");
 const { computeAbsenceSignalements, computeStgAbsenceSignalements, computeLongAbsenceSignalements, attachAlertDecisions, pruneExpiredAbsences } = require("./absences-actions");
 const { verifyDetailed } = require("./session-token");
 const { can, loadPermissionContext, resolveIndividualDecision } = require("./permissions");
+const { cloneDefaultPayRules } = require("./pay-rules-defaults");
 const { closeActiviteWeekServer } = require("./activite-close");
 const { logAction } = require("./logs");
 
@@ -44,35 +45,8 @@ const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-wes
 const WEEK_HISTORY_ARCHIVE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistoryArchive";
 const SIGNALEMENTS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 
-// Valeurs par défaut — copie EXACTE de celles de pay-rules-actions.js
-// (jamais réimportées directement, ce fichier et celui-là sont deux
-// fonctions Netlify séparées qui ne partagent pas leur code). Si jamais
-// l'une des deux copies est modifiée, l'autre doit l'être aussi — à
-// vérifier en premier si Pillbox calcule un jour différemment du
-// panneau de réglages affiché dans le Roster.
-const DEFAULT_PAY_RULES = {
-  reaRate: 14000,
-  fixedSalaryByGrade: {
-    STG: 5000000, A: 6000000, INF: 7000000, M: 8000000,
-    MF: 9000000, MP: 9000000, MLP: 9000000,
-    RF: 10000000, RP: 10000000, RL: 10000000,
-    MC: 11500000, ADD: 11500000, CD: 13500000, D: 15000000, DG: 15000000,
-  },
-  bonusByRank: { "1": 3000000, "2": 2000000, "3": 1000000 },
-  ppaEligibleGrades: ["MP","MLP","RP","RF","RL","MC","ADD","CD","D","DG"],
-  ppaWeeklyCap: 10000000,
-  quotaStandard: 70,
-  quotaStaff: 30,
-  exemptGrades: ["MC","ADD","CD","D","DG"],
-  nearMissGrades: ["STG","A","INF","M"],
-  nearMissThreshold: 65,
-  stgProposalThreshold: 2,
-  stgAutoThreshold: 3,
-  aProposalThreshold: 3,
-  infProposalEnabled: false,
-  infProposalThreshold: 3,
-  qaCumulThreshold: 3,
-};
+// Valeurs par défaut partagées avec pay-rules-actions.js — source unique.
+const DEFAULT_PAY_RULES = cloneDefaultPayRules();
 
 exports.handler = async function (event) {
   // CORS : Pillbox est sur un autre domaine Netlify — sans ces en-têtes,
@@ -147,6 +121,25 @@ exports.handler = async function (event) {
     if (event.httpMethod === "POST") {
       let body = {};
       try { body = JSON.parse(event.body || "{}"); } catch (e) {}
+      if (body.action === "getWeekHistoryEntry") {
+        // Vérification légère utilisée juste avant « Analyser la semaine ».
+        // L'ancien chemin faisait un GET complet du proxy (Roster, activité,
+        // absences, signalements, règles, etc.) uniquement pour savoir si la
+        // semaine courante avait déjà été traitée. Cette action ne lit que
+        // l'entrée demandée, ce qui évite le délai réseau avant l'animation.
+        const weekKey = String(body.weekKey || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) {
+          return json(400, { error: "Clé de semaine invalide." }, corsHeaders);
+        }
+        const weekUrl = `${WEEK_HISTORY_BASE}/${weekKey}.json?auth=${idToken}`;
+        const weekRes = await fetch(weekUrl);
+        if (!weekRes.ok) {
+          const tx = await weekRes.text().catch(()=>"");
+          return json(502, { error: `Lecture historique impossible (${weekRes.status}) : ${tx.slice(0,120)}` }, corsHeaders);
+        }
+        const entry = await weekRes.json();
+        return json(200, { ok:true, state: entry == null ? "absent" : "found", entry: entry || null }, corsHeaders);
+      }
       if (body.action === "saveWeekHistory") {
         const permCtx = requestPermCtx;
         if (!can(session.level, "use_pillbox_terminal", permCtx.custom, session.discordId, permCtx.individual)) {
@@ -337,18 +330,21 @@ exports.handler = async function (event) {
         // depuis Pillbox au moment de la préparation des paies — même
         // permission que pour gérer les absences côté Roster, jamais
         // un simple appel public.
-        if (!can(session.level, "manage_absences", null, session.discordId, null)) {
-          return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus.` }, corsHeaders);
+        const permCtx = requestPermCtx;
+        if (!can(session.level, "manage_absences", permCtx.custom, session.discordId, permCtx.individual)) {
+          return json(403, { error: `Permission manage_absences refusée (${session.level}) selon les permissions actuelles.` }, corsHeaders);
         }
         const { alertKey, decision } = body;
         if (!alertKey || (decision !== "oui" && decision !== "non")) {
           return json(400, { error: "Paramètres invalides (alertKey/decision attendus)." }, corsHeaders);
         }
-        const curRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
-        const current = curRes.ok ? ((await curRes.json()) || {}) : {};
-        current[alertKey] = { decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name };
-        const saveRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current),
+        // Écriture ciblée : ne relit et ne réécrit JAMAIS toute la branche.
+        // Une panne de lecture ailleurs ne peut donc plus effacer les décisions existantes.
+        const decisionBase = ABSENCE_ALERT_DECISIONS_URL.replace(/\.json$/, "");
+        const decisionUrl = `${decisionBase}/${encodeURIComponent(alertKey)}.json?auth=${idToken}`;
+        const entry = { decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name };
+        const saveRes = await fetch(decisionUrl, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry),
         });
         if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
         await logAction({
