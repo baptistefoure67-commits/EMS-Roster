@@ -303,7 +303,7 @@ async function canFor(session, permissionName, idToken){
   try{
     const tok = idToken || await serviceIdTokenFor(session);
     if(!tok) return false;
-    const ctx = await loadPermissionContext(tok);
+    const ctx = await loadPermissionContext(tok, {strict:true});
     return can(session.level, permissionName, ctx.custom, session.discordId, ctx.individual);
   }catch(e){
     return false;
