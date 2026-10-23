@@ -1,7 +1,7 @@
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const ROOT=path.resolve(__dirname,'..');
 const FN=path.join(ROOT,'netlify/functions');
-const PB='/mnt/data/pillbox_urgent_work/index.html';
+const PB=require('./_helpers').pillboxHtmlPath();
 const html=fs.readFileSync(PB,'utf8');
 let n=0; const ok=(v,m)=>{assert.ok(v,m);n++}; const has=(s,r,m)=>ok(r.test(s),m); const lacks=(s,r,m)=>ok(!r.test(s),m);
 const proxySrc=fs.readFileSync(path.join(FN,'pillbox-proxy.js'),'utf8');
