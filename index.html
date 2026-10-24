@@ -1872,6 +1872,11 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 // ═══════════════════════════ DONNÉES DE RÉFÉRENCE ═══════════════════════════
 
 const GRADE_ORDER = ["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","INF","A","STG","WDV"];
+// Alias/surnoms parfois vus dans la colonne grade du tableau EMS, jamais
+// des grades réels : toujours ramenés au bon code avant tout traitement
+// (ex: Tio War affiché avec "DIR" au lieu de "D", Papy Alucard "Sensei"
+// au lieu de "DG").
+const GRADE_ALIASES = { "SENSEI":"DG", "DIR":"D" };
 const GRADE_LABEL = {
   DG:"Directeur Général", D:"Directeur", CD:"Co-Directeur", ADD:"Assistant de Direction",
   MC:"Médecin Chef", RL:"Responsable Légiste", RF:"Responsable Formateur", RP:"Responsable Psychologue",
@@ -2707,7 +2712,7 @@ function editRowHtml(e){
 // le nom, et retire les emoji/symboles collés en fin de nom (ex: "Papy Alucard
 // Saotome 🐧") en ne gardant que les mots contenant au moins une lettre.
 function cleanEmsName(employeRaw){
-  let name = (employeRaw||"").replace(/^\[[^\]]*\]\s*/, "").trim();
+  let name = (employeRaw||"").replace(/^\.*\[[^\]]*\]\s*/, "").trim();
   name = name.split(/\s+/).filter(tok => /\p{L}/u.test(tok)).join(" ");
   return name;
 }
@@ -2737,7 +2742,8 @@ function parseEmsTableForImport(text){
     if(cols.length < 4) return;
     const employeRaw = (cols[1]||"").trim();
     const idUnique = (cols[2]||"").trim();
-    const gradeRaw = (cols[3]||"").trim().toUpperCase();
+    let gradeRaw = (cols[3]||"").trim().toUpperCase();
+    if(GRADE_ALIASES[gradeRaw]) gradeRaw = GRADE_ALIASES[gradeRaw];
     // Date d'arrivée (29/09) : format "25/09/2026 - 14:13" (année sur 4
     // chiffres + heure), ce qui la distingue de la colonne de date d'UP
     // ("10/05/26"). Sert uniquement à l'avertissement de départ rapide.
@@ -4478,7 +4484,8 @@ function extractQualifyingAbsences(text){
     if(cols.length < 6) return;
     const employeRaw = (cols[1]||"").trim();
     const idUnique = (cols[2]||"").trim();
-    const gradeRaw = (cols[3]||"").trim().toUpperCase();
+    let gradeRaw = (cols[3]||"").trim().toUpperCase();
+    if(GRADE_ALIASES[gradeRaw]) gradeRaw = GRADE_ALIASES[gradeRaw];
     const absencesRaw = (cols[5]||"").trim();
     if(!employeRaw || !absencesRaw) return;
     const name = cleanEmsName(employeRaw);
