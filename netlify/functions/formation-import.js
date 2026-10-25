@@ -277,11 +277,22 @@ exports.handler=async function(event){
       fetch(auth(ROSTER_URL)),fetch(auth(HISTORY_URL)),fetch(auth(ACTIVITY_URL)),fetch(auth(SPECIAL_URL)),fetch(auth(FORMATION_OPERATION_URL)),
     ]);
     if(!rosterRes.ok) return json(502,{error:`Roster illisible (${rosterRes.status}).`});
+    // (24/10, audit) Fail-closed sur les 4 lectures : avant, une panne ici
+    // devenait silencieusement {}, et buildCommitPatch() reconstruisait
+    // ensuite CES BRANCHES ENTIÈRES à partir de ce vide avant de les
+    // écraser par PATCH — une vraie panne de lecture pouvait donc effacer
+    // tout l'historique/l'activité/la sélection déjà en place. Maintenant,
+    // si une seule de ces lectures échoue, on refuse d'importer plutôt que
+    // de risquer d'écraser des données réelles avec un sous-ensemble.
+    if(!histRes.ok) return json(502,{error:`Historique des formations illisible (${histRes.status}) — import refusé pour ne pas écraser l'historique existant.`});
+    if(!activityRes.ok) return json(502,{error:`Suivi d'activité illisible (${activityRes.status}) — import refusé pour ne pas écraser le suivi existant.`});
+    if(!specialRes.ok) return json(502,{error:`Sélection Formation Opération illisible (${specialRes.status}) — import refusé pour ne pas l'écraser.`});
+    if(!formationOperationRes.ok) return json(502,{error:`Liste Formation Opération illisible (${formationOperationRes.status}) — import refusé pour ne pas l'écraser.`});
     const roster=await rosterRes.json().catch(()=>null); const employees=Array.isArray(roster?.employees)?roster.employees:[];
-    const history=histRes.ok?(await histRes.json().catch(()=>null)||{}):{};
-    const currentActivity=activityRes.ok?(await activityRes.json().catch(()=>null)||{}):{};
-    const currentSpecial=specialRes.ok?(await specialRes.json().catch(()=>null)||{}):{};
-    const currentFormationOperation=formationOperationRes.ok?(await formationOperationRes.json().catch(()=>null)||{}):{};
+    const history=(await histRes.json().catch(()=>null))||{};
+    const currentActivity=(await activityRes.json().catch(()=>null))||{};
+    const currentSpecial=(await specialRes.json().catch(()=>null))||{};
+    const currentFormationOperation=(await formationOperationRes.json().catch(()=>null))||{};
     if(action==='history') return json(200,{ok:true,recent:recentHistory(history,50),stats:historyStats(history)});
     const parsed=parseDiscordFormationText(rawText);
     const enriched=enrichParsed(parsed,employees,history);
