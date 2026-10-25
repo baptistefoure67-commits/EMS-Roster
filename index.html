@@ -6304,6 +6304,28 @@ async function savePayRuleField(field, value, btn){
   }
 }
 
+// (24/10, bloc 2) Plusieurs champs en une seule sauvegarde -> UN SEUL log
+// groupé côté serveur (setBatch), au lieu d'un log par champ.
+async function savePayRuleFieldsBatch(fields, btn){
+  if(btn) btn.disabled = true;
+  try{
+    const res = await fetch("/.netlify/functions/pay-rules-actions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"setBatch", fields }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    payRulesConfigCache = data.config;
+    toast("✓ Réglages enregistrés — pris en compte au prochain calcul Pillbox");
+    loadPayRulesConfig();
+    renderPayRulesHistory();
+  }catch(err){
+    toast(`✕ Refusé : ${err.message}`);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
 function renderPayRulesForm(){
   const body = document.getElementById("reglagesPaieBody");
   if(!body || !payRulesConfigCache) return;
@@ -6330,6 +6352,16 @@ function renderPayRulesForm(){
         <input type="number" min="0" step="100" id="payRuleReaRate" value="${c.reaRate}" style="width:160px;">
         <span style="color:var(--text-dim);font-size:0.8rem;">$ par réanimation</span>
         <button type="button" class="btn-primary btn-small" id="btnSaveReaRate">Enregistrer</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">🎓 Prix Recrutement / Formation</div>
+      <div class="special-sub" style="margin-bottom:8px;">Un seul tarif pour toutes les formations (pas de tarif par type Opération/Pilote/Co-Pilote/MUP). Utilisés par Pillbox pour ventiler automatiquement les Heures des Formateurs (MF/RF) — jamais les Psychologues.</div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Recrutement <input type="number" min="0" step="1000" id="payRuleRecruitmentPrice" value="${c.recruitmentPrice ?? 500000}" style="width:150px;"></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">Formation <input type="number" min="0" step="1000" id="payRuleFormationPrice" value="${c.formationPrice ?? 70000}" style="width:150px;"></label>
+        <button type="button" class="btn-primary btn-small" id="btnSaveTrainingPrices">Enregistrer</button>
       </div>
     </div>
 
@@ -6443,6 +6475,12 @@ function renderPayRulesForm(){
     const v = +document.getElementById("payRuleReaRate").value;
     if(!(v>=0)){ toast("Montant invalide"); return; }
     savePayRuleField("reaRate", v, e.target);
+  });
+  document.getElementById("btnSaveTrainingPrices").addEventListener("click", (e)=>{
+    const recruitmentPrice = +document.getElementById("payRuleRecruitmentPrice").value;
+    const formationPrice = +document.getElementById("payRuleFormationPrice").value;
+    if(!(recruitmentPrice>=0) || !(formationPrice>=0)){ toast("Montant invalide"); return; }
+    savePayRuleFieldsBatch({ recruitmentPrice, formationPrice }, e.target);
   });
   document.getElementById("btnSaveBonus").addEventListener("click", (e)=>{
     const value = {
