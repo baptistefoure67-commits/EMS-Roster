@@ -76,7 +76,17 @@ exports.handler = async function (event) {
     // Marque la semaine "réouverte" — ne touche PAS à summary ni
     // sessionSnapshot, qui restent tels quels tant que la semaine
     // n'est pas re-clôturée pour de vrai.
-    const patch = { reopened: true, reopenedByDiscordId: session.discordId, reopenedByName: session.name, reopenedByLevel: session.level, reopenedAt: Date.now() };
+    // (24/10, bloc 3, point 26) Chronologie complète conservée — une semaine
+    // peut être réouverte plusieurs fois, chaque passage s'ajoute à
+    // reopenHistory au lieu d'écraser le précédent. Aucun motif obligatoire
+    // (demandé explicitement). Les champs reopened*/reopenedAt simples
+    // restent à jour pour compatibilité avec ce qui les lit déjà.
+    const existingHistory = Array.isArray(weekData.reopenHistory) ? weekData.reopenHistory : [];
+    const reopenEvent = { byDiscordId: session.discordId, byName: session.name, byLevel: session.level, at: Date.now() };
+    const patch = {
+      reopened: true, reopenedByDiscordId: session.discordId, reopenedByName: session.name, reopenedByLevel: session.level, reopenedAt: Date.now(),
+      reopenHistory: [...existingHistory, reopenEvent],
+    };
     const patchRes = await fetch(weekUrl, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
     if(!patchRes.ok){
       const t = await patchRes.text().catch(()=>"");
