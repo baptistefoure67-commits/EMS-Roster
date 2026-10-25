@@ -110,7 +110,7 @@
     },
     "rosterAbsences": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'ADD' || auth.token.level == 'CD' || auth.token.level == 'DG' || auth.token.level == 'D' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       "$absenceId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || newData.hasChildren(['employeeKey','name','startIso','endIso','priseEnCompte','createdAt']))",
         "employeeKey": {
@@ -144,7 +144,7 @@
     },
     "rosterForcedLogouts": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       "$discordId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || ((newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000) || (newData.hasChild('at') && newData.child('at').isNumber() && newData.child('at').val() > 1735689600000 && newData.child('at').val() <= now + 86400000))",
         "at": {
@@ -157,7 +157,7 @@
     },
     "pillboxForcedLogouts": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       "$discordId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || ((newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000) || (newData.hasChild('at') && newData.child('at').isNumber() && newData.child('at').val() > 1735689600000 && newData.child('at').val() <= now + 86400000))",
         "at": {
@@ -170,7 +170,7 @@
     },
     "rosterActiviteClosures": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       "$weekKey": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || ($weekKey.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['status'])))",
         "status": {
@@ -201,7 +201,7 @@
     },
     "rosterActiviteLastClosure": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       "$scope": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (($scope == 'formateur' || $scope == 'psychologue') && newData.isNumber() && newData.val() > 1735689600000 && newData.val() <= now + 86400000)"
       }
@@ -216,7 +216,7 @@
     },
     "payRulesConfig": {
       ".read": true,
-      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['reaRate','fixedSalaryByGrade','bonusByRank','ppaEligibleGrades','ppaWeeklyCap','quotaStandard','quotaStaff','exemptGrades','nearMissGrades','nearMissThreshold','stgProposalThreshold','stgAutoThreshold','aProposalThreshold','qaCumulThreshold','infProposalEnabled','infProposalThreshold','extraQProposalGrades','extraQProposalThreshold','updatedAt','updatedBy']))",
       "reaRate": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
@@ -552,7 +552,7 @@
     },
     "signalementPropositions": {
       ".read": true,
-      ".write": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       "$propositionId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','authorDiscordId','authorLevel','status','createdAt']))",
         "personName": {
@@ -791,7 +791,7 @@
     },
     "rosterAbsenceAlertDecisions": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".write": "auth != null && auth.token.server == true",
       "$alertKey": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['decision','decidedAt']))",
         "decision": {
