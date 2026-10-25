@@ -83,7 +83,13 @@ exports.handler = async function (event) {
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
-    const ctx = await loadPermissionContext(idToken);
+    // (24/10, audit) Mode strict : avant, une panne de lecture des
+    // permissions fines retombait silencieusement sur la permission de
+    // grade, pouvant laisser passer quelqu'un à qui ce droit a été retiré
+    // individuellement.
+    let ctx;
+    try{ ctx = await loadPermissionContext(idToken, {strict:true}); }
+    catch(e){ return json(502, { error: "Permissions illisibles — modification refusée." }); }
     if (!can(session.level, "manage_pay_rules", ctx.custom, session.discordId, ctx.individual)) {
       return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Réglages des paies" (grade ou exception individuelle).` });
     }
@@ -96,8 +102,16 @@ exports.handler = async function (event) {
     // écrire une config qui ferait planter Pillbox au calcul suivant.
     if (!field) return json(400, { error: "Champ à modifier manquant." });
 
+    // (24/10, audit) Fail-closed : avant, une lecture en échec devenait
+    // DEFAULT_CONFIG, et le PUT complet plus bas écrivait ensuite CE
+    // DÉFAUT (avec juste le champ modifié) à la place de la vraie config —
+    // écrasant silencieusement tous les salaires/quotas/bonus déjà
+    // personnalisés pour un simple changement d'un seul champ. Maintenant,
+    // si la lecture échoue, on refuse la modification plutôt que de
+    // risquer d'écraser la config réelle par les valeurs par défaut.
     const curRes = await fetch(CONFIG_URL);
-    const stored = curRes.ok ? await curRes.json() : null;
+    if (!curRes.ok) return json(502, { error: `Configuration de paie illisible (${curRes.status}) — modification refusée pour ne pas écraser les réglages existants par les valeurs par défaut.` });
+    const stored = await curRes.json().catch(()=>null);
     const current = stored ? { ...DEFAULT_CONFIG, ...stored } : { ...DEFAULT_CONFIG };
     const before = current[field];
 
