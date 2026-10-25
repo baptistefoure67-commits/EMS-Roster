@@ -102,7 +102,13 @@ exports.handler = async function (event) {
     }
 
     if (action === "kick") {
-      const ctx = await loadPermissionContext(idToken);
+      // (24/10, audit) Mode strict : avant, une panne de lecture des
+      // permissions fines retombait silencieusement sur la permission de
+      // grade, pouvant laisser passer quelqu'un à qui ce droit a été
+      // retiré individuellement.
+      let ctx;
+      try{ ctx = await loadPermissionContext(idToken, {strict:true}); }
+      catch(e){ return json(502, { error: "Permissions illisibles — action refusée." }, corsHeaders); }
       if (!can(session.level, "force_logout", ctx.custom, session.discordId, ctx.individual)) {
         return json(403, { error: `Permission refusée (${session.level}) — il faut la permission "Déconnexion forcée" (grade ou exception individuelle).` }, corsHeaders);
       }
