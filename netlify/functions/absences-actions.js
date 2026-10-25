@@ -260,8 +260,13 @@ exports.handler = async function (event) {
     try {
       const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
       const res = await fetch(`${ABSENCES_URL}?auth=${idToken}`);
-      let all = res.ok ? (await res.json()) : {};
-      all = await pruneExpiredAbsences(all || {}, idToken);
+      // (24/10, audit) Distingue "vraiment aucune absence" (lecture OK, rien
+      // dedans) de "lecture impossible" — avant, les deux cas rendaient
+      // silencieusement un HTTP 200 avec une liste vide, donc une vraie
+      // panne pouvait passer pour "tout va bien, personne d'absent".
+      if (!res.ok) return json(200, { absences: {}, signalements: [], stgSignalements: [], longAbsenceSignalements: [], readError: `Absences illisibles (${res.status}).` });
+      let all = (await res.json().catch(()=>null)) || {};
+      all = await pruneExpiredAbsences(all, idToken);
       let decisions = {};
       try{
         const decRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
@@ -290,14 +295,14 @@ exports.handler = async function (event) {
   try {
     const idToken = await getFirebaseIdToken(session.discordId, session.level, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
-    let individualOverrides = null;
-    try {
-      const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
-      individualOverrides = indivRes.ok ? await indivRes.json() : null;
-    } catch (e) { /* si injoignable, on retombe sur la permission de grade */ }
-
-    if (!can(session.level, "manage_absences", null, session.discordId, individualOverrides)) {
-      return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus (ou exception individuelle).` });
+    // (24/10, audit) canFor() relit grade ET permissions individuelles en
+    // mode strict : avant, seule rosterIndividualPermissions était relue, et
+    // une panne de cette lecture retombait silencieusement sur la
+    // permission du grade — un droit retiré individuellement pouvait donc
+    // rester exerçable pendant une panne Firebase. Fail-closed désormais :
+    // si le contexte fin ne peut pas être relu, l'action est refusée.
+    if (!(await canFor(session, "manage_absences", idToken))) {
+      return json(403, { error: `Permission refusée (${session.level}) — réservé à ADD et au-dessus (ou exception individuelle), ou contexte de permissions momentanément illisible.` });
     }
 
     if (action === "sync") {
@@ -306,7 +311,14 @@ exports.handler = async function (event) {
         return json(400, { error: "Liste d'absences manquante ou invalide." });
       }
       const curRes = await fetch(`${ABSENCES_URL}?auth=${idToken}`);
-      const current = curRes.ok ? (await curRes.json()) || {} : {};
+      // (24/10, audit) Fail-closed : avant, une lecture en échec devenait
+      // {} et la synchronisation pouvait ensuite écraser TOUTE la branche
+      // (PUT plus bas) avec seulement les quelques absences de ce collage —
+      // perdant toutes les absences déjà enregistrées. Maintenant, si la
+      // lecture échoue, on refuse la synchronisation plutôt que de risquer
+      // d'écraser des données réelles.
+      if (!curRes.ok) return json(502, { error: `Absences existantes illisibles (${curRes.status}) — synchronisation refusée pour ne pas écraser les absences déjà enregistrées.` });
+      const current = (await curRes.json().catch(()=>null)) || {};
       let added = 0;
       qualifyingAbsences.forEach(a => {
         if (!a || !a.employeeKey || !a.startIso || !a.endIso || !a.name) return;
@@ -410,11 +422,16 @@ exports.handler = async function (event) {
       if (!alertKey || (decision !== "oui" && decision !== "non")) {
         return json(400, { error: "Paramètres invalides (alertKey/decision attendus)." });
       }
-      const curRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
-      const current = curRes.ok ? ((await curRes.json()) || {}) : {};
-      current[alertKey] = { decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name };
-      const saveRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current),
+      // (24/10, audit) Écriture ciblée sur CETTE clé uniquement — avant,
+      // une lecture de toute la branche en échec devenait {}, et le PUT qui
+      // suivait pouvait effacer toutes les décisions déjà prises par
+      // d'autres. Plus aucune lecture préalable nécessaire : PUT direct sur
+      // rosterAbsenceAlertDecisions/<alertKey>, les autres clés ne sont
+      // jamais touchées.
+      const decisionUrl = `${BASE}/rosterAbsenceAlertDecisions/${encodeURIComponent(alertKey)}.json?auth=${idToken}`;
+      const saveRes = await fetch(decisionUrl, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, decidedAt: Date.now(), decidedByDiscordId: session.discordId, decidedByName: session.name }),
       });
       if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
       await logAction({
