@@ -88,8 +88,13 @@ exports.handler = async function (event) {
 
       // Même règle que l'édition directe : le réviseur ne peut approuver
       // qu'une permission qu'il possède lui-même (OWNER excepté).
+      // (24/10, audit) Mode strict : avant, une panne de lecture des
+      // permissions fines du réviseur le laissait passer sur sa seule
+      // permission de grade, potentiellement au-delà de ses droits réels.
       if(session.level !== "OWNER"){
-        const ctx = await loadPermissionContext(idToken);
+        let ctx;
+        try{ ctx = await loadPermissionContext(idToken, {strict:true}); }
+        catch(e){ return json(502, { error: "Permissions illisibles — approbation refusée pour ne pas valider au-delà de tes droits réels." }, corsHeaders); }
         if(!can(session.level, canonical, ctx.custom, session.discordId, ctx.individual)){
           return json(403, { error: `Tu ne peux pas approuver « ${canonical} » : cette permission dépasse tes propres droits.` }, corsHeaders);
         }
@@ -97,12 +102,18 @@ exports.handler = async function (event) {
 
       if (action === "approve") {
         const layer = reviewLayer(session.level);
-        const indivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`);
-        const current = indivRes.ok ? (await indivRes.json()) || {} : {};
-        current[reqData.targetDiscordId] = current[reqData.targetDiscordId] || {};
-        current[reqData.targetDiscordId][canonical] = current[reqData.targetDiscordId][canonical] || { CD: null, D: null, DG: null, OWNER: null };
-        current[reqData.targetDiscordId][canonical][layer] = reqData.requestedValue;
-        const saveIndivRes = await fetch(`${INDIVIDUAL_URL}?auth=${idToken}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(current) });
+        // (24/10, audit) Lecture + écriture CIBLÉES sur cette seule
+        // personne — avant, toute la branche rosterIndividualPermissions
+        // était relue puis réécrite en entier ; une panne de lecture suivie
+        // d'une écriture réussie pouvait effacer les exceptions de tout le
+        // monde pour ne garder que cette approbation.
+        const personUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(reqData.targetDiscordId)}.json?auth=${idToken}`;
+        const indivRes = await fetch(personUrl);
+        if (!indivRes.ok) return json(502, { error: `Permissions individuelles illisibles (${indivRes.status}) — approbation refusée pour ne pas écraser les réglages existants.` }, corsHeaders);
+        const person = (await indivRes.json().catch(()=>null)) || {};
+        person[canonical] = person[canonical] || { CD: null, D: null, DG: null, OWNER: null };
+        person[canonical][layer] = reqData.requestedValue;
+        const saveIndivRes = await fetch(personUrl, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(person) });
         if (!saveIndivRes.ok) { const t = await saveIndivRes.text().catch(()=>""); return json(502, { error: `Échec de l'application (${saveIndivRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
       }
 
