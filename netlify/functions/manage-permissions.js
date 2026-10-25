@@ -92,17 +92,22 @@ exports.handler = async function (event) {
       return json(403, { error: `Tu ne peux pas attribuer « ${canonical} » : cette permission dépasse tes propres droits.` });
     }
 
-    const authedUrl = `${OVERRIDE_URL}?auth=${idToken}`;
-    const res = await fetch(authedUrl);
-    const overrides = res.ok ? (await res.json()) : {};
-    const target = { ...(overrides?.[targetLevel] || {}) };
+    // (24/10, audit) Lecture + écriture CIBLÉES sur CE grade uniquement —
+    // avant, toute la branche rosterPermissionsOverride était relue puis
+    // réécrite en entier ; une panne de lecture suivie d'une écriture
+    // réussie pouvait donc effacer les réglages de tous les autres grades
+    // pour ne garder que celui-ci. Plus aucun autre grade n'est jamais lu
+    // ni réécrit par cette action.
+    const gradeUrl = `${OVERRIDE_URL.replace(/\.json$/, "")}/${encodeURIComponent(targetLevel)}.json?auth=${idToken}`;
+    const res = await fetch(gradeUrl);
+    if (!res.ok) return json(502, { error: `Permissions de ce grade illisibles (${res.status}) — changement refusé pour ne pas écraser les réglages existants.` });
+    const target = { ...((await res.json().catch(()=>null)) || {}) };
     const before = target[canonical];
     cleanLegacyGroupKeys(target, canonical);
     target[canonical] = !!value;
-    const updated = { ...(overrides || {}), [targetLevel]: target };
 
-    const saveRes = await fetch(authedUrl, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated),
+    const saveRes = await fetch(gradeUrl, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(target),
     });
     if (!saveRes.ok) {
       const t = await saveRes.text().catch(()=>"");
