@@ -27,7 +27,11 @@ t('La rotation équilibrée ne contient pas le style dans sa clé', roster.inclu
 t('Roster filtre les personnes exclues avant le tirage', roster.includes('!isAnimationCharacterExcluded(id)'));
 t('Pillbox filtre les personnes exclues avant le tirage', pill.includes('!isAnimationCharacterExcluded(id)'));
 const gradeStart=perm.indexOf('const GRADE_PERMISSION_KEYS = ['); const gradeEnd=perm.indexOf('];',gradeStart)+2; const gradeBlock=perm.slice(gradeStart,gradeEnd);
-t('La permission exclusion est individuelle uniquement', perm.includes('\"exclude_animations\"') && !gradeBlock.includes('exclude_animations') && perm.includes('const INDIVIDUAL_ONLY_KEYS = [\"owner_delegate\", \"manage_troll\", \"exclude_animations\"]'));
+// (24/10, bloc 2) INDIVIDUAL_ONLY_KEYS a grandi depuis (delete_logs y est
+// maintenant aussi) — on vérifie que "exclude_animations" y figure bien,
+// sans exiger le texte exact du tableau complet.
+const indivOnlyStart=perm.indexOf('const INDIVIDUAL_ONLY_KEYS = ['); const indivOnlyEnd=perm.indexOf('];',indivOnlyStart)+2; const indivOnlyBlock=perm.slice(indivOnlyStart,indivOnlyEnd);
+t('La permission exclusion est individuelle uniquement', perm.includes('\"exclude_animations\"') && !gradeBlock.includes('exclude_animations') && indivOnlyBlock.includes('\"exclude_animations\"'));
 t('D/DG/OWNER peuvent gérer l’exclusion sans ouvrir les autres permissions', indiv.includes('canManageAnimationExclusion = ["D","DG","OWNER"].includes(session.level)') && indiv.includes('canonical !== "exclude_animations" && !canManagePermissions'));
 t('Le panneau individuel affiche clairement l’exclusion', roster.includes('🚫 Exclure des animations') && roster.includes('N’apparaît ni comme personnage connecté'));
 t('Pillbox reçoit la liste d’exclusion via le proxy', proxy.includes('animationExcludedIds') && proxy.includes('animExcludedSelf'));
