@@ -8,6 +8,7 @@ const {
   INDIVIDUAL_DECISION_AUTHORITY_ORDER, buildEffectivePermissions,
   GRADE_PERMISSION_KEYS, INDIVIDUAL_ONLY_KEYS, INDIVIDUAL_PERMISSION_KEYS,
   LEGACY_PERMISSION_ALIASES, canonicalPermissionName,
+  PROTECTION_TYPES, PROTECTION_LABEL, isValidProtectionType, canActOnProtection, canCreateProtectionType,
 } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
@@ -77,7 +78,12 @@ async function grantableKeys(session, idToken, canManagePermissions){
   if(session.level === "OWNER") return [...INDIVIDUAL_PERMISSION_KEYS];
   const list = [];
   if(canManagePermissions){
-    const ctx = await loadPermissionContext(idToken);
+    // (24/10, audit) Mode strict : cette liste sert aussi de vraie barrière
+    // d'autorisation plus bas (set/setAll/clearAll la relisent) — avant,
+    // une panne de lecture ici retombait silencieusement sur les droits
+    // par défaut du grade, pouvant montrer/accorder plus que ce que la
+    // personne peut réellement distribuer.
+    const ctx = await loadPermissionContext(idToken, {strict:true});
     for(const p of GRADE_PERMISSION_KEYS){
       if(can(session.level, p, ctx.custom, session.discordId, ctx.individual)) list.push(p);
     }
@@ -145,17 +151,33 @@ exports.handler = async function (event) {
       if (!ANIMATION_CHARACTER_IDS.has(canonicalTarget)) return json(400, { error: "Cette personne n'a pas les deux portraits nécessaires aux animations." }, corsHeaders);
       if (animationStyle !== "illustration" && animationStyle !== "real") return json(400, { error: "Style invalide : 'illustration' ou 'real' attendu." }, corsHeaders);
 
-      const authedUrl = `${INDIVIDUAL_URL}?auth=${idToken}`;
-      const res = await fetch(authedUrl);
-      const current = (res.ok ? (await res.json()) : null) || {};
-      // On conserve l'ID réellement utilisé par le Roster pour éviter de
-      // fabriquer une seconde fiche Papy si l'alias long est reçu.
-      const storageId = Object.prototype.hasOwnProperty.call(current, targetDiscordId) ? String(targetDiscordId) : canonicalTarget;
-      current[storageId] = current[storageId] || {};
-      const previous = current[storageId].animation_portrait_style || null;
-      current[storageId].animation_portrait_style = animationStyle;
+      // (24/10, audit) Lecture + écriture CIBLÉES sur cette seule personne
+      // — avant, toute la branche rosterIndividualPermissions était relue
+      // puis réécrite en entier ; une panne de lecture suivie d'une
+      // écriture réussie pouvait donc effacer les exceptions de tout le
+      // monde pour ne garder que ce changement de style. On ne sait plus,
+      // sans lire toute la branche, si le Roster utilise déjà l'ID reçu ou
+      // son alias canonique pour cette personne — on lit les deux noeuds
+      // ciblés (ça reste 2 lectures, jamais toute la branche) et on écrit
+      // sur celui qui existe déjà, sinon sur l'alias canonique.
+      const idUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(targetDiscordId)}.json?auth=${idToken}`;
+      const canonicalUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(canonicalTarget)}.json?auth=${idToken}`;
+      const [idRes, canonicalRes] = canonicalTarget === String(targetDiscordId)
+        ? [await fetch(idUrl), null]
+        : await Promise.all([fetch(idUrl), fetch(canonicalUrl)]);
+      if (!idRes.ok || (canonicalRes && !canonicalRes.ok)) {
+        const bad = !idRes.ok ? idRes : canonicalRes;
+        return json(502, { error: `Permissions individuelles illisibles (${bad.status}) — changement refusé pour ne pas écraser les réglages existants.` }, corsHeaders);
+      }
+      const idNode = await idRes.json().catch(()=>null);
+      const storageId = idNode ? String(targetDiscordId) : canonicalTarget;
+      const storageUrl = storageId === String(targetDiscordId) ? idUrl : canonicalUrl;
+      const existing = storageId === String(targetDiscordId) ? idNode : (canonicalRes ? await canonicalRes.json().catch(()=>null) : null);
+      const node = existing || {};
+      const previous = node.animation_portrait_style || null;
+      node.animation_portrait_style = animationStyle;
 
-      const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current) });
+      const saveRes = await fetch(storageUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(node) });
       if (!saveRes.ok) {
         const t = await saveRes.text().catch(()=>"");
         return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders);
@@ -167,12 +189,178 @@ exports.handler = async function (event) {
         details: `Style animation -> ${animationStyle === "real" ? "Personnage RP" : "Dessin IA"}`,
         oldValue: JSON.stringify(previous), newValue: JSON.stringify(animationStyle), idToken,
       }).catch(()=>{});
-      return json(200, { ok:true, animationStyle, person: normalizePersonForDisplay(current[storageId]) }, corsHeaders);
+      return json(200, { ok:true, animationStyle, person: normalizePersonForDisplay(node) }, corsHeaders);
     }
 
     if (targetDiscordId === OWNER_DISCORD_ID) return json(403, { error: "OWNER ne peut jamais être la cible d'une exception individuelle." }, corsHeaders);
     if (String(targetDiscordId) === String(session.discordId) && session.level !== "OWNER") {
       return json(403, { error: "Tu ne peux pas modifier tes propres permissions." }, corsHeaders);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // setProtection — pose/retire/remplace la protection d'UNE permission,
+    // sans jamais toucher sa valeur (true/false/null) actuelle. C'est
+    // volontairement une action séparée de "set"/"cancel" : voir plus bas,
+    // "set"/"cancel" refusent tant qu'une protection existe — il faut
+    // d'abord l'enlever ICI, dans un appel séparé, avant de pouvoir
+    // modifier la valeur dans un appel suivant.
+    // ───────────────────────────────────────────────────────────────
+    if (action === "setProtection") {
+      const canonical = canonicalPermissionName(permissionName);
+      if (!INDIVIDUAL_PERMISSION_KEYS.includes(canonical)) {
+        return json(400, { error: `Permission individuelle inconnue ou interdite : "${permissionName}".` }, corsHeaders);
+      }
+      if (!allowed.includes(canonical)) {
+        return json(403, { error: `Tu ne peux pas gérer « ${canonical} » : cette permission dépasse tes propres droits.` }, corsHeaders);
+      }
+      if (!canManagePermissions) {
+        return json(403, { error: "La gestion des protections nécessite la permission « Gérer les permissions »." }, corsHeaders);
+      }
+      const newType = body.protectionType === undefined ? null : body.protectionType;
+      if (!isValidProtectionType(newType)) {
+        return json(400, { error: `Type de protection invalide : "${newType}".` }, corsHeaders);
+      }
+
+      const authedUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(targetDiscordId)}.json?auth=${idToken}`;
+      const res = await fetch(authedUrl);
+      if (!res.ok) return json(502, { error: `Permissions individuelles illisibles (${res.status}) — changement refusé pour ne pas écraser les réglages existants.` }, corsHeaders);
+      const person = (await res.json().catch(()=>null)) || {};
+      const entry = person[canonical] = person[canonical] || { CD: null, D: null, DG: null, OWNER: null };
+      const oldProtection = entry.protection || null;
+      const oldType = oldProtection ? oldProtection.type : null;
+
+      if (!canActOnProtection(session, oldType)) {
+        const refusedDetails = `Tentative sur « ${canonical} » protégée ${PROTECTION_LABEL[oldType] || oldType} — niveau insuffisant (${session.level}).`;
+        await logAction({
+          action: "exception_individuelle_refusee",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          targetDiscordId, details: refusedDetails, idToken,
+        }).catch(()=>{});
+        return json(403, { error: oldType === "OWNER_PLUS"
+          ? "🔐 Protection OWNER++ : seul un véritable OWNER peut la retirer ou la modifier."
+          : `Protégé par ${PROTECTION_LABEL[oldType] || oldType} — ton niveau (${session.level}) ne permet pas d'intervenir dessus.` }, corsHeaders);
+      }
+      if (!canCreateProtectionType(session, newType)) {
+        const refusedDetails = `Tentative de poser ${PROTECTION_LABEL[newType] || newType} sur « ${canonical} » — dépasse ce que ${session.level} peut créer.`;
+        await logAction({
+          action: "exception_individuelle_refusee",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          targetDiscordId, details: refusedDetails, idToken,
+        }).catch(()=>{});
+        return json(403, { error: `Un ${session.level} ne peut jamais créer une protection ${PROTECTION_LABEL[newType] || newType} (uniquement au niveau de, ou en dessous de, son propre grade).` }, corsHeaders);
+      }
+
+      entry.protection = newType ? {
+        type: newType, authorDiscordId: session.discordId, authorName: session.name,
+        authorLevel: session.level, createdAt: Date.now(),
+      } : null;
+
+      const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(person) });
+      if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+
+      await logAction({
+        action: "protection_permission_modifiee",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        targetDiscordId,
+        details: `« ${canonical} » : protection ${oldType ? PROTECTION_LABEL[oldType] : "🔓 Libre"} → ${newType ? PROTECTION_LABEL[newType] : "🔓 Libre"}`,
+        oldValue: JSON.stringify(oldProtection), newValue: JSON.stringify(entry.protection), idToken,
+      }).catch(()=>{});
+
+      return json(200, { ok: true, protection: entry.protection, person: normalizePersonForDisplay(person) }, corsHeaders);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // setBatch — plusieurs permissions de LA MÊME personne changées dans
+    // la même sauvegarde (depuis le site : plusieurs cases cochées puis
+    // un seul clic sur Enregistrer). Une seule lecture, une seule
+    // écriture, un seul log groupé — jamais un log par case cochée.
+    // Chaque opération est validée indépendamment (mêmes règles que
+    // "set"/"cancel" isolés, protection comprise) ; celles refusées sont
+    // simplement écartées et renvoyées au site, elles ne bloquent pas
+    // les autres.
+    // ───────────────────────────────────────────────────────────────
+    if (action === "setBatch") {
+      const operations = Array.isArray(body.operations) ? body.operations.slice(0, 50) : [];
+      if (!operations.length) return json(400, { error: "Aucune modification à appliquer." }, corsHeaders);
+      if (!canManagePermissions) return json(403, { error: "La modification groupée nécessite la permission « Gérer les permissions »." }, corsHeaders);
+
+      const authedUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(targetDiscordId)}.json?auth=${idToken}`;
+      const res = await fetch(authedUrl);
+      if (!res.ok) return json(502, { error: `Permissions individuelles illisibles (${res.status}) — changement refusé pour ne pas écraser les réglages existants.` }, corsHeaders);
+      const person = (await res.json().catch(()=>null)) || {};
+      const beforePerson = JSON.parse(JSON.stringify(person));
+      const ensure = (perm) => { person[perm] = person[perm] || { CD: null, D: null, DG: null, OWNER: null }; return person[perm]; };
+      const effectiveLayer = effectiveLayerFor(session);
+      const authorRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(effectiveLayer);
+      const cancellableLayers = DECISION_LEVELS.filter(l => INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(l) >= authorRank);
+
+      const applied = []; const refused = []; const refusedProtectionAttempts = [];
+      operations.forEach(op => {
+        const canonical = canonicalPermissionName(op && op.permissionName);
+        if (!INDIVIDUAL_PERMISSION_KEYS.includes(canonical)) { refused.push({ permissionName: op && op.permissionName, reason: "permission inconnue" }); return; }
+        if (!allowed.includes(canonical)) { refused.push({ permissionName: canonical, reason: "dépasse tes droits" }); return; }
+        if (canonical === "owner_delegate" && session.level !== "OWNER") { refused.push({ permissionName: canonical, reason: "réservé à OWNER" }); return; }
+        if (canonical === "exclude_animations" && !canManageAnimationExclusion) { refused.push({ permissionName: canonical, reason: "réservé à D/DG/OWNER" }); return; }
+        const entry = ensure(canonical);
+        const currentProtection = entry.protection || null;
+        if (currentProtection && op.action !== "protection") {
+          refused.push({ permissionName: canonical, reason: `protégé ${PROTECTION_LABEL[currentProtection.type] || currentProtection.type} — retire d'abord la protection` });
+          return;
+        }
+        if (op.action === "protection") {
+          const newType = op.protectionType === undefined ? null : op.protectionType;
+          if (!isValidProtectionType(newType)) { refused.push({ permissionName: canonical, reason: "type de protection invalide" }); return; }
+          if (!canActOnProtection(session, currentProtection ? currentProtection.type : null)) {
+            refused.push({ permissionName: canonical, reason: "protection hors de portée de ton niveau" });
+            refusedProtectionAttempts.push({ canonical, oldType: currentProtection ? currentProtection.type : null, attemptedType: newType });
+            return;
+          }
+          if (!canCreateProtectionType(session, newType)) {
+            refused.push({ permissionName: canonical, reason: "protection au-dessus de ce que tu peux créer" });
+            refusedProtectionAttempts.push({ canonical, oldType: currentProtection ? currentProtection.type : null, attemptedType: newType });
+            return;
+          }
+          entry.protection = newType ? { type: newType, authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level, createdAt: Date.now() } : null;
+          applied.push(`« ${canonical} » : protection ${currentProtection ? PROTECTION_LABEL[currentProtection.type] : "🔓 Libre"} → ${newType ? PROTECTION_LABEL[newType] : "🔓 Libre"}`);
+        } else if (op.action === "set") {
+          if (typeof op.value !== "boolean") { refused.push({ permissionName: canonical, reason: "valeur invalide" }); return; }
+          entry[effectiveLayer] = op.value;
+          applied.push(`« ${canonical} » -> ${op.value ? "Autorisé" : "Refusé"} (couche ${effectiveLayer})`);
+        } else if (op.action === "cancel") {
+          if (!op.cancelLayer || !cancellableLayers.includes(op.cancelLayer)) { refused.push({ permissionName: canonical, reason: "couche à annuler invalide ou hors de portée" }); return; }
+          entry[op.cancelLayer] = null;
+          applied.push(`« ${canonical} » (couche ${op.cancelLayer} effacée)`);
+        } else {
+          refused.push({ permissionName: canonical, reason: "action inconnue" });
+        }
+      });
+
+      if (applied.length) {
+        const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(person) });
+        if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders); }
+
+        // UNE seule entrée groupée pour toute la sauvegarde — jamais une par
+        // permission modifiée. Le détail (liste des permissions touchées)
+        // reste consultable dans le log lui-même (champ "details").
+        await logAction({
+          action: "exceptions_individuelles_modifiees_groupe",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          targetDiscordId,
+          details: `${applied.length} modification(s) :\n${applied.join("\n")}`,
+          oldValue: JSON.stringify(beforePerson), newValue: JSON.stringify(person), idToken,
+        }).catch(()=>{});
+      }
+      for (const attempt of refusedProtectionAttempts) {
+        await logAction({
+          action: "exception_individuelle_refusee",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          targetDiscordId,
+          details: `Tentative sur « ${attempt.canonical} » (protection ${attempt.oldType ? PROTECTION_LABEL[attempt.oldType] : "🔓 Libre"} → ${attempt.attemptedType ? PROTECTION_LABEL[attempt.attemptedType] : "🔓 Libre"}) — niveau insuffisant (${session.level}).`,
+          idToken,
+        }).catch(()=>{});
+      }
+
+      return json(200, { ok: true, applied: applied.length, refused, person: normalizePersonForDisplay(person) }, corsHeaders);
     }
 
     const isBatch = action === "setAll" || action === "clearAll";
@@ -199,50 +387,71 @@ exports.handler = async function (event) {
     const effectiveLayer = effectiveLayerFor(session);
     const authorRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(effectiveLayer);
     const cancellableLayers = DECISION_LEVELS.filter(l => INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(l) >= authorRank);
-    const authedUrl = `${INDIVIDUAL_URL}?auth=${idToken}`;
+    // (24/10, audit) Lecture + écriture CIBLÉES sur cette seule personne —
+    // avant, toute la branche rosterIndividualPermissions était relue puis
+    // réécrite en entier ; une panne de lecture suivie d'une écriture
+    // réussie pouvait donc effacer les exceptions de tout le monde pour ne
+    // garder que ce changement. Plus aucun autre dossier n'est jamais lu
+    // ni réécrit par cette action.
+    const authedUrl = `${INDIVIDUAL_URL.replace(/\.json$/, "")}/${encodeURIComponent(targetDiscordId)}.json?auth=${idToken}`;
     const res = await fetch(authedUrl);
-    const current = (res.ok ? (await res.json()) : null) || {};
-    current[targetDiscordId] = current[targetDiscordId] || {};
-    const beforePerson = JSON.parse(JSON.stringify(current[targetDiscordId]));
+    if (!res.ok) return json(502, { error: `Permissions individuelles illisibles (${res.status}) — changement refusé pour ne pas écraser les réglages existants.` }, corsHeaders);
+    const person = (await res.json().catch(()=>null)) || {};
+    const beforePerson = JSON.parse(JSON.stringify(person));
     const ensure = (perm) => {
-      current[targetDiscordId][perm] = current[targetDiscordId][perm] || { CD: null, D: null, DG: null, OWNER: null };
-      return current[targetDiscordId][perm];
+      person[perm] = person[perm] || { CD: null, D: null, DG: null, OWNER: null };
+      return person[perm];
     };
 
     let logActionName, details;
     if (action === "set") {
       if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." }, corsHeaders);
+      // (cahier des charges, bloc 1, point 5) Une permission protégée ne se
+      // modifie JAMAIS directement : il faut d'abord retirer la protection
+      // (action setProtection, dans un appel séparé), puis seulement ensuite
+      // modifier la valeur ici. Jamais les deux dans le même appel.
+      if (person[canonical] && person[canonical].protection) {
+        const p = person[canonical].protection;
+        return json(423, { error: `Protégé par ${PROTECTION_LABEL[p.type] || p.type} (posé par ${p.authorName || "?"}) — retire d'abord la protection avant de modifier cette permission.`, protection: p }, corsHeaders);
+      }
       ensure(canonical)[effectiveLayer] = value;
       logActionName = "exception_individuelle_definie";
       details = `Permission "${canonical}" -> ${value ? "Autorisé" : "Refusé"} (couche ${effectiveLayer})`;
     } else if (action === "cancel") {
       if (!cancelLayer || !DECISION_LEVELS.includes(cancelLayer)) return json(400, { error: "Couche à annuler invalide." }, corsHeaders);
       if (!cancellableLayers.includes(cancelLayer)) return json(403, { error: `Un ${session.level} ne peut pas annuler une décision de rang supérieur (${cancelLayer}).` }, corsHeaders);
+      if (person[canonical] && person[canonical].protection) {
+        const p = person[canonical].protection;
+        return json(423, { error: `Protégé par ${PROTECTION_LABEL[p.type] || p.type} (posé par ${p.authorName || "?"}) — retire d'abord la protection avant de modifier cette permission.`, protection: p }, corsHeaders);
+      }
       ensure(canonical)[cancelLayer] = null;
       logActionName = "exception_individuelle_annulee";
       details = `Permission "${canonical}" (couche ${cancelLayer} effacée)`;
     } else if (action === "setAll") {
-      // Bulk = permissions ordinaires autorisées seulement. Les deux droits
-      // individuels spéciaux restent volontairement explicites.
-      const bulk = allowed.filter(p => !INDIVIDUAL_ONLY_KEYS.includes(p));
+      // Bulk = permissions ordinaires autorisées seulement, et jamais celles
+      // actuellement protégées (une protection n'est jamais contournée
+      // silencieusement par une action groupée).
+      const bulk = allowed.filter(p => !INDIVIDUAL_ONLY_KEYS.includes(p) && !(person[p] && person[p].protection));
+      const skippedProtected = allowed.filter(p => !INDIVIDUAL_ONLY_KEYS.includes(p) && person[p] && person[p].protection).length;
       bulk.forEach(perm => { ensure(perm)[effectiveLayer] = true; });
       logActionName = "exceptions_individuelles_tout_selectionner";
-      details = `${bulk.length} permissions ordinaires autorisées (couche ${effectiveLayer})`;
+      details = `${bulk.length} permissions ordinaires autorisées (couche ${effectiveLayer})${skippedProtected?` — ${skippedProtected} protégée(s) ignorée(s)`:""}`;
     } else if (action === "clearAll") {
-      let n = 0;
-      Object.keys(current[targetDiscordId]).forEach(perm => {
+      let n = 0; let skippedProtected = 0;
+      Object.keys(person).forEach(perm => {
         const canonicalPerm = canonicalPermissionName(perm);
         if(!allowed.includes(canonicalPerm)) return;
-        const layers = current[targetDiscordId][perm] || {};
+        if(person[perm] && person[perm].protection){ skippedProtected++; return; }
+        const layers = person[perm] || {};
         cancellableLayers.forEach(l => { if (layers[l] === true || layers[l] === false) { layers[l] = null; n++; } });
       });
       logActionName = "exceptions_individuelles_tout_retirer";
-      details = `${n} décision(s) retirée(s) (couches ${cancellableLayers.join(", ")})`;
+      details = `${n} décision(s) retirée(s) (couches ${cancellableLayers.join(", ")})${skippedProtected?` — ${skippedProtected} protégée(s) ignorée(s)`:""}`;
     } else {
       return json(400, { error: `Action inconnue : "${action}".` }, corsHeaders);
     }
 
-    const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current) });
+    const saveRes = await fetch(authedUrl, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(person) });
     if (!saveRes.ok) {
       const t = await saveRes.text().catch(()=>"");
       return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }, corsHeaders);
@@ -253,11 +462,11 @@ exports.handler = async function (event) {
       authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
       targetDiscordId, details,
       oldValue: JSON.stringify(isBatch ? beforePerson : (beforePerson[canonical] || null)),
-      newValue: JSON.stringify(isBatch ? current[targetDiscordId] : current[targetDiscordId][canonical]),
+      newValue: JSON.stringify(isBatch ? person : person[canonical]),
       idToken,
     }).catch(()=>{});
 
-    return json(200, { ok: true, current: isBatch ? null : current[targetDiscordId][canonical], person: normalizePersonForDisplay(current[targetDiscordId]) }, corsHeaders);
+    return json(200, { ok: true, current: isBatch ? null : person[canonical], person: normalizePersonForDisplay(person) }, corsHeaders);
   } catch (err) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
