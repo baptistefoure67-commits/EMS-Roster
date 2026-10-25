@@ -1723,6 +1723,8 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div id="individualPermBulkBar" style="display:none;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button type="button" class="btn-primary btn-small" id="btnIndivSelectAll">✅ Tout sélectionner</button>
         <button type="button" class="btn-ghost btn-small" id="btnIndivClearAll">↺ Tout retirer</button>
+        <button type="button" class="btn-primary btn-small" id="btnIndivSaveBatch" style="display:none;">💾 Enregistrer (<span id="indivPendingCount">0</span>)</button>
+        <button type="button" class="btn-ghost btn-small" id="btnIndivDiscardBatch" style="display:none;">Annuler les changements</button>
         <span id="individualPermBulkStatus" style="font-size:0.78rem;color:var(--text-dim);"></span>
       </div>
       <div id="individualPermTable" style="margin-top:10px;"></div>
@@ -1863,6 +1865,17 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       </div>
     </div>
     <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- (24/10, cahier des charges "évolution coordonnée") Vraie modale du site
+     pour toute action sur une protection — jamais window.confirm(). Un seul
+     élément réutilisé pour les 3 cas (retrait, remplacement, OWNER++). -->
+<div id="protectionConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:90;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:460px;width:92%;">
+    <div id="protectionConfirmTitle" style="font-weight:700;font-size:1rem;margin-bottom:10px;"></div>
+    <div id="protectionConfirmBody" style="font-size:0.88rem;line-height:1.5;margin-bottom:16px;white-space:pre-line;"></div>
+    <div id="protectionConfirmActions" style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>
   </div>
 </div>
 
@@ -2179,11 +2192,16 @@ function showRosterSaveReview(review){
     confirmBtn.onclick=()=>cleanup(true); cancelBtn.onclick=()=>cleanup(false);
   });
 }
-async function pushRosterSnapshotConfirmed(review){
+async function pushRosterSnapshotConfirmed(review, signal){
   if(!hasCap("manage_roster")) return {skipped:true};
   const invalid=findInvalidEmployees();
   if(invalid.length){ const detail=invalid.slice(0,5).map(b=>`${b.name} (${b.problems.join(", ")})`).join(" ; "); throw new Error(`Sauvegarde Roster bloquée : ${invalid.length} fiche(s) invalide(s) — ${detail}`); }
-  const data = await protectedAction("replaceRosterSnapshot", {employees, expectedSavedAt: review.previousSavedAt ?? null});
+  // (24/10, audit) Le signal d'annulation (délai 30 s) est maintenant
+  // passé jusqu'ici : avant, il n'était appliqué qu'aux étapes suivantes
+  // (sélection Formation Opération, suivi d'activité), donc si cette toute
+  // première écriture du Roster restait pendue, le message "délai dépassé"
+  // ne pouvait apparaître qu'après son retour réel, bien après les 30 s.
+  const data = await protectedAction("replaceRosterSnapshot", {employees, expectedSavedAt: review.previousSavedAt ?? null}, signal);
   rosterLastUpdatedAt=data.savedAt||Date.now(); rosterEmployeesDirty=false; renderLastUpdated(); saveRosterDisplayCache();
   return data;
 }
@@ -5253,7 +5271,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
   try{
     if(canSaveRoster){
       setLiaisonStep(step,"active","Écriture du Roster vérifié…");
-      try{ await pushRosterSnapshotConfirmed(review); done.push("Roster"); setLiaisonStep(step,"done"); }
+      try{ await pushRosterSnapshotConfirmed(review, saveAbortController?saveAbortController.signal:undefined); done.push("Roster"); setLiaisonStep(step,"done"); }
       catch(err){ failed.push(`Roster (${err.message})`); setLiaisonStep(step,"failed"); }
       step++;
     }
@@ -5579,6 +5597,16 @@ const LOG_ACTION_LABEL = {
   modification_permission: "Modification de permission",
   absences_synchronisees: "Absences synchronisées",
   absence_prise_en_compte_modifiee: "Absence : Prise en compte modifiée",
+  // (24/10, cahier des charges "évolution coordonnée") permissions protégées + logs groupés
+  exceptions_individuelles_modifiees_groupe: "🔐 Permissions modifiées",
+  exception_individuelle_definie: "Exception individuelle définie",
+  exception_individuelle_annulee: "Exception individuelle annulée",
+  exceptions_individuelles_tout_selectionner: "Exceptions : tout sélectionner",
+  exceptions_individuelles_tout_retirer: "Exceptions : tout retirer",
+  protection_permission_modifiee: "🔒 Protection modifiée",
+  exception_individuelle_refusee: "🔐 Modification refusée",
+  style_animation_individuel_modifie: "Style d'animation individuel modifié",
+  log_supprime: "🗑️ Entrée de log supprimée",
 };
 
 async function loadLogs(){
@@ -5748,6 +5776,97 @@ let individualAllPermsCache = null;
 let individualPermsCache = null;
 let effectiveByGradeCache = null;
 
+// (24/10) Modale réutilisable pour toute action sur une protection — jamais
+// de window.confirm() pour ça. `actions` = [{label, danger?, run}] ; un
+// bouton Annuler est toujours ajouté automatiquement. Chaque bouton choisi
+// FERME la modale puis exécute `run()` — le choix du bouton lui-même EST la
+// confirmation (pas de 2e écran), sauf pour OWNER++ dont le libellé porte
+// explicitement la mention "Confirmer".
+function openProtectionModal(title, body, actions){
+  const modal = document.getElementById("protectionConfirmModal");
+  document.getElementById("protectionConfirmTitle").textContent = title;
+  document.getElementById("protectionConfirmBody").textContent = body;
+  const box = document.getElementById("protectionConfirmActions");
+  box.innerHTML = "";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "btn-ghost btn-small"; cancelBtn.textContent = "Annuler";
+  cancelBtn.addEventListener("click", ()=>{ modal.style.display = "none"; });
+  box.appendChild(cancelBtn);
+  actions.forEach(a=>{
+    const btn = document.createElement("button");
+    btn.className = `btn-small ${a.danger ? "btn-danger" : "btn-primary"}`;
+    btn.textContent = a.label;
+    btn.addEventListener("click", ()=>{ modal.style.display = "none"; a.run(); });
+    box.appendChild(btn);
+  });
+  modal.style.display = "flex";
+}
+const PROTECTION_LABEL = { D: "🔒 D", DG: "🔒 DG", OWNER: "🔒 OWNER", OWNER_PLUS: "🔐 OWNER++" };
+// Ce que CE niveau (currentUserLevel) peut poser comme protection — même
+// règle que côté serveur (permissions.js), dupliquée ici uniquement pour
+// savoir quoi proposer dans l'interface ; le serveur revérifie toujours.
+const PROTECTION_CREATE_CEILING_UI = { D: ["D"], DG: ["D","DG"], OWNER: ["D","DG","OWNER","OWNER_PLUS"] };
+function canActOnProtectionUi(protectionType){
+  if(protectionType === "OWNER_PLUS") return currentUserLevel === "OWNER";
+  return ["D","DG","OWNER"].includes(currentUserLevel);
+}
+
+// (24/10) Ouvre la modale de gestion d'une protection pour UNE permission —
+// pose/retire/remplace. Chaque choix EST la confirmation (voir
+// openProtectionModal), exécuté immédiatement (pas mis en attente comme les
+// changements de valeur, qui eux attendent "Enregistrer").
+function manageProtectionFor(discordId, perm, currentProtection){
+  const currentType = currentProtection ? currentProtection.type : null;
+  if(!canActOnProtectionUi(currentType)){
+    toast(currentType === "OWNER_PLUS" ? "🔐 Seul un véritable OWNER peut agir sur une protection OWNER++." : "Ton niveau ne permet pas d'intervenir sur cette protection.");
+    return;
+  }
+  const ceiling = PROTECTION_CREATE_CEILING_UI[currentUserLevel] || [];
+  const label = currentType ? PROTECTION_LABEL[currentType] : "🔓 Libre";
+  const authorInfo = currentProtection ? `\n\nPosée par : ${currentProtection.authorLevel} — ${currentProtection.authorName}` : "";
+  const actions = [];
+  if(currentProtection){
+    actions.push({ label: "🔓 Retirer la protection", run: ()=>applyProtectionChange(discordId, perm, null) });
+  }
+  ceiling.forEach(type=>{
+    if(type === currentType) return;
+    actions.push({
+      label: type === "OWNER_PLUS" ? "🔐 Confirmer : poser OWNER++" : `Remplacer par ${PROTECTION_LABEL[type]}`,
+      danger: type === "OWNER_PLUS",
+      run: ()=>applyProtectionChange(discordId, perm, type),
+    });
+  });
+  const title = currentType === "OWNER_PLUS" ? "🔐 Protection OWNER++" : (currentProtection ? "⚠️ Permission protégée" : "🔒 Poser une protection");
+  const body = currentType === "OWNER_PLUS"
+    ? `Vous modifiez une Protection++.${authorInfo}`
+    : `Permission : ${esc(PERMISSION_LABEL[perm]||perm)}\nÉtat actuel : ${label}${authorInfo}\n\nQue veux-tu faire ?`;
+  openProtectionModal(title, body, actions);
+}
+
+async function applyProtectionChange(discordId, perm, newType){
+  try{
+    const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token: currentSessionToken, action:"setProtection", targetDiscordId: discordId, permissionName: perm, protectionType: newType }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || `${res.status}`);
+    individualPermsCache = individualPermsCache || {};
+    individualPermsCache[discordId] = data.person || individualPermsCache[discordId] || {};
+    toast(newType ? `${PROTECTION_LABEL[newType]} posée.` : "🔓 Protection retirée.");
+    renderIndividualPermTableForSelected();
+  }catch(err){
+    toast(`✕ ${err.message}`);
+  }
+}
+
+// (24/10) Changements de VALEUR en attente pour la personne actuellement
+// sélectionnée — mis en attente par clic, envoyés ensemble en un seul
+// setBatch (un seul log groupé) via le bouton "Enregistrer". Remis à zéro
+// à chaque changement de personne sélectionnée.
+let pendingIndividualPermChanges = {};
+let pendingIndividualPermTarget = null;
+
 async function renderIndividualPermissionsCard(){
   const card = document.getElementById("individualPermissionsCard");
   const canManage = hasCap("manage_permissions");
@@ -5821,6 +5940,7 @@ function renderIndividualPermTableForSelected(){
   const info = document.getElementById("individualPermPersonInfo");
   const table = document.getElementById("individualPermTable");
   const bulkBar = document.getElementById("individualPermBulkBar");
+  if(pendingIndividualPermTarget !== discordId){ pendingIndividualPermChanges = {}; pendingIndividualPermTarget = discordId; }
   if(!discordId){ info.textContent = ""; table.innerHTML = ""; bulkBar.style.display = "none"; return; }
   const emp = employees.find(e=>e.discordId===discordId);
   const isSelf = currentUserDiscordId && String(discordId) === String(currentUserDiscordId) && currentUserLevel !== "OWNER";
@@ -5847,21 +5967,32 @@ function renderIndividualPermTableForSelected(){
 
   table.innerHTML = animationStyleBlock + (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).map(perm=>{
     const layers = personEntry[perm] || { CD:null, D:null, DG:null, OWNER:null };
-    // couche active = la plus haute qui a une valeur
+    const protection = layers.protection || null;
+    const protectionType = protection ? protection.type : null;
+    // couche active = la plus haute qui a une valeur (le pending, s'il y en
+    // a un pour cette permission, l'emporte dans l'AFFICHAGE uniquement —
+    // rien n'est encore envoyé tant que "Enregistrer" n'a pas été cliqué)
     let activeLayer = null, activeValue = null;
     for(const l of ["OWNER","DG","D","CD"]){
       if(layers[l] === true || layers[l] === false){ activeLayer = l; activeValue = layers[l]; break; }
     }
+    const pending = pendingIndividualPermChanges[perm];
+    const displayValue = pending ? (pending.action==="cancel" ? null : pending.value) : activeValue;
+    const isPending = !!pending;
     // Ce que "Hériter" donne VRAIMENT pour le grade de cette personne
     // (demandé le 09/09) — pour ne pas laisser deviner.
     const gradeValue = (effectiveByGradeCache && emp) ? !!(effectiveByGradeCache[emp.grade] && effectiveByGradeCache[emp.grade][perm]) : null;
     const heritLabel = gradeValue===null ? "Hériter" : `Hériter (${gradeValue ? "Autorisé" : "Refusé"})`;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;">
-      <span style="flex:1;${perm==="exclude_animations"?"color:var(--amber);font-weight:800;":""}">${esc(PERMISSION_LABEL[perm]||perm)}${perm==="exclude_animations"?`<br><small style="color:var(--text-faint);font-weight:500;">N’apparaît ni comme personnage connecté, ni comme collègue tiré au sort — Roster + Pillbox.</small>`:""}</span>
-      <button type="button" class="btn-small ${activeValue===null?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="cancel">${esc(heritLabel)}</button>
-      <button type="button" class="btn-small ${activeValue===true?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="true">Autorisé</button>
-      <button type="button" class="btn-small ${activeValue===false?'btn-danger':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="false">Refusé</button>
-      ${activeLayer ? `<span style="font-size:0.7rem;color:var(--text-faint);">(${activeLayer})</span>` : ""}
+    const protectionBadge = protectionType
+      ? `<button type="button" class="btn-ghost btn-small" data-protect-perm="${perm}" title="${esc(protection.authorLevel)} — ${esc(protection.authorName)}" style="font-size:0.72rem;padding:2px 7px;">${PROTECTION_LABEL[protectionType]}</button>`
+      : (hasCap("manage_permissions") && ["D","DG","OWNER"].includes(currentUserLevel) ? `<button type="button" class="btn-ghost btn-small" data-protect-perm="${perm}" title="Poser une protection" style="font-size:0.72rem;padding:2px 7px;opacity:.55;">🔓</button>` : "");
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;${isPending?'background:rgba(255,200,0,.08);':''}">
+      <span style="flex:1;${perm==="exclude_animations"?"color:var(--amber);font-weight:800;":""}">${esc(PERMISSION_LABEL[perm]||perm)}${isPending?' <small style="color:var(--amber);">●non enregistré</small>':''}${perm==="exclude_animations"?`<br><small style="color:var(--text-faint);font-weight:500;">N’apparaît ni comme personnage connecté, ni comme collègue tiré au sort — Roster + Pillbox.</small>`:""}</span>
+      <button type="button" ${protectionType?'disabled title="Protégé — retire la protection pour modifier"':''} class="btn-small ${displayValue===null?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="cancel">${esc(heritLabel)}</button>
+      <button type="button" ${protectionType?'disabled title="Protégé — retire la protection pour modifier"':''} class="btn-small ${displayValue===true?'btn-primary':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="true">Autorisé</button>
+      <button type="button" ${protectionType?'disabled title="Protégé — retire la protection pour modifier"':''} class="btn-small ${displayValue===false?'btn-danger':'btn-ghost'}" data-indiv-set="${perm}" data-indiv-value="false">Refusé</button>
+      ${activeLayer && !isPending ? `<span style="font-size:0.7rem;color:var(--text-faint);">(${activeLayer})</span>` : ""}
+      ${protectionBadge}
     </div>`;
   }).join("");
 
@@ -5889,33 +6020,66 @@ function renderIndividualPermTableForSelected(){
     });
   });
 
+  // (24/10) Ces boutons ne sauvegardent plus instantanément : ils mettent
+  // la permission en attente (surlignée, "●non enregistré"). Rien n'est
+  // envoyé tant que "💾 Enregistrer" n'est pas cliqué — permet de changer
+  // plusieurs permissions d'une même personne et de ne produire qu'UN SEUL
+  // log groupé pour toute la sauvegarde.
   table.querySelectorAll("[data-indiv-set]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
+    btn.addEventListener("click", ()=>{
       const perm = btn.dataset.indivSet;
       const valueStr = btn.dataset.indivValue;
-      btn.disabled = true;
-      try{
-        const payload = valueStr === "cancel"
-          ? { token: currentSessionToken, action:"cancel", targetDiscordId: discordId, permissionName: perm, cancelLayer: myLayer }
-          : { token: currentSessionToken, action:"set", targetDiscordId: discordId, permissionName: perm, value: valueStr === "true" };
-        const res = await fetch("/.netlify/functions/manage-individual-permissions", {
-          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(()=>({}));
-        if(!res.ok) throw new Error(data.error || `${res.status}`);
-        individualPermsCache = individualPermsCache || {};
-        individualPermsCache[discordId] = individualPermsCache[discordId] || {};
-        individualPermsCache[discordId][perm] = data.current;
-        renderIndividualPermTableForSelected();
-        if(perm === "exclude_animations") loadAnimationExclusionsFromCloud();
-        toast(`✓ ${PERMISSION_LABEL[perm]} mis à jour`);
-      }catch(err){
-        toast(`✕ Refusé : ${err.message}`);
-      }finally{
-        btn.disabled = false;
-      }
+      // Remettre exactement sur la valeur déjà enregistrée = ça retire la
+      // permission de la liste d'attente (rien à sauvegarder pour elle).
+      let activeLayer = null, activeValue = null;
+      const layers = (individualPermsCache[discordId]||{})[perm] || {};
+      for(const l of ["OWNER","DG","D","CD"]){ if(layers[l]===true||layers[l]===false){ activeLayer=l; activeValue=layers[l]; break; } }
+      const alreadyThisValue = valueStr==="cancel" ? activeValue===null : activeValue===(valueStr==="true");
+      if(alreadyThisValue){ delete pendingIndividualPermChanges[perm]; }
+      else if(valueStr === "cancel"){ pendingIndividualPermChanges[perm] = { action:"cancel", cancelLayer: myLayer }; }
+      else { pendingIndividualPermChanges[perm] = { action:"set", value: valueStr === "true" }; }
+      renderIndividualPermTableForSelected();
     });
   });
+
+  table.querySelectorAll("[data-protect-perm]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const perm = btn.dataset.protectPerm;
+      const layers = (individualPermsCache[discordId]||{})[perm] || {};
+      manageProtectionFor(discordId, perm, layers.protection || null);
+    });
+  });
+
+  const pendingCount = Object.keys(pendingIndividualPermChanges).length;
+  const saveBtn = document.getElementById("btnIndivSaveBatch");
+  const discardBtn = document.getElementById("btnIndivDiscardBatch");
+  saveBtn.style.display = pendingCount ? "inline-flex" : "none";
+  discardBtn.style.display = pendingCount ? "inline-flex" : "none";
+  document.getElementById("indivPendingCount").textContent = String(pendingCount);
+  saveBtn.onclick = async ()=>{
+    saveBtn.disabled = true; discardBtn.disabled = true;
+    try{
+      const operations = Object.entries(pendingIndividualPermChanges).map(([permissionName, op])=>({ permissionName, ...op }));
+      const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ token: currentSessionToken, action:"setBatch", targetDiscordId: discordId, operations }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error || `${res.status}`);
+      individualPermsCache = individualPermsCache || {};
+      individualPermsCache[discordId] = data.person || individualPermsCache[discordId] || {};
+      pendingIndividualPermChanges = {};
+      if(Object.keys(pendingIndividualPermChanges).some(p=>p==="exclude_animations")) loadAnimationExclusionsFromCloud();
+      const refusedCount = (data.refused||[]).length;
+      toast(refusedCount ? `✓ ${data.applied} enregistrée(s), ${refusedCount} refusée(s) (protégées ou hors de portée)` : `✓ ${data.applied} permission(s) enregistrée(s)`);
+      renderIndividualPermTableForSelected();
+    }catch(err){
+      toast(`✕ Refusé : ${err.message}`);
+    }finally{
+      saveBtn.disabled = false; discardBtn.disabled = false;
+    }
+  };
+  discardBtn.onclick = ()=>{ pendingIndividualPermChanges = {}; renderIndividualPermTableForSelected(); };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6628,6 +6792,29 @@ async function renewSessionToken(){
       let stored = null;
       try{ stored = JSON.parse(localStorage.getItem(ROSTER_SESSION_STORAGE_KEY) || "null"); }catch(e){}
       saveSessionToStorage(data.token, stored && stored.session ? stored.session : {});
+      // (24/10, audit) Le serveur relit déjà le grade actuel avant de
+      // signer le nouveau jeton (voir renew-session.js) — avant, le
+      // navigateur gardait quand même currentUserLevel et le jeton Firebase
+      // de la session précédente jusqu'au prochain rechargement complet.
+      // Une personne rétrogradée pendant que la page reste ouverte pouvait
+      // donc voir ses anciens boutons un moment, et son ancien jeton
+      // Firebase restait utilisable directement (avec son ancien niveau)
+      // jusqu'à sa propre expiration. On applique maintenant le nouveau
+      // niveau et un nouveau jeton Firebase tout de suite.
+      if(data.level && data.level !== currentUserLevel){
+        currentUserLevel = data.level;
+        applyCapsUi();
+      }
+      try{
+        const fbRes = await fetch("/.netlify/functions/refresh-firebase-token", {
+          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ token: data.token }),
+        });
+        const fbData = await fbRes.json().catch(()=>({}));
+        if(fbRes.ok && fbData.firebaseCustomToken){
+          const fresh = await exchangeFirebaseCustomToken(fbData.firebaseCustomToken);
+          if(fresh) currentFirebaseIdToken = fresh;
+        }
+      }catch(e){ /* le jeton Firebase précédent reste utilisable jusqu'à sa propre expiration ; pas bloquant ici */ }
     }
   }catch(e){ /* silencieux — un échec réseau ponctuel ne doit pas interrompre la session */ }
 }
@@ -6636,7 +6823,7 @@ async function renewSessionToken(){
 // la fonction serveur revérifie tout elle-même avant d'écrire quoi que
 // ce soit (voir netlify/functions/protected-write.js). Jamais un appel
 // direct à Firebase pour ces actions-là.
-async function protectedAction(action, payload){
+async function protectedAction(action, payload, signal){
   if(!currentSessionToken){
     toast("Session expirée — reconnecte-toi avec Discord.");
     showGate("Ta session a expiré, reconnecte-toi.");
@@ -6646,6 +6833,7 @@ async function protectedAction(action, payload){
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ token: currentSessionToken, action, payload }),
+    ...(signal ? {signal} : {}),
   });
   // (16/10) Un 401 ici veut toujours dire la même chose : la session a
   // expiré entre deux actions. Avant, le message exact dépendait de ce
