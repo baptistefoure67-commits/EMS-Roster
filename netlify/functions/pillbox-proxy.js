@@ -168,6 +168,17 @@ exports.handler = async function (event) {
             return json(502, { error:`Archive impossible (${archiveRes.status}) — l'ancienne semaine n'a PAS été écrasée. ${tx.slice(0,120)}` }, corsHeaders);
           }
         }
+        // (24/10, bloc 3, point 26) Chronologie complète conservée côté
+        // serveur, pas comptée sur chaque appelant pour y penser : si cette
+        // semaine avait déjà été réouverte, reopenHistory est reportée telle
+        // quelle (jamais écrasée par une simple re-clôture), et un passage
+        // de re-clôture s'ajoute à closureHistory.
+        if (existing && Array.isArray(existing.reopenHistory) && existing.reopenHistory.length && !entry.reopenHistory) {
+          entry.reopenHistory = existing.reopenHistory;
+        }
+        const existingClosures = (existing && Array.isArray(existing.closureHistory)) ? existing.closureHistory : [];
+        entry.closureHistory = [...existingClosures, { at: entry.processedAt, byName: entry.summary?.paieEffectueePar || null }];
+
         const headers = { "Content-Type":"application/json" };
         if (etag) headers["if-match"] = etag;
         const saveRes = await fetch(weekUrl, { method:"PUT", headers, body:JSON.stringify(entry) });
