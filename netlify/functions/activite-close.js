@@ -185,10 +185,18 @@ async function closeActiviteWeekServer({ idToken, weekKey, weekEndMs, absentIds,
       fetch(`${ABSENCES_URL}?auth=${idToken}`),
     ]);
     if (!rosterRes.ok) throw new Error(`lecture du Roster ${rosterRes.status}`);
+    // (24/10, audit) Fail-closed sur lastClosure et absences : avant, une
+    // panne de lecture devenait {}, ce qui pouvait (a) faire re-clôturer un
+    // pôle déjà clôturé à la main (lastClosure vide = rien n'est vu comme
+    // déjà fait), et (b) traiter une personne réellement absente comme non
+    // absente dans le calcul de série. Les deux risquent de fausser le
+    // résultat de la clôture, donc on refuse plutôt que de deviner.
+    if (!lastRes.ok) throw new Error(`lecture de la dernière clôture ${lastRes.status}`);
+    if (!absencesRes.ok) throw new Error(`lecture des absences ${absencesRes.status}`);
     const roster = await rosterRes.json().catch(()=>null);
     const employees = (roster && Array.isArray(roster.employees)) ? roster.employees : [];
-    const lastClosure = lastRes.ok ? ((await lastRes.json().catch(()=>null)) || {}) : {};
-    const officialAbsences = absencesRes.ok ? ((await absencesRes.json().catch(()=>null)) || {}) : {};
+    const lastClosure = (await lastRes.json().catch(()=>null)) || {};
+    const officialAbsences = (await absencesRes.json().catch(()=>null)) || {};
 
     // Pôle déjà clôturé à la main dans le Roster depuis le début du
     // dernier jour de la semaine → on ne le re-clôture pas.
@@ -273,8 +281,16 @@ async function closeActiviteWeekServer({ idToken, weekKey, weekEndMs, absentIds,
     }
 
     // 5) Marquer la semaine comme définitivement traitée
-    await fetch(`${closureUrl(weekKey)}?auth=${idToken}`, { method:"PUT", headers:{"Content-Type":"application/json"},
+    // (24/10, audit) Le résultat n'était pas vérifié : un échec HTTP ici
+    // (ex. 500) ne lève pas d'exception en JS, donc la fonction répondait
+    // quand même "succès" au Roster alors que le marqueur restait
+    // "pending". Si ça échoue, on le signale clairement : le marqueur
+    // "pending" permettra une reprise propre (voir plus bas, un pending de
+    // plus de 2 minutes est repris), au lieu de laisser croire que tout
+    // est fini alors que ce n'est pas écrit.
+    const doneRes = await fetch(`${closureUrl(weekKey)}?auth=${idToken}`, { method:"PUT", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ status: "done", claimedAt: now, closedAt: Date.now(), byName, closedScopes: scopesToClose, skippedScopes }) });
+    if (!doneRes.ok) throw new Error(`écriture du marqueur de clôture ${doneRes.status} — les compteurs ont déjà été remis à zéro, réessaie : la reprise sera automatique.`);
 
     if (logAction) {
       await logAction({
