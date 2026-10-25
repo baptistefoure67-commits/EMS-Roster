@@ -251,6 +251,24 @@ function validateEmployees(employees){
     if(typeof e?.grade!=="string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e?.grade}")`);
     if(problems.length) bad.push(`${e?.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
   });
+  // (24/10, audit) Deux fiches ACTIVES ne peuvent plus partager le même ID
+  // Discord. Avant : seulement un avertissement contournable côté
+  // interface ; discord-callback.js prend le premier dossier actif
+  // trouvé avec cet ID, donc un doublon pouvait donner le mauvais niveau
+  // de session selon l'ordre du tableau. Les licenciés sont exclus de ce
+  // contrôle : un ancien dossier licencié peut légitimement garder le
+  // même ID qu'une personne revenue avec une nouvelle fiche active.
+  const activeIdCounts = {};
+  (employees||[]).forEach(e=>{
+    if(e && !e.licencie && typeof e.discordId==="string" && e.discordId.trim()){
+      const id = e.discordId.trim();
+      activeIdCounts[id] = (activeIdCounts[id]||0)+1;
+    }
+  });
+  Object.entries(activeIdCounts).filter(([,n])=>n>1).forEach(([id,n])=>{
+    const names = (employees||[]).filter(e=>e && !e.licencie && String(e.discordId||"").trim()===id).map(e=>e.name).join(" / ");
+    bad.push(`ID Discord "${id}" partagé par ${n} fiches ACTIVES à la fois (${names}) — un seul dossier actif par ID Discord.`);
+  });
   return bad;
 }
 
