@@ -75,7 +75,7 @@ exports.handler = async function (event) {
 
   let body;
   try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }); }
-  const { token, field, value } = body;
+  const { token, field, value, action } = body;
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
@@ -97,11 +97,6 @@ exports.handler = async function (event) {
     // permission étant vérifiée ci-dessus, on écrit avec un jeton de niveau D.
     const writeToken = await getFirebaseIdToken(session.discordId, "D", FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY);
 
-    // Validation par champ — jamais un objet libre accepté tel quel,
-    // chaque champ a sa propre règle de forme, pour ne jamais pouvoir
-    // écrire une config qui ferait planter Pillbox au calcul suivant.
-    if (!field) return json(400, { error: "Champ à modifier manquant." });
-
     // (24/10, audit) Fail-closed : avant, une lecture en échec devenait
     // DEFAULT_CONFIG, et le PUT complet plus bas écrivait ensuite CE
     // DÉFAUT (avec juste le champ modifié) à la place de la vraie config —
@@ -113,64 +108,82 @@ exports.handler = async function (event) {
     if (!curRes.ok) return json(502, { error: `Configuration de paie illisible (${curRes.status}) — modification refusée pour ne pas écraser les réglages existants par les valeurs par défaut.` });
     const stored = await curRes.json().catch(()=>null);
     const current = stored ? { ...DEFAULT_CONFIG, ...stored } : { ...DEFAULT_CONFIG };
-    const before = current[field];
 
-    if (field === "reaRate" || field === "ppaWeeklyCap") {
-      if (typeof value !== "number" || !(value >= 0) || value > 100000000) return json(400, { error: "Montant invalide." });
-      current[field] = value;
-    } else if (field === "bonusByRank") {
-      if (typeof value !== "object" || value === null) return json(400, { error: "Format invalide pour les bonus." });
-      const cleaned = {};
-      for (const rank of ["1","2","3"]) {
-        const v = value[rank];
-        if (typeof v !== "number" || !(v >= 0) || v > 100000000) return json(400, { error: `Bonus du rang ${rank} invalide.` });
-        cleaned[rank] = v;
+    // (24/10, bloc 2) Validation d'UN champ, factorisée pour servir aussi
+    // bien à "set" (un seul champ) qu'à "setBatch" (plusieurs champs dans
+    // la même sauvegarde, un seul log groupé — cahier des charges, point
+    // 15). Jamais un objet libre accepté tel quel : chaque champ garde sa
+    // propre règle de forme, pour ne jamais pouvoir écrire une config qui
+    // ferait planter Pillbox au calcul suivant.
+    function applyField(fieldName, fieldValue){
+      if (fieldName === "reaRate" || fieldName === "ppaWeeklyCap") {
+        if (typeof fieldValue !== "number" || !(fieldValue >= 0) || fieldValue > 100000000) return "Montant invalide.";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "bonusByRank") {
+        if (typeof fieldValue !== "object" || fieldValue === null) return "Format invalide pour les bonus.";
+        const cleaned = {};
+        for (const rank of ["1","2","3"]) {
+          const v = fieldValue[rank];
+          if (typeof v !== "number" || !(v >= 0) || v > 100000000) return `Bonus du rang ${rank} invalide.`;
+          cleaned[rank] = v;
+        }
+        current.bonusByRank = cleaned;
+      } else if (fieldName === "fixedSalaryByGrade") {
+        if (typeof fieldValue !== "object" || fieldValue === null) return "Format invalide pour les salaires fixes.";
+        const cleaned = {};
+        for (const g of VALID_GRADES) {
+          const v = fieldValue[g];
+          if (typeof v !== "number" || !(v >= 0) || v > 100000000) return `Salaire fixe invalide pour ${g}.`;
+          cleaned[g] = v;
+        }
+        current.fixedSalaryByGrade = cleaned;
+      } else if (fieldName === "ppaEligibleGrades") {
+        if (!Array.isArray(fieldValue) || !fieldValue.every(g => VALID_GRADES.includes(g))) return "Liste de grades PPA invalide.";
+        current.ppaEligibleGrades = [...new Set(fieldValue)];
+      } else if (fieldName === "qaCumulThreshold") {
+        if (typeof fieldValue !== "number" || !(fieldValue >= 1) || fieldValue > 3) return "Le cumul Q+A ne peut pas dépasser 3.";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "stgProposalThreshold" || fieldName === "stgAutoThreshold" || fieldName === "aProposalThreshold" || fieldName === "infProposalThreshold") {
+        if (typeof fieldValue !== "number" || !(fieldValue >= 1) || fieldValue > 3) return "Le seuil ne peut pas dépasser 3.";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "infProposalEnabled") {
+        if (typeof fieldValue !== "boolean") return "Valeur invalide (true/false attendu).";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "extraQProposalGrades") {
+        const allowed = VALID_GRADES.filter(g => !["STG","A","INF","MC","ADD","CD","D","DG"].includes(g));
+        if (!Array.isArray(fieldValue) || !fieldValue.every(g => allowed.includes(g))) return "Liste de grades invalide pour la proposition Q généralisée.";
+        current[fieldName] = [...new Set(fieldValue)];
+      } else if (fieldName === "extraQProposalThreshold") {
+        if (typeof fieldValue !== "number" || !(fieldValue >= 1) || fieldValue > 3) return "Le seuil ne peut pas dépasser 3.";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "quotaStandard" || fieldName === "quotaStaff" || fieldName === "nearMissThreshold") {
+        if (typeof fieldValue !== "number" || !(fieldValue >= 0) || fieldValue > 1000) return "Valeur de quota invalide.";
+        current[fieldName] = fieldValue;
+      } else if (fieldName === "exemptGrades" || fieldName === "nearMissGrades") {
+        if (!Array.isArray(fieldValue) || !fieldValue.every(g => VALID_GRADES.includes(g))) return "Liste de grades invalide.";
+        current[fieldName] = [...new Set(fieldValue)];
+      } else if (fieldName === "recruitmentPrice" || fieldName === "formationPrice") {
+        // (24/10, bloc 4 à venir) tarifs centralisés recrutement/formation —
+        // la validation existe déjà ici pour que ce soit prêt, même si rien
+        // ne les utilise encore ailleurs tant que le bloc 4 n'est pas fait.
+        if (typeof fieldValue !== "number" || !(fieldValue >= 0) || fieldValue > 100000000) return "Montant invalide.";
+        current[fieldName] = fieldValue;
+      } else {
+        return `Champ inconnu : "${fieldName}".`;
       }
-      current.bonusByRank = cleaned;
-    } else if (field === "fixedSalaryByGrade") {
-      if (typeof value !== "object" || value === null) return json(400, { error: "Format invalide pour les salaires fixes." });
-      const cleaned = {};
-      for (const g of VALID_GRADES) {
-        const v = value[g];
-        if (typeof v !== "number" || !(v >= 0) || v > 100000000) return json(400, { error: `Salaire fixe invalide pour ${g}.` });
-        cleaned[g] = v;
-      }
-      current.fixedSalaryByGrade = cleaned;
-    } else if (field === "ppaEligibleGrades") {
-      if (!Array.isArray(value) || !value.every(g => VALID_GRADES.includes(g))) return json(400, { error: "Liste de grades PPA invalide." });
-      current.ppaEligibleGrades = [...new Set(value)];
-    } else if (field === "qaCumulThreshold") {
-      // (11/10, demandé) Plafonné à 3 — contrairement aux autres seuils
-      // de cette section, celui-ci ne doit jamais pouvoir être réglé
-      // au-dessus (le rôle même de la règle de cumul Q+A).
-      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le cumul Q+A ne peut pas dépasser 3." });
-      current[field] = value;
-    } else if (field === "stgProposalThreshold" || field === "stgAutoThreshold" || field === "aProposalThreshold" || field === "infProposalThreshold") {
-      // (14/10, demandé) Plafonné à 3, comme le cumul Q+A — ce sont
-      // tous des compteurs de quotas manqués avant une proposition de
-      // licenciement, jamais plus de 3 quel que soit le grade.
-      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le seuil ne peut pas dépasser 3." });
-      current[field] = value;
-    } else if (field === "infProposalEnabled") {
-      if (typeof value !== "boolean") return json(400, { error: "Valeur invalide (true/false attendu)." });
-      current[field] = value;
-    } else if (field === "extraQProposalGrades") {
-      // (13/10, section 4.4) Jamais STG/A/INF (mécanisme dédié déjà en
-      // place) ni MC et au-dessus (hors quota de réanimations).
-      const allowed = VALID_GRADES.filter(g => !["STG","A","INF","MC","ADD","CD","D","DG"].includes(g));
-      if (!Array.isArray(value) || !value.every(g => allowed.includes(g))) return json(400, { error: "Liste de grades invalide pour la proposition Q généralisée." });
-      current[field] = [...new Set(value)];
-    } else if (field === "extraQProposalThreshold") {
-      if (typeof value !== "number" || !(value >= 1) || value > 3) return json(400, { error: "Le seuil ne peut pas dépasser 3." });
-      current[field] = value;
-    } else if (field === "quotaStandard" || field === "quotaStaff" || field === "nearMissThreshold") {
-      if (typeof value !== "number" || !(value >= 0) || value > 1000) return json(400, { error: "Valeur de quota invalide." });
-      current[field] = value;
-    } else if (field === "exemptGrades" || field === "nearMissGrades") {
-      if (!Array.isArray(value) || !value.every(g => VALID_GRADES.includes(g))) return json(400, { error: "Liste de grades invalide." });
-      current[field] = [...new Set(value)];
-    } else {
-      return json(400, { error: `Champ inconnu : "${field}".` });
+      return null; // pas d'erreur
+    }
+
+    const isBatchSave = action === "setBatch";
+    const fieldsToApply = isBatchSave ? (body.fields && typeof body.fields === "object" ? body.fields : null) : { [field]: value };
+    if (isBatchSave && (!fieldsToApply || !Object.keys(fieldsToApply).length)) return json(400, { error: "Aucun champ à modifier." });
+    if (!isBatchSave && !field) return json(400, { error: "Champ à modifier manquant." });
+
+    const before = {};
+    Object.keys(fieldsToApply).forEach(f => { before[f] = current[f]; });
+    for (const [f, v] of Object.entries(fieldsToApply)) {
+      const err = applyField(f, v);
+      if (err) return json(400, { error: isBatchSave ? `Champ "${f}" : ${err}` : err });
     }
 
     current.updatedAt = Date.now();
@@ -181,23 +194,29 @@ exports.handler = async function (event) {
     });
     if (!saveRes.ok) { const t = await saveRes.text().catch(()=>""); return json(502, { error: `Échec de l'écriture (${saveRes.status}) : ${t.slice(0,200)}` }); }
 
-    // Historique complet — jamais un simple écrasement, chaque
-    // modification garde une trace consultable (point 17.4 de l'audit).
-    const histKey = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-    await fetch(`${HISTORY_URL.replace(".json", `/${histKey}.json`)}?auth=${writeToken}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        field, oldValue: before === undefined ? null : before, newValue: current[field],
-        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-        createdAt: Date.now(),
-      }),
-    }).catch(()=>{});
+    // Historique complet — jamais un simple écrasement, chaque champ
+    // modifié garde sa propre trace consultable (point 17.4 de l'audit),
+    // même lors d'une sauvegarde groupée.
+    for (const f of Object.keys(fieldsToApply)) {
+      const histKey = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      await fetch(`${HISTORY_URL.replace(".json", `/${histKey}.json`)}?auth=${writeToken}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field: f, oldValue: before[f] === undefined ? null : before[f], newValue: current[f],
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          createdAt: Date.now(),
+        }),
+      }).catch(()=>{});
+    }
 
+    // (24/10, bloc 2, point 15) UN SEUL log, qu'il s'agisse d'un champ ou de
+    // plusieurs dans la même sauvegarde — jamais un log par champ modifié.
+    const fieldNames = Object.keys(fieldsToApply);
     await logAction({
-      action: "regle_paie_modifiee",
+      action: fieldNames.length > 1 ? "regles_paie_modifiees_groupe" : "regle_paie_modifiee",
       authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-      details: `Champ "${field}"`,
-      oldValue: JSON.stringify(before), newValue: JSON.stringify(current[field]),
+      details: fieldNames.length > 1 ? `${fieldNames.length} paramètre(s) modifié(s) :\n${fieldNames.map(f=>`"${f}"`).join(", ")}` : `Champ "${fieldNames[0]}"`,
+      oldValue: JSON.stringify(before), newValue: JSON.stringify(Object.fromEntries(fieldNames.map(f=>[f, current[f]]))),
       idToken,
     }).catch(()=>{});
 
