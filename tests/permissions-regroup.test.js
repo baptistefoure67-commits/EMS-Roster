@@ -143,7 +143,12 @@ async function call(handler, method, body={}, query={}){
     assert.equal(matrix('OWNER','owner_delegate'),true);
     assert.equal(matrix('OWNER','manage_troll'),true);
     assert(!perms.GRADE_PERMISSION_KEYS.includes('delete_logs'));
-    assert(!perms.INDIVIDUAL_PERMISSION_KEYS.includes('delete_logs'));
+    // (24/10, bloc 2) delete_logs est désormais délégable individuellement
+    // (à OWNER/DG uniquement, vérifié côté get-logs.js) — avant,
+    // totalement bloqué. Voir les tests dédiés plus bas pour le détail de
+    // cette nouvelle règle (OWNER peut l'accorder, owner_delegate seul ne
+    // suffit jamais).
+    assert(perms.INDIVIDUAL_PERMISSION_KEYS.includes('delete_logs'));
     assert(perms.INDIVIDUAL_PERMISSION_KEYS.includes('owner_delegate'));
     assert(perms.INDIVIDUAL_PERMISSION_KEYS.includes('manage_troll'));
   });
@@ -207,11 +212,29 @@ async function call(handler, method, body={}, query={}){
     assert.equal(r.statusCode,403);
   });
 
-  await test('Gestion individuelle : delete_logs est impossible à proposer', async()=>{
+  await test('Gestion individuelle : un D sans delete_logs ne peut pas le proposer (dépasse ses droits)', async()=>{
+    // (24/10, bloc 2) delete_logs est désormais une vraie clé individuelle
+    // (plus "impossible à proposer" au sens où la clé n'existerait pas) —
+    // mais comme pour toute permission, on ne peut en déléguer que ce
+    // qu'on possède soi-même. Un simple D qui ne l'a pas lui-même reste
+    // refusé, juste pour la bonne raison (403, pas "champ inconnu").
     resetDb();
     db.rosterIndividualPermissions.d1={manage_permissions:{DG:null,D:true,CD:null}};
     const r=await call(manageIndividual,'POST',{token:token('d1','D'),action:'set',targetDiscordId:'x2',permissionName:'delete_logs',value:true});
-    assert.equal(r.statusCode,400);
+    assert.equal(r.statusCode,403);
+  });
+
+  await test('Gestion individuelle : OWNER peut accorder delete_logs à un DG', async()=>{
+    resetDb();
+    const r=await call(manageIndividual,'POST',{token:token(perms.OWNER_DISCORD_ID,'OWNER'),action:'set',targetDiscordId:'dg1',permissionName:'delete_logs',value:true});
+    assert.equal(r.statusCode,200,JSON.stringify(r.json));
+    assert.equal(db.rosterIndividualPermissions.dg1.delete_logs.OWNER,true);
+    assert.equal(perms.can('DG','delete_logs',null,'dg1',db.rosterIndividualPermissions),true);
+  });
+
+  await test("Droits OWNER délégués N'incluent PAS delete_logs (même avec owner_delegate à true)", ()=>{
+    const ind={u1:{owner_delegate:{DG:true,D:null,CD:null}}};
+    assert.equal(perms.can('MC','delete_logs',null,'u1',ind),false);
   });
 
   await test('Gestion individuelle : DG ne peut pas accorder owner_delegate', async()=>{
@@ -318,7 +341,16 @@ async function call(handler, method, body={}, query={}){
     const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'..','firebase-rules.permissions-regroupees.json'),'utf8')).rules;
     for(const key of ['rosterPermissionsOverride','rosterIndividualPermissions','rosterPermissionRequests']) assert(String(rules[key]['.write']).includes('auth.token.server'),key);
     assert.equal(rules.rosterLogs['.write'],undefined);
-    assert(String(rules.rosterLogs.$logId['.write']).includes("auth.token.level == 'OWNER'"));
+    // (24/10, bloc 2) La règle n'exige plus littéralement level=='OWNER' —
+    // un DG autorisé (vérifié côté JS : grade + vraie permission
+    // individuelle delete_logs) doit pouvoir supprimer. Firebase garantit
+    // seulement que ça vient bien du serveur (server:true), comme pour
+    // tout le reste du chantier sécurité.
+    assert(String(rules.rosterLogs.$logId['.write']).includes('auth.token.server == true'));
+    assert(!String(rules.rosterLogs.$logId['.write']).includes("auth.token.level == 'OWNER'"));
+    assert(rules.rosterLogsHiddenTrace, 'rosterLogsHiddenTrace manquante');
+    assert(String(rules.rosterLogsHiddenTrace['.read']).includes('auth.token.server == true'));
+    assert(String(rules.rosterLogsHiddenTrace['.write']).includes('auth.token.server == true'));
   });
 
   console.log(`\nRésultat : ${passed} test(s) réussi(s), ${failed} échec(s).`);
