@@ -647,9 +647,9 @@
     "rosterLogs": {
       ".read": "auth != null",
       "$logId": {
-        ".validate": "auth != null && auth.token.level == 'OWNER' || (!newData.exists() || newData.hasChildren(['action','createdAt']))",
+        ".validate": "auth.token.server == true || (!newData.exists() || newData.hasChildren(['action','createdAt']))",
         "action": {
-          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString())"
+          ".validate": "auth.token.server == true || (newData.isString())"
         },
         "authorDiscordId": {
           ".validate": true
@@ -676,9 +676,9 @@
           ".validate": true
         },
         "createdAt": {
-          ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
+          ".validate": "auth.token.server == true || (newData.isNumber())"
         },
-        ".write": "auth != null && (!data.exists() || auth.token.level == 'OWNER')"
+        ".write": "auth != null && (!data.exists() || auth.token.server == true)"
       }
     },
     "rosterPermissionsOverride": {
@@ -962,6 +962,10 @@
       }
     },
     "rosterDisasterBackups": {
+      ".read": "auth != null && auth.token.server == true",
+      ".write": "auth != null && auth.token.server == true"
+    },
+    "rosterLogsHiddenTrace": {
       ".read": "auth != null && auth.token.server == true",
       ".write": "auth != null && auth.token.server == true"
     }
