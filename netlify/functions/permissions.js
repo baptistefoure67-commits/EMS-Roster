@@ -40,11 +40,16 @@ const GRADE_PERMISSION_KEYS = [
 
 // Permissions qui ne doivent JAMAIS apparaître dans la matrice par grade.
 // Elles sont accordables individuellement seulement.
-const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll", "exclude_animations"];
+// (24/10, bloc 2 — cahier des charges) delete_logs est maintenant délégable
+// individuellement — avant, totalement bloqué (voir OWNER_ONLY_KEYS /
+// resolveIndividualDecision plus bas, désormais retirés pour cette clé).
+// Réservé dans les faits à OWNER et DG : voir le contrôle de grade explicite
+// dans get-logs.js, en plus de la vraie permission individuelle ici.
+const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll", "exclude_animations", "delete_logs"];
 
 // Suppression de logs : OWNER réel uniquement. Cette permission n'est ni
 // proposée par grade ni accordable individuellement.
-const OWNER_ONLY_KEYS = ["delete_logs"];
+const OWNER_ONLY_KEYS = [];
 
 const INDIVIDUAL_PERMISSION_KEYS = [...GRADE_PERMISSION_KEYS, ...INDIVIDUAL_ONLY_KEYS];
 const RUNTIME_PERMISSION_KEYS = [...GRADE_PERMISSION_KEYS, ...INDIVIDUAL_ONLY_KEYS, ...OWNER_ONLY_KEYS];
@@ -201,7 +206,6 @@ function readDecisionFromEntry(entry){
 
 function resolveIndividualDecision(discordId, permissionName, individualOverrides){
   const canonical = canonicalPermissionName(permissionName);
-  if(canonical === "delete_logs") return null; // jamais délégable
   const person = individualOverrides?.[discordId];
   if(!person) return null;
 
@@ -227,7 +231,14 @@ function can(level, permissionName, customPermissions, discordId, individualOver
   if(discordId && individualOverrides){
     const decision = resolveIndividualDecision(discordId, canonical, individualOverrides);
     if(decision !== null) return decision;
-    if(canonical !== "owner_delegate"){
+    // (24/10, bloc 2) delete_logs reste volontairement HORS de ce que
+    // "Droits OWNER délégués" accorde automatiquement — même quelqu'un
+    // avec tous les droits OWNER délégués ne doit pas pouvoir effacer des
+    // logs sans que ce droit précis lui ait été donné explicitement et à
+    // part (intégrité de l'audit). Seule une vraie attribution directe de
+    // delete_logs (gérée au-dessus) ou un vrai OWNER (bypass tout en haut)
+    // y donnent accès.
+    if(canonical !== "owner_delegate" && canonical !== "delete_logs"){
       const delegateDecision = resolveIndividualDecision(discordId, "owner_delegate", individualOverrides);
       if(delegateDecision === true) return true;
     }
