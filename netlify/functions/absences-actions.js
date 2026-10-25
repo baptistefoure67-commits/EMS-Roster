@@ -320,6 +320,7 @@ exports.handler = async function (event) {
       if (!curRes.ok) return json(502, { error: `Absences existantes illisibles (${curRes.status}) — synchronisation refusée pour ne pas écraser les absences déjà enregistrées.` });
       const current = (await curRes.json().catch(()=>null)) || {};
       let added = 0;
+      const newlyAdded = [];
       qualifyingAbsences.forEach(a => {
         if (!a || !a.employeeKey || !a.startIso || !a.endIso || !a.name) return;
         // (13/10, section 2.4) Un WDV n'est de toute façon qu'un
@@ -345,6 +346,7 @@ exports.handler = async function (event) {
           createdAt: Date.now(),
         };
         added++;
+        newlyAdded.push(current[key]);
       });
       if (added > 0) {
         const saveRes = await fetch(`${ABSENCES_URL}?auth=${idToken}`, {
@@ -357,6 +359,19 @@ exports.handler = async function (event) {
           details: `${added} nouvelle(s) absence(s) qualifiante(s) ajoutée(s)`,
           idToken,
         }).catch(()=>{});
+        // (24/10, bloc 2) Point 13 du cahier des charges : un log dédié,
+        // distinct du résumé de synchronisation ci-dessus, spécifiquement
+        // pour les absences > 3 jours — celles qui méritent l'attention de
+        // la Direction, pas juste "X absences ajoutées" noyé dans le total.
+        const longOnes = newlyAdded.filter(a => (a.durationDays || 0) > 3);
+        if (longOnes.length) {
+          await logAction({
+            action: "absence_longue_detectee",
+            authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+            details: `${longOnes.length} absence(s) de plus de 3 jours :\n${longOnes.map(a=>`${a.name} — ${a.durationDays} j (${a.startIso} → ${a.endIso})`).join("\n")}`,
+            idToken,
+          }).catch(()=>{});
+        }
       }
       return json(200, { ok: true, added, absences: current });
     }
