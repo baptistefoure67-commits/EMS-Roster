@@ -348,10 +348,54 @@ function mayEditTargetLevel(sessionLevel, targetLevel){
 const TROLL_ADMIN_IDS = [OWNER_DISCORD_ID];
 function isTrollAdmin(session){ return !!session && TROLL_ADMIN_IDS.includes(String(session.discordId)); }
 
+// ═══════════════════════════════════════════════════════════════════
+// PROTECTION DES PERMISSIONS INDIVIDUELLES (24/10, cahier des charges
+// "évolution coordonnée") — concerne UNIQUEMENT les exceptions
+// individuelles (person[canonical].protection), jamais les overrides
+// de grade. Stockée à côté de {CD,D,DG,OWNER} sans les modifier : can()
+// et resolveIndividualDecision() ignorent déjà toute clé qu'ils ne
+// connaissent pas, donc une entrée protégée reste lue exactement
+// pareil pour la résolution de la valeur effective.
+//
+// Forme stockée : person[canonical].protection = null (🔓 Libre) ou
+// { type: "D"|"DG"|"OWNER"|"OWNER_PLUS", authorDiscordId, authorName,
+//   authorLevel, createdAt }.
+// ═══════════════════════════════════════════════════════════════════
+const PROTECTION_TYPES = ["D", "DG", "OWNER", "OWNER_PLUS"]; // du plus faible au plus fort
+const PROTECTION_LABEL = { D: "🔒 D", DG: "🔒 DG", OWNER: "🔒 OWNER", OWNER_PLUS: "🔐 OWNER++" };
+// Ce qu'un niveau peut CRÉER (poser pour la première fois, ou utiliser en
+// remplacement d'une protection existante). Jamais au-dessus de son propre
+// niveau — un D ne crée jamais DG/OWNER/OWNER++, un DG jamais OWNER/OWNER++.
+const PROTECTION_CREATE_CEILING = { D: ["D"], DG: ["D", "DG"], OWNER: ["D", "DG", "OWNER", "OWNER_PLUS"] };
+
+function isValidProtectionType(type){ return type === null || PROTECTION_TYPES.includes(type); }
+
+// Qui peut ne serait-ce que TOUCHER (retirer/remplacer) une protection déjà
+// posée, indépendamment de ce qu'il voudrait mettre à la place :
+// - OWNER++ : seul un vrai OWNER, jamais personne d'autre, aucune exception ;
+// - Libre / D / DG / OWNER (normale) : n'importe quel membre de la Direction
+//   (D, DG, OWNER) — l'auteur d'origine n'est jamais le seul à pouvoir agir.
+//   L'appelant doit vérifier EN PLUS la vraie permission manage_permissions
+//   (ceci ne fait que trancher le niveau, pas le droit réel).
+function canActOnProtection(session, currentProtectionType){
+  if(currentProtectionType === "OWNER_PLUS") return !!session && session.level === "OWNER";
+  return !!session && ["D", "DG", "OWNER"].includes(session.level);
+}
+
+// Ce que CE niveau peut poser comme nouvelle protection (null = retirer,
+// toujours permis dès lors que canActOnProtection() est vrai).
+function canCreateProtectionType(session, type){
+  if(type === null) return true;
+  const ceiling = PROTECTION_CREATE_CEILING[session && session.level] || [];
+  return ceiling.includes(type);
+}
+
 module.exports = {
   OWNER_DISCORD_ID, LEVELS, DEFAULT_PERMISSIONS, INDIVIDUAL_DECISION_AUTHORITY_ORDER,
   GRADE_PERMISSION_KEYS, INDIVIDUAL_ONLY_KEYS, OWNER_ONLY_KEYS, INDIVIDUAL_PERMISSION_KEYS, RUNTIME_PERMISSION_KEYS,
   LEGACY_PERMISSION_ALIASES, canonicalPermissionName, normalizeGradeOverride,
   buildEffectivePermissions, resolveIndividualDecision, can, resolveUserLevel, LEVEL_LABEL, loadPermissionContext,
   canFor, effectivePermissionsFor, permissionRank, mayEditTargetLevel, isTrollAdmin, TROLL_ADMIN_IDS,
+  PROTECTION_TYPES, PROTECTION_LABEL, PROTECTION_CREATE_CEILING,
+  isValidProtectionType, canActOnProtection, canCreateProtectionType,
 };
