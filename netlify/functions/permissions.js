@@ -377,7 +377,13 @@ const PROTECTION_LABEL = { D: "🔒 D", DG: "🔒 DG", OWNER: "🔒 OWNER", OWNE
 // Ce qu'un niveau peut CRÉER (poser pour la première fois, ou utiliser en
 // remplacement d'une protection existante). Jamais au-dessus de son propre
 // niveau — un D ne crée jamais DG/OWNER/OWNER++, un DG jamais OWNER/OWNER++.
-const PROTECTION_CREATE_CEILING = { D: ["D"], DG: ["D", "DG"], OWNER: ["D", "DG", "OWNER", "OWNER_PLUS"] };
+// (26/10, audit confirmé) OWNER ne crée QUE OWNER/OWNER++ — ne doit jamais
+// créer artificiellement D ou DG à la place de quelqu'un d'autre (cahier des
+// charges, section 3 : "Je ne veux pas qu'OWNER crée artificiellement des
+// protections D/DG"). OWNER reste libre de RETIRER une protection D/DG
+// existante (canActOnProtection le permet toujours pour OWNER), simplement
+// pas de la remplacer par une autre D/DG à sa place.
+const PROTECTION_CREATE_CEILING = { D: ["D"], DG: ["D", "DG"], OWNER: ["OWNER", "OWNER_PLUS"] };
 
 function isValidProtectionType(type){ return type === null || PROTECTION_TYPES.includes(type); }
 
