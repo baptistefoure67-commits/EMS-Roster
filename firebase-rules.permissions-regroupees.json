@@ -217,7 +217,7 @@
     "payRulesConfig": {
       ".read": true,
       ".write": "auth != null && auth.token.server == true",
-      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['reaRate','fixedSalaryByGrade','bonusByRank','ppaEligibleGrades','ppaWeeklyCap','quotaStandard','quotaStaff','exemptGrades','nearMissGrades','nearMissThreshold','stgProposalThreshold','stgAutoThreshold','aProposalThreshold','qaCumulThreshold','infProposalEnabled','infProposalThreshold','extraQProposalGrades','extraQProposalThreshold','updatedAt','updatedBy']))",
+      ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['reaRate','fixedSalaryByGrade','bonusByRank','ppaEligibleGrades','ppaWeeklyCap','quotaStandard','quotaStaff','exemptGrades','nearMissGrades','nearMissThreshold','stgProposalThreshold','stgAutoThreshold','aProposalThreshold','qaCumulThreshold','infProposalEnabled','infProposalThreshold','extraQProposalGrades','extraQProposalThreshold','updatedAt','recruitmentPrice','formationPrice','updatedBy']))",
       "reaRate": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
       },
@@ -348,11 +348,17 @@
       },
       "$other": {
         ".validate": "auth != null && auth.token.level == 'OWNER'"
+      },
+      "recruitmentPrice": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
+      },
+      "formationPrice": {
+        ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000)"
       }
     },
     "payRulesConfigHistory": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.level == 'D' || auth.token.level == 'DG' || auth.token.level == 'OWNER')",
+      ".write": "auth != null && auth.token.server == true",
       "$historyId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['field','authorDiscordId','authorName','authorLevel','createdAt']))",
         "field": {
@@ -551,7 +557,7 @@
       }
     },
     "signalementPropositions": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && auth.token.server == true",
       "$propositionId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['personName','category','reason','authorDiscordId','authorLevel','status','createdAt']))",
@@ -678,7 +684,7 @@
         "createdAt": {
           ".validate": "auth.token.server == true || (newData.isNumber())"
         },
-        ".write": "auth != null && (!data.exists() || auth.token.server == true)"
+        ".write": "auth != null && auth.token.server == true"
       }
     },
     "rosterPermissionsOverride": {
@@ -759,7 +765,6 @@
     },
     "rosterPresence": {
       ".read": "auth != null",
-      ".write": "auth != null",
       "$discordId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['name','level','lastSeen']))",
         "name": {
@@ -770,12 +775,12 @@
         },
         "lastSeen": {
           ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
-        }
+        },
+        ".write": "auth.token.server == true && auth.uid == 'roster-presence:' + $discordId"
       }
     },
     "pillboxPresence": {
       ".read": "auth != null",
-      ".write": "auth != null",
       "$discordId": {
         ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.hasChildren(['name','level','lastSeen']))",
         "name": {
@@ -786,7 +791,8 @@
         },
         "lastSeen": {
           ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isNumber())"
-        }
+        },
+        ".write": "auth.token.server == true && auth.uid == 'pillbox-presence:' + $discordId"
       }
     },
     "rosterAbsenceAlertDecisions": {
