@@ -187,6 +187,20 @@ exports.handler = async function (event) {
           const tx = await saveRes.text().catch(()=>"");
           return json(502, { error:`Sauvegarde historique impossible (${saveRes.status}) : ${tx.slice(0,120)}` }, corsHeaders);
         }
+        // (26/10, audit confirmé) Le log de clôture est créé ICI, APRÈS que
+        // l'écriture Firebase a réellement réussi — avant, il était créé
+        // plus tôt (pillbox-verify-session.js) dès la vérification
+        // d'identité, donc même si cette sauvegarde échouait juste après, un
+        // faux log "terminée" restait dans le Roster. weekKey est inclus
+        // comme champ structuré (référence stable vers la vraie archive,
+        // jamais une 2e copie — point 21), pour pouvoir recréer ce log sans
+        // le dupliquer si besoin plus tard.
+        await logAction({
+          action: "semaine_terminee_pillbox",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          details: `Semaine ${weekKey}`,
+          weekKey, idToken,
+        }).catch(()=>{});
         return json(200, { ok:true, archived:!!existing }, corsHeaders);
       }
       if (body.action === "listSignalements") {
