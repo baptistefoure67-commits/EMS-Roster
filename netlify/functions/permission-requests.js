@@ -5,7 +5,7 @@
 const { verify } = require("./session-token");
 const {
   can, canFor, loadPermissionContext, GRADE_PERMISSION_KEYS,
-  canonicalPermissionName,
+  canonicalPermissionName, PROTECTION_LABEL,
 } = require("./permissions");
 const { logAction } = require("./logs");
 const { createFirebaseCustomToken } = require("./firebase-token");
@@ -111,6 +111,17 @@ exports.handler = async function (event) {
         const indivRes = await fetch(personUrl);
         if (!indivRes.ok) return json(502, { error: `Permissions individuelles illisibles (${indivRes.status}) — approbation refusée pour ne pas écraser les réglages existants.` }, corsHeaders);
         const person = (await indivRes.json().catch(()=>null)) || {};
+        // (26/10, audit confirmé) Une demande acceptée écrivait directement
+        // la valeur, SANS vérifier si cette permission est protégée — exactement
+        // la même règle que manage-individual-permissions.js (retirer la
+        // protection = une action séparée) s'applique ici aussi. Avant ce
+        // correctif, une demande approuvée pouvait changer une valeur
+        // protégée, y compris potentiellement OWNER++, sans jamais passer
+        // par setProtection.
+        if (person[canonical] && person[canonical].protection) {
+          const p = person[canonical].protection;
+          return json(423, { error: `Protégé par ${PROTECTION_LABEL[p.type] || p.type} (posé par ${p.authorName || "?"}) — la protection doit être retirée avant d'approuver cette demande.`, protection: p }, corsHeaders);
+        }
         person[canonical] = person[canonical] || { CD: null, D: null, DG: null, OWNER: null };
         person[canonical][layer] = reqData.requestedValue;
         const saveIndivRes = await fetch(personUrl, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(person) });
