@@ -59,27 +59,25 @@ exports.handler = async function (event) {
       const delRes = await fetch(`${LOGS_URL.replace(".json", `/${logKey}.json`)}?auth=${idToken}`, { method: "DELETE" });
       if (!delRes.ok) return json(502, { error: `Échec de la suppression (${delRes.status}).` });
 
-      // Trace sécurisée de la suppression elle-même — auteur, date,
-      // catégorie et élément concerné — dans le MÊME journal (protégé
-      // par la même permission pour être re-supprimée à son tour).
-      await logAction({
-        action: "log_supprime",
-        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
-        targetDiscordId: entry.targetDiscordId || null, targetName: entry.targetName || null,
-        details: `Entrée "${entry.action}" du ${new Date(entry.createdAt||0).toLocaleString("fr-FR")} (auteur original : ${entry.authorName||"?"}) supprimée.`,
-        idToken,
-      }).catch(()=>{});
-
-      // (24/10, bloc 2, point 18) Quand un DG supprime un log, OWNER garde
-      // une petite trace CACHÉE de cette suppression — dans une branche à
-      // part, jamais lue par get-logs.js pour l'affichage normal, visible
-      // uniquement via une lecture OWNER directe de rosterLogsHiddenTrace.
-      // Un DG qui supprime garde donc une trace que lui-même ne voit pas.
-      if (session.level === "DG") {
+      // (26/10, audit confirmé) Un DG qui supprime ne laisse PLUS de trace
+      // publique "log_supprime" — avant, cette entrée publique révélait déjà
+      // à tout le monde (y compris d'autres DG) qu'une suppression avait eu
+      // lieu, ce qui annulait l'intérêt même d'une trace "cachée" réservée à
+      // OWNER. Seul OWNER continue de laisser la trace normale visible
+      // (il n'y a aucune raison de se cacher sa propre action à lui-même).
+      if (session.level === "OWNER") {
+        await logAction({
+          action: "log_supprime",
+          authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+          targetDiscordId: entry.targetDiscordId || null, targetName: entry.targetName || null,
+          details: `Entrée "${entry.action}" du ${new Date(entry.createdAt||0).toLocaleString("fr-FR")} (auteur original : ${entry.authorName||"?"}) supprimée.`,
+          idToken,
+        }).catch(()=>{});
+      } else {
+        // (bloc 2, point 18) DG : une petite trace CACHÉE pour OWNER
+        // uniquement — dans une branche à part, jamais lue par get-logs.js
+        // pour l'affichage normal, jamais visible par ce DG lui-même.
         const hiddenKey = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        // Réutilise le jeton serveur déjà obtenu pour CETTE session DG
-        // (déjà server:true, c'est ce que la règle Firebase exige pour
-        // cette branche — pas besoin d'en fabriquer un second).
         await fetch(`${LOGS_URL.replace("rosterLogs.json", `rosterLogsHiddenTrace/${hiddenKey}.json`)}?auth=${idToken}`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -109,7 +107,19 @@ exports.handler = async function (event) {
       const res = await fetch(`${LOGS_URL.replace("rosterLogs.json","rosterLogsHiddenTrace.json")}?auth=${idToken}`);
       if (!res.ok) return json(502, { error: `Lecture impossible (${res.status}).` });
       const data = await res.json();
-      const entries = data ? Object.entries(data).map(([key, v]) => ({ key, ...v })).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)) : [];
+      let entries = data ? Object.entries(data).map(([key, v]) => ({ key, ...v })) : [];
+      // (26/10, audit confirmé) Même conservation 13 jours que les logs
+      // normaux — avant, cette branche n'était jamais nettoyée séparément.
+      const RETENTION_MS_HIDDEN = 13 * 24 * 60 * 60 * 1000;
+      const cutoffHidden = Date.now() - RETENTION_MS_HIDDEN;
+      const expiredHidden = entries.filter(e => (e.createdAt || 0) < cutoffHidden);
+      entries = entries.filter(e => (e.createdAt || 0) >= cutoffHidden);
+      if (expiredHidden.length) {
+        Promise.all(expiredHidden.map(e =>
+          fetch(`${LOGS_URL.replace("rosterLogs.json", `rosterLogsHiddenTrace/${e.key}.json`)}?auth=${idToken}`, { method: "DELETE" }).catch(()=>{})
+        )).catch(()=>{});
+      }
+      entries.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
       return json(200, { entries });
     } catch (err) { return json(500, { error: `Erreur inattendue : ${err.message}` }); }
   }
