@@ -5828,7 +5828,10 @@ const PROTECTION_LABEL = { D: "🔒 D", DG: "🔒 DG", OWNER: "🔒 OWNER", OWNE
 // Ce que CE niveau (currentUserLevel) peut poser comme protection — même
 // règle que côté serveur (permissions.js), dupliquée ici uniquement pour
 // savoir quoi proposer dans l'interface ; le serveur revérifie toujours.
-const PROTECTION_CREATE_CEILING_UI = { D: ["D"], DG: ["D","DG"], OWNER: ["D","DG","OWNER","OWNER_PLUS"] };
+// (26/10, audit confirmé) Alignée sur permissions.js : OWNER ne propose que
+// OWNER/OWNER++ comme NOUVELLE protection à poser (il reste libre de retirer
+// une protection D/DG existante, juste pas de la remplacer par D/DG à sa place).
+const PROTECTION_CREATE_CEILING_UI = { D: ["D"], DG: ["D","DG"], OWNER: ["OWNER","OWNER_PLUS"] };
 function canActOnProtectionUi(protectionType){
   if(protectionType === "OWNER_PLUS") return currentUserLevel === "OWNER";
   return ["D","DG","OWNER"].includes(currentUserLevel);
