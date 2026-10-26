@@ -15,7 +15,7 @@
 
 const LOGS_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterLogs.json";
 
-async function logAction({ action, authorDiscordId, authorName, authorLevel, targetDiscordId, targetName, oldValue, newValue, details, idToken }) {
+async function logAction({ action, authorDiscordId, authorName, authorLevel, targetDiscordId, targetName, oldValue, newValue, details, weekKey, idToken }) {
   const entry = {
     action,
     authorDiscordId: authorDiscordId || null,
@@ -26,6 +26,10 @@ async function logAction({ action, authorDiscordId, authorName, authorLevel, tar
     oldValue: oldValue !== undefined ? String(oldValue) : null,
     newValue: newValue !== undefined ? String(newValue) : null,
     details: details || null,
+    // (26/10, audit confirmé, point 12) Référence STRUCTURÉE vers la vraie
+    // archive pillboxWeekHistory — jamais une 2e copie de son contenu —
+    // pour pouvoir retrouver/recréer ce log sans ambiguïté si besoin.
+    ...(weekKey ? { weekKey: String(weekKey) } : {}),
     createdAt: Date.now(), // TOUJOURS l'horloge serveur, jamais une date envoyée par le client
   };
   const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
