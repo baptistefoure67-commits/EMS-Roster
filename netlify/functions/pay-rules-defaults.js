@@ -24,6 +24,12 @@ const DEFAULT_PAY_RULES = Object.freeze({
   extraQProposalGrades: Object.freeze([]),
   extraQProposalThreshold: 3,
   qaCumulThreshold: 3,
+  // (26/10, audit confirmé) Manquaient ici malgré le commentaire "source
+  // unique des valeurs par défaut" — Roster/Pillbox avaient chacun leur
+  // propre valeur de secours codée en dur (500000/70000), exactement ce
+  // que ce fichier est censé éviter.
+  recruitmentPrice: 500000,
+  formationPrice: 70000,
   updatedAt: null,
   updatedBy: null,
 });
