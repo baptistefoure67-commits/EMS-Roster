@@ -41,7 +41,13 @@ exports.handler = async function (event) {
 
   let body;
   try { body = JSON.parse(event.body || "{}"); } catch (e) { return json(400, { error: "Requête invalide." }); }
-  const { token, weekKey, scope } = body;
+  const { token, weekKey, scope, action } = body;
+  // (demandé — "on ne peut que réouvrir, jamais refermer") "reclose" est le
+  // symétrique direct et simple de "reopen" : ne touche PAS à activiteSuivi
+  // (contrairement à reopen, qui restaure les compteurs "avant clôture"),
+  // juste l'étiquette reopened -> false sur l'entrée d'historique. Une
+  // semaine déjà fermée normalement n'a jamais besoin de repasser par ici.
+  const effectiveAction = action === "reclose" ? "reclose" : "reopen";
 
   const session = verify(token, SESSION_SECRET);
   if (!session) return json(401, { error: "Session invalide ou expirée — reconnecte-toi avec Discord." });
@@ -65,6 +71,20 @@ exports.handler = async function (event) {
     const histRes = await fetch(histUrl);
     const histEntry = histRes.ok ? await histRes.json() : null;
     if (!histEntry) return json(404, { error: "Semaine introuvable pour cette portée." });
+
+    if (effectiveAction === "reclose") {
+      if (!histEntry.reopened) return json(409, { error: "Cette semaine n'est pas marquée réouverte — rien à refermer." });
+      await fetch(histUrl, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reopened: false, reclosedByDiscordId: session.discordId, reclosedByName: session.name, reclosedByLevel: session.level, reclosedAt: Date.now() }),
+      });
+      await logAction({
+        action: "semaine_activite_refermee",
+        authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
+        details: `Semaine du ${weekKey} (${scope}) refermée sans repasser par Pillbox`, idToken,
+      }).catch(()=>{});
+      return json(200, { ok: true });
+    }
 
     // Restaure l'état "avant clôture" dans activiteSuivi (LIVE), pour
     // que la personne puisse corriger normalement dans l'onglet
