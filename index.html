@@ -5218,7 +5218,9 @@ async function renderActiviteWeekHistory(scope){
         ${entry.reopened ? `<div style="color:var(--amber);opacity:.85;margin-top:2px;">Réouverte par ${esc(entry.reopenedByName||"?")} (${esc(entry.reopenedByLevel||"?")})</div>` : ""}
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
           <button type="button" class="btn-ghost btn-small" data-view-week="${esc(weekKey)}" data-view-scope="${scope}">👁️ Consulter</button>
-          ${canReopen ? `<button type="button" class="btn-ghost btn-small" data-reopen-roster-week="${esc(weekKey)}" data-reopen-scope="${scope}">🔓 Réouvrir cette semaine</button>` : ""}
+          ${canReopen && !entry.reopened ? `<button type="button" class="btn-ghost btn-small" data-reopen-roster-week="${esc(weekKey)}" data-reopen-scope="${scope}">🔓 Réouvrir cette semaine</button>` : ""}
+          ${canReopen && entry.reopened ? `<button type="button" class="btn-ghost btn-small" data-reclose-roster-week="${esc(weekKey)}" data-reclose-scope="${scope}">🔒 Refermer cette semaine</button>` : ""}
+          ${canReopen ? `<button type="button" class="btn-ghost btn-small" style="color:var(--red);border-color:var(--red);" data-delete-roster-week="${esc(weekKey)}" data-delete-scope="${scope}">🗑 Supprimer</button>` : ""}
         </div>
         <div id="weekDetail-${scope}-${esc(weekKey)}" style="display:none;margin-top:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:6px;"></div>
       </div>`;
@@ -5261,6 +5263,58 @@ async function renderActiviteWeekHistory(scope){
           if(!res.ok) throw new Error(data.error || `${res.status}`);
           toast("✓ Semaine réouverte — les données sont restaurées, corrige puis reclôture normalement.");
           await loadActiviteFromCloud(); // recharge l'état frais depuis le serveur (pas le cache local)
+          renderActiviteWeekHistory(sc);
+        }catch(err){
+          toast(`✕ Refusé : ${err.message}`);
+        }finally{
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // (demandé — "on ne peut que réouvrir, jamais refermer") Refermer une
+    // semaine réouverte : contrairement à "Réouvrir", ne touche PAS aux
+    // compteurs activiteSuivi — juste l'étiquette, directement, sans avoir
+    // à repasser par Pillbox.
+    box.querySelectorAll("[data-reclose-roster-week]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const weekKey = btn.dataset.recloseRosterWeek;
+        const sc = btn.dataset.recloseScope;
+        if(!confirm(`Refermer la semaine du ${weekKey} (${sc}) ? Ça retire juste l'étiquette "réouverte" — les compteurs actuels ne sont pas touchés.`)) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch("/.netlify/functions/roster-week-reopen", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, weekKey, scope: sc, action: "reclose" }),
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || `${res.status}`);
+          toast("✓ Semaine refermée.");
+          renderActiviteWeekHistory(sc);
+        }catch(err){
+          toast(`✕ Refusé : ${err.message}`);
+        }finally{
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // (demandé — "je veux pouvoir supprimer des semaines") Archivée avant
+    // suppression (comme les semaines de paie) — jamais une vraie perte.
+    box.querySelectorAll("[data-delete-roster-week]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const weekKey = btn.dataset.deleteRosterWeek;
+        const sc = btn.dataset.deleteScope;
+        if(!confirm(`Supprimer la semaine du ${weekKey} (${sc}) de l'historique ? Elle reste archivée (consultable par un développeur si besoin), juste retirée de cette liste.`)) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch("/.netlify/functions/activite-week-delete", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ token: currentSessionToken, weekKey, scope: sc }),
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error || `${res.status}`);
+          toast("✓ Semaine supprimée de l'historique.");
           renderActiviteWeekHistory(sc);
         }catch(err){
           toast(`✕ Refusé : ${err.message}`);
@@ -5867,6 +5921,8 @@ const LOG_ACTION_LABEL = {
   retrait_signalement_par_code: "Signalement retiré (par code)",
   sauvegarde_roster_confirmee: "💾 Roster sauvegardé",
   semaine_activite_reouverte: "Semaine d'activité rouverte",
+  semaine_activite_refermee: "🔒 Semaine d'activité refermée",
+  semaine_activite_supprimee: "🗑️ Semaine d'activité supprimée",
   semaine_reouverte: "Semaine de paie rouverte",
   semaine_supprimee: "🗑️ Semaine de paie supprimée",
   suppression_signalement: "Signalement supprimé",
