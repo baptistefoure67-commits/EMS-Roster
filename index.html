@@ -5765,7 +5765,13 @@ async function loadPropositionsPending(){
   if(!canValidateSignalement()) return;
   list.textContent = "Chargement…";
   try{
-    const res = await fetch(PROPOSITIONS_URL);
+    // (audit du 401, signalé par l'utilisateur) Cette lecture n'envoyait
+    // aucun jeton — ça fonctionnait tant que signalementPropositions
+    // était public (.read: true) ; depuis le durcissement du dernier
+    // audit (.read: "auth != null"), ça échoue en 401. withFirebaseAuth()
+    // est le même mécanisme déjà utilisé partout ailleurs pour une
+    // lecture authentifiée côté client.
+    const res = await fetch(withFirebaseAuth(PROPOSITIONS_URL));
     if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     const data = await res.json();
     if(!data){ list.textContent = "Aucune proposition en attente."; return; }
