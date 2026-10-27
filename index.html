@@ -34,6 +34,13 @@
     --theme-primary-border:#bcdcfb;
     --theme-primary-shadow:rgba(37,99,235,.35);
     --theme-primary-text:#04121f;
+    /* (audit du fond, suite au retour utilisateur) Les deux lueurs douces
+       du fond de page étaient codées en rgba(bleu)/rgba(cyan) directement
+       en dur, jamais migrées (ce ne sont pas des var(--blue)/var(--cyan)
+       mais des rgba() littéraux) — le fond ne suivait donc jamais le
+       thème choisi. */
+    --theme-bg-glow-1:rgba(37,99,235,0.16);
+    --theme-bg-glow-2:rgba(56,189,248,0.10);
     --green:#34d399;
     --red:#f87171;
     --amber:#fbbf24;
@@ -44,8 +51,8 @@
   html,body{margin:0;padding:0;}
   body{
     background:
-      radial-gradient(1100px 600px at 15% -10%, rgba(37,99,235,0.16), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgba(56,189,248,0.10), transparent 55%),
+      radial-gradient(1100px 600px at 15% -10%, var(--theme-bg-glow-1), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, var(--theme-bg-glow-2), transparent 55%),
       linear-gradient(180deg, var(--bg-0), var(--bg-1) 40%, var(--bg-0));
     background-attachment:fixed;
     color:var(--text);
@@ -1173,11 +1180,17 @@ function rosterGenerateThemeVariants(hex){
   const brightHex = rosterHslToHex(h, Math.max(40, sat-5), brightL);
   const softHex = rosterHslToHex(h, Math.min(60, sat*0.35), 93);
   const borderHex = rosterHslToHex(h, Math.min(70, sat*0.5), 78);
+  // (audit du fond) Mêmes lueurs douces que le fond d'origine, mais à
+  // partir de la couleur choisie et de sa variante claire, au lieu du
+  // bleu/cyan toujours codés en dur.
+  const brightRgb = rosterHexToRgb(brightHex) || rgb;
   return {
     primary: primaryHex, primaryDeep: deepHex, primaryMid: midHex, primaryBright: brightHex,
     primarySoft: softHex, primaryBorder: borderHex,
     primaryShadow: `rgba(${rgb.r},${rgb.g},${rgb.b},.35)`,
     primaryText: rosterGetContrastTextColor(primaryHex),
+    bgGlow1: `rgba(${rgb.r},${rgb.g},${rgb.b},0.16)`,
+    bgGlow2: `rgba(${brightRgb.r},${brightRgb.g},${brightRgb.b},0.10)`,
   };
 }
 function rosterApplyThemeColor(hex, { persist = true } = {}){
@@ -1191,6 +1204,8 @@ function rosterApplyThemeColor(hex, { persist = true } = {}){
   root.setProperty("--theme-primary-border", variants.primaryBorder);
   root.setProperty("--theme-primary-shadow", variants.primaryShadow);
   root.setProperty("--theme-primary-text", variants.primaryText);
+  root.setProperty("--theme-bg-glow-1", variants.bgGlow1);
+  root.setProperty("--theme-bg-glow-2", variants.bgGlow2);
   document.querySelectorAll(".roster-theme-dot").forEach(el=>{ el.style.background = variants.primary; });
   if(persist){
     try{ localStorage.setItem(ROSTER_THEME_STORAGE_KEY, variants.primary); }catch(e){ /* stockage indisponible — le thème reste appliqué pour cette session */ }
