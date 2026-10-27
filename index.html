@@ -15,8 +15,25 @@
     --text:#e6edf7;
     --text-dim:#93a3ba;
     --text-faint:#5f7089;
+    /* (26/10, personnalisation de couleur) --cyan/--blue restent FIGÉS à
+       leurs valeurs d'origine — ne jamais les modifier : les animations de
+       synchronisation Roster↔Pillbox (liaison-overlay et toutes ses
+       variantes : vault, transfusion, scanner, portail, mascotte, etc.)
+       les utilisent directement et doivent rester identiques quel que
+       soit le thème choisi (cahier des charges, point 17). Le thème
+       utilise une famille SÉPARÉE, --theme-primary*, migrée sur les
+       usages de marque uniquement (boutons, titre, navigation, focus) —
+       jamais sur les ~30 usages liés aux animations, laissés intacts. */
     --cyan:#38bdf8;
     --blue:#2563eb;
+    --theme-primary:#2563eb;
+    --theme-primary-bright:#38bdf8;
+    --theme-primary-deep:#0f2f66;
+    --theme-primary-mid:#1d4aa8;
+    --theme-primary-soft:#e8f2fe;
+    --theme-primary-border:#bcdcfb;
+    --theme-primary-shadow:rgba(37,99,235,.35);
+    --theme-primary-text:#04121f;
     --green:#34d399;
     --red:#f87171;
     --amber:#fbbf24;
@@ -44,7 +61,7 @@
   }
   header.top h1{
     margin:0; font-size:1.65rem; letter-spacing:0.01em; font-weight:700;
-    background:linear-gradient(90deg, #fff, var(--cyan) 80%);
+    background:linear-gradient(90deg, #fff, var(--theme-primary-bright) 80%);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   header.top .sub{color:var(--text-dim); font-size:0.86rem; margin-top:4px;}
@@ -66,25 +83,25 @@
     background:var(--bg-0); border:1px solid var(--border); border-radius:8px;
     padding:9px 12px; outline:none;
   }
-  input:focus, select:focus, textarea:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(56,189,248,0.12);}
+  input:focus, select:focus, textarea:focus{border-color:var(--theme-primary-bright); box-shadow:0 0 0 3px rgba(56,189,248,0.12);}
   ::placeholder{color:var(--text-faint);}
 
   button{cursor:pointer; transition:transform .08s ease, opacity .12s ease, background .15s ease;}
   button:active{transform:scale(0.97);}
   .btn-primary{
-    background:linear-gradient(90deg, var(--cyan), var(--blue)); border:none; color:#04121f;
+    background:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary)); border:none; color:#04121f;
     font-weight:700; padding:9px 16px;
   }
   .btn-primary:hover{opacity:0.92;}
   .btn-ghost{background:transparent; border:1px solid var(--border); color:var(--text-dim);}
-  .btn-ghost:hover{color:var(--text); border-color:var(--cyan);}
+  .btn-ghost:hover{color:var(--text); border-color:var(--theme-primary-bright);}
   .btn-danger{background:transparent; border:1px solid rgba(248,113,113,0.4); color:var(--red);}
   .btn-danger:hover{background:rgba(248,113,113,0.1);}
   .btn-small{padding:5px 10px; font-size:0.74rem; border-radius:6px;}
 
   details.addbox{margin-top:12px;}
   details.addbox > summary{
-    cursor:pointer; color:var(--cyan); font-size:0.82rem; font-weight:600; list-style:none;
+    cursor:pointer; color:var(--theme-primary-bright); font-size:0.82rem; font-weight:600; list-style:none;
     display:flex; align-items:center; gap:6px; user-select:none;
   }
   details.addbox > summary::-webkit-details-marker{display:none;}
@@ -124,7 +141,7 @@
     border-radius:8px 8px 0 0; padding:9px 16px; font-size:0.83rem; font-weight:700;
     cursor:pointer; border-bottom:none; white-space:nowrap; flex:0 0 auto;
   }
-  .tab-btn.active{ background:var(--panel-2); color:var(--cyan); border-color:var(--cyan); }
+  .tab-btn.active{ background:var(--panel-2); color:var(--theme-primary-bright); border-color:var(--theme-primary-bright); }
 
   /* ── Boutons catégorie du signalement (multi-sélection) ── */
   .cat-btn{
@@ -149,8 +166,8 @@
 
   /* ---- Sections par grade ---- */
   .grade-section{
-    border-left:3px solid var(--grade-color, var(--cyan));
-    background:linear-gradient(90deg, color-mix(in srgb, var(--grade-color, var(--cyan)) 7%, var(--panel)), var(--panel-2));
+    border-left:3px solid var(--grade-color, var(--theme-primary-bright));
+    background:linear-gradient(90deg, color-mix(in srgb, var(--grade-color, var(--theme-primary-bright)) 7%, var(--panel)), var(--panel-2));
     border-top:1px solid var(--border); border-right:1px solid var(--border); border-bottom:1px solid var(--border);
     border-radius:0 12px 12px 0; margin-bottom:12px; overflow:hidden;
   }
@@ -159,7 +176,7 @@
   }
   .grade-badge{
     font-family:var(--mono); font-size:0.72rem; font-weight:700; letter-spacing:0.02em;
-    padding:3px 9px; border-radius:6px; color:var(--grade-text-color, #04121f); background:var(--grade-color, var(--cyan));
+    padding:3px 9px; border-radius:6px; color:var(--grade-text-color, #04121f); background:var(--grade-color, var(--theme-primary-bright));
   }
   .grade-head .label{font-weight:600; font-size:0.92rem;}
   .grade-head .count{color:var(--text-dim); font-size:0.78rem; margin-left:auto;}
@@ -180,7 +197,7 @@
     background:var(--bg-0); border:1px solid var(--border-soft); border-radius:6px;
     padding:3px 8px; cursor:pointer;
   }
-  .emp-id:hover{color:var(--cyan); border-color:var(--cyan);}
+  .emp-id:hover{color:var(--theme-primary-bright); border-color:var(--theme-primary-bright);}
   .emp-role-tag{
     font-size:0.68rem; color:var(--text-dim); border:1px solid var(--border-soft);
     border-radius:5px; padding:2px 7px;
@@ -207,12 +224,12 @@
   .special-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;}
   .special-format{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 10px;background:var(--bg-0);border:1px solid var(--border);border-radius:8px;}
   .special-format label{font-size:0.78rem;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px;}
-  .special-format input{accent-color:var(--cyan);}
+  .special-format input{accent-color:var(--theme-primary-bright);}
   .special-list{margin-top:12px;max-height:420px;overflow:auto;border:1px solid var(--border-soft);border-radius:10px;}
   .special-row{display:grid;grid-template-columns:auto minmax(160px,1.3fr) minmax(150px,1fr) minmax(120px,.8fr) auto;gap:10px;align-items:center;padding:9px 11px;border-bottom:1px solid var(--border-soft);font-size:0.8rem;}
   .special-row:last-child{border-bottom:none;}
   .special-row:hover{background:rgba(255,255,255,0.02);}
-  .special-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--cyan);}
+  .special-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--theme-primary-bright);}
   .special-id{font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);overflow-wrap:anywhere;}
   .special-id.missing{color:var(--amber);font-family:var(--sans);}
   .special-count{font-size:0.78rem;color:var(--text-dim);}
@@ -228,7 +245,7 @@
 
   .toast{
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-    background:var(--panel); border:1px solid var(--cyan); color:var(--text);
+    background:var(--panel); border:1px solid var(--theme-primary-bright); color:var(--text);
     padding:10px 18px; border-radius:9px; font-size:0.82rem; opacity:0; pointer-events:none;
     transition:opacity .2s ease, transform .2s ease; z-index:50;
   }
@@ -1073,6 +1090,127 @@ body.roster-cloud-readonly #btnSaveAll,body.roster-cloud-readonly #btnSyncPillbo
 @media(prefers-reduced-motion:reduce){.save-review-overlay *{animation:none!important;transition:none!important}}
 </style>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// PERSONNALISATION DE COULEUR (26/10) — thème purement visuel, propre à
+// CE site (Roster), jamais synchronisé avec Pillbox. Stockage local
+// uniquement (localStorage), clé "rosterThemeColor". Même architecture
+// que Pillbox (fonctions jumelles, préfixées "roster" au lieu de
+// "pillbox"), mais --cyan/--blue restent HORS de ce système — voir le
+// commentaire sur :root — car les animations de synchronisation les
+// utilisent directement et ne doivent jamais changer avec le thème.
+// Pas de logo image côté Roster : le "logo" ici, c'est le titre
+// "Roster EMS" en dégradé, qui suit le thème comme n'importe quel autre
+// élément de marque.
+// ═══════════════════════════════════════════════════════════════════
+const ROSTER_THEME_STORAGE_KEY = "rosterThemeColor";
+const ROSTER_THEME_DEFAULT = "#2563eb"; // = --theme-primary d'origine
+const ROSTER_THEME_PRESETS = [
+  { name: "Bleu",        hex: "#2563eb", emoji: "🔵" },
+  { name: "Rouge",       hex: "#dc2626", emoji: "🔴" },
+  { name: "Violet",      hex: "#7c3aed", emoji: "🟣" },
+  { name: "Rose",        hex: "#db2777", emoji: "🩷" },
+  { name: "Vert",        hex: "#16a34a", emoji: "🟢" },
+  { name: "Orange",      hex: "#ea580c", emoji: "🟠" },
+  { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
+  { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
+  { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
+];
+
+function rosterHexToRgb(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex||"").trim());
+  if(!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n>>16)&255, g: (n>>8)&255, b: n&255 };
+}
+function rosterRgbToHex(r,g,b){
+  const c = (v)=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,"0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function rosterRgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0, s=0; const l=(max+min)/2;
+  const d=max-min;
+  if(d!==0){
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h=((g-b)/d + (g<b?6:0)); break;
+      case g: h=(b-r)/d + 2; break;
+      case b: h=(r-g)/d + 4; break;
+    }
+    h *= 60;
+  }
+  return { h, s: s*100, l: l*100 };
+}
+function rosterHslToHex(h,s,l){
+  h = ((h%360)+360)%360; s=Math.max(0,Math.min(100,s))/100; l=Math.max(0,Math.min(100,l))/100;
+  if(s===0){ const v=Math.round(l*255); return rosterRgbToHex(v,v,v); }
+  const q = l<0.5 ? l*(1+s) : l+s-l*s;
+  const p = 2*l-q;
+  const hue2rgb=(p,q,t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
+  const hk = h/360;
+  const r = hue2rgb(p,q,hk+1/3), g = hue2rgb(p,q,hk), b = hue2rgb(p,q,hk-1/3);
+  return rosterRgbToHex(r*255, g*255, b*255);
+}
+function rosterGetContrastTextColor(hex){
+  const rgb = rosterHexToRgb(hex);
+  if(!rgb) return "#ffffff";
+  const lin = (v)=>{ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
+  const L = 0.2126*lin(rgb.r) + 0.7152*lin(rgb.g) + 0.0722*lin(rgb.b);
+  return L > 0.42 ? "#0b1220" : "#ffffff";
+}
+function rosterGenerateThemeVariants(hex){
+  const rgb = rosterHexToRgb(hex) || rosterHexToRgb(ROSTER_THEME_DEFAULT);
+  const { h, s, l } = rosterRgbToHsl(rgb.r, rgb.g, rgb.b);
+  const sat = Math.max(18, Math.min(96, s));
+  const deepL = Math.max(8, Math.min(22, l*0.4));
+  const midL = Math.max(18, Math.min(42, l*0.78 || 25));
+  const brightL = Math.max(l+10, Math.min(82, l+22));
+  const primaryHex = rosterRgbToHex(rgb.r, rgb.g, rgb.b);
+  const deepHex = rosterHslToHex(h, Math.min(100, sat+10), deepL);
+  const midHex = rosterHslToHex(h, sat, midL);
+  const brightHex = rosterHslToHex(h, Math.max(40, sat-5), brightL);
+  const softHex = rosterHslToHex(h, Math.min(60, sat*0.35), 93);
+  const borderHex = rosterHslToHex(h, Math.min(70, sat*0.5), 78);
+  return {
+    primary: primaryHex, primaryDeep: deepHex, primaryMid: midHex, primaryBright: brightHex,
+    primarySoft: softHex, primaryBorder: borderHex,
+    primaryShadow: `rgba(${rgb.r},${rgb.g},${rgb.b},.35)`,
+    primaryText: rosterGetContrastTextColor(primaryHex),
+  };
+}
+function rosterApplyThemeColor(hex, { persist = true } = {}){
+  const variants = rosterGenerateThemeVariants(hex);
+  const root = document.documentElement.style;
+  root.setProperty("--theme-primary", variants.primary);
+  root.setProperty("--theme-primary-deep", variants.primaryDeep);
+  root.setProperty("--theme-primary-mid", variants.primaryMid);
+  root.setProperty("--theme-primary-bright", variants.primaryBright);
+  root.setProperty("--theme-primary-soft", variants.primarySoft);
+  root.setProperty("--theme-primary-border", variants.primaryBorder);
+  root.setProperty("--theme-primary-shadow", variants.primaryShadow);
+  root.setProperty("--theme-primary-text", variants.primaryText);
+  document.querySelectorAll(".roster-theme-dot").forEach(el=>{ el.style.background = variants.primary; });
+  if(persist){
+    try{ localStorage.setItem(ROSTER_THEME_STORAGE_KEY, variants.primary); }catch(e){ /* stockage indisponible — le thème reste appliqué pour cette session */ }
+  }
+  return variants;
+}
+function rosterLoadTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem(ROSTER_THEME_STORAGE_KEY); }catch(e){ /* stockage indisponible */ }
+  if(saved && rosterHexToRgb(saved)) rosterApplyThemeColor(saved, { persist:false });
+}
+function rosterSaveTheme(hex){ rosterApplyThemeColor(hex, { persist:true }); }
+function rosterResetTheme(){
+  try{ localStorage.removeItem(ROSTER_THEME_STORAGE_KEY); }catch(e){}
+  rosterApplyThemeColor(ROSTER_THEME_DEFAULT, { persist:false });
+}
+// Appliqué ICI, avant </head> donc avant le premier rendu du <body> —
+// évite tout flash "couleur par défaut puis thème choisi".
+rosterLoadTheme();
+</script>
 </head>
 <body>
 
@@ -1340,11 +1478,34 @@ body.roster-cloud-readonly #btnSaveAll,body.roster-cloud-readonly #btnSyncPillbo
       <h1>Roster EMS</h1>
       <div class="sub">Employés · ID Discord · grades — LS City Roleplay</div>
     </div>
+    <button type="button" class="btn-ghost" id="rosterThemeBtn" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;" title="Personnaliser la couleur du site (propre au Roster, jamais lié à Pillbox)">
+      <span class="roster-theme-dot" style="width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--theme-primary);border:1.5px solid var(--border);"></span>
+      🎨
+    </button>
     <div class="stats">
       <div><b id="statActifs">0</b>actifs</div>
       <div><b id="statLicencies">0</b>licenciés</div>
     </div>
   </header>
+
+  <!-- (26/10) Sélecteur de couleur — vraie modale du site, jamais window.prompt.
+       Aperçu en direct sans rien enregistrer tant que "Appliquer" n'est pas
+       cliqué ; fermer sans appliquer restaure la couleur précédente. -->
+  <div id="rosterThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:320px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.45);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Couleur du site</div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:14px;">Propre au Roster — n'affecte jamais Pillbox.</div>
+      <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:18px;color:var(--text);">
+        <span>🎨 Personnalisée</span>
+        <input type="color" id="rosterThemeCustomInput" value="#2563eb" style="width:40px;height:30px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:0;background:var(--panel-2);">
+      </label>
+      <div style="display:flex;justify-content:space-between;gap:8px;">
+        <button type="button" class="btn-ghost" id="rosterThemeResetBtn" style="flex:0 0 auto;">↺ Réinitialiser</button>
+        <button type="button" class="btn-primary" id="rosterThemeApplyBtn" style="flex:0 0 auto;">✅ Appliquer</button>
+      </div>
+    </div>
+  </div>
 
   <div id="accessGate" style="max-width:420px;margin:60px auto;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:32px 24px;">
     <div style="font-size:2rem;margin-bottom:10px;">🔒</div>
@@ -1882,6 +2043,68 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 <div class="toast" id="toast"></div>
 
 <script>
+// (26/10) Sélecteur de couleur — aperçu en direct (jamais enregistré tant
+// que "Appliquer" n'est pas cliqué), fermeture sans appliquer = retour à
+// la couleur précédente. --cyan/--blue (animations) ne sont jamais
+// touchées par ce bloc.
+(function initRosterThemePicker(){
+  const modal = document.getElementById('rosterThemeModal');
+  const openBtn = document.getElementById('rosterThemeBtn');
+  const presetsBox = document.getElementById('rosterThemePresets');
+  const customInput = document.getElementById('rosterThemeCustomInput');
+  const applyBtn = document.getElementById('rosterThemeApplyBtn');
+  const resetBtn = document.getElementById('rosterThemeResetBtn');
+  if(!modal || !openBtn) return;
+
+  let colorBeforeOpen = ROSTER_THEME_DEFAULT;
+  let pendingHex = ROSTER_THEME_DEFAULT;
+
+  presetsBox.innerHTML = ROSTER_THEME_PRESETS.map(p=>`
+    <button type="button" class="btn-ghost roster-theme-preset" data-hex="${p.hex}" title="${p.name}"
+      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
+      <span style="width:22px;height:22px;border-radius:50%;background:${p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
+      ${p.emoji}
+    </button>`).join("");
+
+  function selectPreview(hex){
+    pendingHex = hex;
+    customInput.value = hex;
+    rosterApplyThemeColor(hex, { persist:false }); // aperçu uniquement
+    presetsBox.querySelectorAll('.roster-theme-preset').forEach(b=>{
+      const active = b.dataset.hex.toLowerCase() === hex.toLowerCase();
+      b.style.outline = active ? '2px solid var(--text)' : 'none';
+      b.style.outlineOffset = active ? '2px' : '0';
+    });
+  }
+
+  openBtn.addEventListener('click', ()=>{
+    try{ colorBeforeOpen = localStorage.getItem(ROSTER_THEME_STORAGE_KEY) || ROSTER_THEME_DEFAULT; }catch(e){ colorBeforeOpen = ROSTER_THEME_DEFAULT; }
+    selectPreview(colorBeforeOpen);
+    modal.style.display = 'flex';
+  });
+
+  function closeWithoutApplying(){
+    rosterApplyThemeColor(colorBeforeOpen, { persist:false }); // annule l'aperçu
+    modal.style.display = 'none';
+  }
+  modal.addEventListener('click', (e)=>{ if(e.target === modal) closeWithoutApplying(); });
+
+  presetsBox.addEventListener('click', (e)=>{
+    const b = e.target.closest('.roster-theme-preset');
+    if(b) selectPreview(b.dataset.hex);
+  });
+  customInput.addEventListener('input', ()=> selectPreview(customInput.value));
+
+  applyBtn.addEventListener('click', ()=>{
+    rosterSaveTheme(pendingHex);
+    modal.style.display = 'none';
+  });
+  resetBtn.addEventListener('click', ()=>{
+    rosterResetTheme();
+    modal.style.display = 'none';
+  });
+})();
+
 // ═══════════════════════════ DONNÉES DE RÉFÉRENCE ═══════════════════════════
 
 const GRADE_ORDER = ["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","INF","A","STG","WDV"];
@@ -5984,7 +6207,7 @@ function renderIndividualPermTableForSelected(){
   const savedAnimationStyle = personEntry.animation_portrait_style === "real" || personEntry.animation_portrait_style === "illustration" ? personEntry.animation_portrait_style : null;
   const animationStyleBlock = canChooseAnimationStyle ? `<div style="padding:10px 0 12px;border-bottom:1px solid var(--border-soft);margin-bottom:4px;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <span style="flex:1;min-width:230px;color:var(--cyan);font-weight:800;">🎨 Style des animations<br><small style="color:var(--text-faint);font-weight:500;">OWNER uniquement · le collègue reste aléatoire, mais toute la scène utilise le même style.</small></span>
+      <span style="flex:1;min-width:230px;color:var(--theme-primary-bright);font-weight:800;">🎨 Style des animations<br><small style="color:var(--text-faint);font-weight:500;">OWNER uniquement · le collègue reste aléatoire, mais toute la scène utilise le même style.</small></span>
       <button type="button" class="btn-small ${savedAnimationStyle==="illustration"?"btn-primary":"btn-ghost"}" data-indiv-animation-style="illustration">🖌️ Dessin IA</button>
       <button type="button" class="btn-small ${savedAnimationStyle==="real"?"btn-primary":"btn-ghost"}" data-indiv-animation-style="real">🎭 Personnage RP</button>
       ${savedAnimationStyle===null?`<span style="font-size:.7rem;color:var(--text-faint);">Actuel : aléatoire 50/50</span>`:""}
