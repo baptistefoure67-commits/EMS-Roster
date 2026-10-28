@@ -1,0 +1,11 @@
+LOGOS ANIMES V2 — 28/10/2026
+
+- Animation du logo Roster revue en 3 couches : gradient interne, aura, reflet spéculaire.
+- Animation du logo Pillbox revue avec la même logique, masque basé sur le vrai logo.
+- Les logos ne se déplacent pas dans la mise en page : seules la lumière, la couleur et l'aura évoluent.
+- Vitesses adaptées aux effets : Plasma/Lave plus dynamiques, Minuit plus lent, Chrome/Or plus métallique.
+- Les thèmes duo classiques ont un mouvement doux ; les thèmes une couleur classiques restent sobres.
+- prefers-reduced-motion coupe les animations de logo.
+- Fallback sans CSS mask : le logo original reste visible, sans carré de couleur.
+- Mode daltonien Pillbox inchangé : aucune modification de --green, --amber, --danger ou de ses symboles.
+- 46 fichiers de tests Roster : 46 réussis, 0 échec.
