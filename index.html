@@ -34,6 +34,18 @@
     --theme-primary-border:#bcdcfb;
     --theme-primary-shadow:rgba(37,99,235,.35);
     --theme-primary-text:#04121f;
+    --theme-secondary:#38bdf8;
+    --theme-secondary-bright:#7dd3fc;
+    --theme-secondary-mid:#0e7490;
+    --theme-accent-end:#38bdf8;
+    --theme-brand-gradient:linear-gradient(90deg, #fff, var(--theme-primary-bright) 80%);
+    --theme-button-gradient:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary));
+    --theme-button-hover-gradient:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary));
+    --theme-gradient-text:#04121f;
+    --theme-focus-ring:rgba(56,189,248,.12);
+    --theme-logo-gradient:linear-gradient(135deg, var(--theme-primary-bright), var(--theme-primary));
+    --theme-holo-gradient:linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%);
+    --theme-holo-gradient-soft:linear-gradient(115deg, rgba(255,116,212,.22), rgba(126,247,211,.16), rgba(114,221,247,.18), rgba(199,125,255,.20));
     /* (audit du fond, suite au retour utilisateur) Les deux lueurs douces
        du fond de page étaient codées en rgba(bleu)/rgba(cyan) directement
        en dur, jamais migrées (ce ne sont pas des var(--blue)/var(--cyan)
@@ -68,20 +80,62 @@
   }
   .roster-brand{display:flex; align-items:center; gap:12px; min-width:0;}
   .roster-brand-copy{min-width:0;}
+  .roster-logo-wrap{
+    width:64px; height:64px; flex:0 0 64px; position:relative; display:block; isolation:isolate;
+    user-select:none; pointer-events:none;
+  }
   .roster-logo{
-    width:64px; height:64px; flex:0 0 64px; object-fit:contain; display:block;
-    mix-blend-mode:screen; user-select:none; pointer-events:none;
+    width:100%; height:100%; object-fit:contain; display:block;
     filter:drop-shadow(0 0 10px color-mix(in srgb, var(--theme-primary-bright) 28%, transparent));
+  }
+  .roster-logo-wrap::after{content:none;}
+  @supports (mix-blend-mode:color) and ((-webkit-mask-image:url("")) or (mask-image:url(""))){
+    .roster-logo-wrap::after{
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:var(--theme-logo-gradient); mix-blend-mode:color; opacity:.96;
+      -webkit-mask:url("assets/roster-logo.png") center/contain no-repeat;
+      mask:url("assets/roster-logo.png") center/contain no-repeat;
+    }
   }
   header.top h1{
     margin:0; font-size:1.65rem; letter-spacing:0.01em; font-weight:700;
-    background:linear-gradient(90deg, #fff, var(--theme-primary-bright) 80%);
+    background:var(--theme-brand-gradient);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   header.top .sub{color:var(--text-dim); font-size:0.86rem; margin-top:4px;}
   @media (max-width:640px){
     .roster-brand{gap:10px;}
-    .roster-logo{width:54px;height:54px;flex-basis:54px;}
+    .roster-logo-wrap{width:54px;height:54px;flex-basis:54px;}
+  }
+  @keyframes rosterHolographicShift{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+  }
+  html.theme-holographic header.top h1,
+  html.theme-holographic .btn-primary,
+  html.theme-holographic .roster-logo-wrap::after{
+    background-image:var(--theme-holo-gradient)!important;
+    background-size:260% 260%!important;
+    animation:rosterHolographicShift 8s ease-in-out infinite;
+  }
+  html.theme-holographic .btn-primary{
+    color:#07111d!important;
+    text-shadow:0 1px 0 rgba(255,255,255,.34);
+  }
+  html.theme-holographic .roster-logo{
+    filter:drop-shadow(0 0 12px rgba(114,221,247,.22)) drop-shadow(0 0 6px rgba(255,116,212,.16));
+  }
+  html.theme-holographic body{
+    background:
+      radial-gradient(900px 520px at 10% -8%, rgba(255,116,212,.13), transparent 60%),
+      radial-gradient(820px 480px at 92% 0%, rgba(114,221,247,.12), transparent 58%),
+      radial-gradient(700px 420px at 55% 12%, rgba(126,247,211,.055), transparent 62%),
+      linear-gradient(180deg, var(--bg-0), var(--bg-1) 40%, var(--bg-0));
+    background-attachment:fixed;
+  }
+  @media(prefers-reduced-motion:reduce){
+    html.theme-holographic header.top h1,html.theme-holographic .btn-primary,html.theme-holographic .roster-logo-wrap::after{animation:none!important;background-position:50% 50%!important;}
   }
   .stats{display:flex; gap:18px; font-size:0.78rem; color:var(--text-dim);}
   .stats b{color:var(--text); font-size:1rem; display:block; font-weight:700;}
@@ -101,13 +155,13 @@
     background:var(--bg-0); border:1px solid var(--border); border-radius:8px;
     padding:9px 12px; outline:none;
   }
-  input:focus, select:focus, textarea:focus{border-color:var(--theme-primary-bright); box-shadow:0 0 0 3px rgba(56,189,248,0.12);}
+  input:focus, select:focus, textarea:focus{border-color:var(--theme-primary-bright); box-shadow:0 0 0 3px var(--theme-focus-ring);}
   ::placeholder{color:var(--text-faint);}
 
   button{cursor:pointer; transition:transform .08s ease, opacity .12s ease, background .15s ease;}
   button:active{transform:scale(0.97);}
   .btn-primary{
-    background:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary)); border:none; color:#04121f;
+    background:var(--theme-button-gradient); border:none; color:var(--theme-gradient-text);
     font-weight:700; padding:9px 16px;
   }
   .btn-primary:hover{opacity:0.92;}
@@ -1117,12 +1171,14 @@ body.roster-cloud-readonly #btnSaveAll,body.roster-cloud-readonly #btnSyncPillbo
 // "pillbox"), mais --cyan/--blue restent HORS de ce système — voir le
 // commentaire sur :root — car les animations de synchronisation les
 // utilisent directement et ne doivent jamais changer avec le thème.
-// Pas de logo image côté Roster : le "logo" ici, c'est le titre
-// "Roster EMS" en dégradé, qui suit le thème comme n'importe quel autre
-// élément de marque.
+// Le logo Roster et le titre suivent maintenant la palette. Le PNG reste
+// le fallback visuel ; une surcouche CSS colorise le logo sans générer
+// d'image dynamiquement.
 // ═══════════════════════════════════════════════════════════════════
-const ROSTER_THEME_STORAGE_KEY = "rosterThemeColor";
-const ROSTER_THEME_DEFAULT = "#2563eb"; // = --theme-primary d'origine
+const ROSTER_THEME_STORAGE_KEY = "rosterThemeColor"; // legacy : garde la couleur principale pour les anciennes versions
+const ROSTER_THEME_PALETTE_KEY = "rosterThemePaletteV2";
+const ROSTER_THEME_DEFAULT = "#2563eb";
+const ROSTER_THEME_SECONDARY_DEFAULT = "#38bdf8";
 const ROSTER_THEME_PRESETS = [
   { name: "Bleu",        hex: "#2563eb", emoji: "🔵" },
   { name: "Rouge",       hex: "#dc2626", emoji: "🔴" },
@@ -1133,11 +1189,7 @@ const ROSTER_THEME_PRESETS = [
   { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
   { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
   { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
-  // (demandé — "couleurs spéciales") Même principe que côté Pillbox : la
-  // pastille a un effet brillant, la couleur réellement appliquée reste
-  // fixe (une vraie animation arc-en-ciel continue n'est pas compatible
-  // avec ce système de thème, qui dérive tout d'UNE couleur fixe).
-  { name: "Holographique", hex: "#d946ef", emoji: "🌈", swatchGradient: "conic-gradient(from 180deg, #ff5f6d, #ffc371, #47e3b3, #35a7ff, #c86ef0, #ff5f6d)" },
+  { name: "Holographique", hex: "#ff74d4", secondary: "#72ddf7", mode: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
   { name: "Or",            hex: "#b45309", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
 ];
 
@@ -1184,6 +1236,12 @@ function rosterGetContrastTextColor(hex){
   const L = 0.2126*lin(rgb.r) + 0.7152*lin(rgb.g) + 0.0722*lin(rgb.b);
   return L > 0.42 ? "#0b1220" : "#ffffff";
 }
+function rosterMixHex(a,b,ratio=.5){
+  const ca=rosterHexToRgb(a), cb=rosterHexToRgb(b);
+  if(!ca || !cb) return a;
+  const t=Math.max(0,Math.min(1,Number(ratio)||0));
+  return rosterRgbToHex(ca.r+(cb.r-ca.r)*t, ca.g+(cb.g-ca.g)*t, ca.b+(cb.b-ca.b)*t);
+}
 function rosterGenerateThemeVariants(hex){
   const rgb = rosterHexToRgb(hex) || rosterHexToRgb(ROSTER_THEME_DEFAULT);
   const { h, s, l } = rosterRgbToHsl(rgb.r, rgb.g, rgb.b);
@@ -1197,9 +1255,6 @@ function rosterGenerateThemeVariants(hex){
   const brightHex = rosterHslToHex(h, Math.max(40, sat-5), brightL);
   const softHex = rosterHslToHex(h, Math.min(60, sat*0.35), 93);
   const borderHex = rosterHslToHex(h, Math.min(70, sat*0.5), 78);
-  // (audit du fond) Mêmes lueurs douces que le fond d'origine, mais à
-  // partir de la couleur choisie et de sa variante claire, au lieu du
-  // bleu/cyan toujours codés en dur.
   const brightRgb = rosterHexToRgb(brightHex) || rgb;
   return {
     primary: primaryHex, primaryDeep: deepHex, primaryMid: midHex, primaryBright: brightHex,
@@ -1210,37 +1265,94 @@ function rosterGenerateThemeVariants(hex){
     bgGlow2: `rgba(${brightRgb.r},${brightRgb.g},${brightRgb.b},0.10)`,
   };
 }
-function rosterApplyThemeColor(hex, { persist = true } = {}){
-  const variants = rosterGenerateThemeVariants(hex);
-  const root = document.documentElement.style;
-  root.setProperty("--theme-primary", variants.primary);
-  root.setProperty("--theme-primary-deep", variants.primaryDeep);
-  root.setProperty("--theme-primary-mid", variants.primaryMid);
-  root.setProperty("--theme-primary-bright", variants.primaryBright);
-  root.setProperty("--theme-primary-soft", variants.primarySoft);
-  root.setProperty("--theme-primary-border", variants.primaryBorder);
-  root.setProperty("--theme-primary-shadow", variants.primaryShadow);
-  root.setProperty("--theme-primary-text", variants.primaryText);
-  root.setProperty("--theme-bg-glow-1", variants.bgGlow1);
-  root.setProperty("--theme-bg-glow-2", variants.bgGlow2);
-  document.querySelectorAll(".roster-theme-dot").forEach(el=>{ el.style.background = variants.primary; });
+function rosterNormalizeThemePalette(value){
+  if(typeof value === "string") return rosterHexToRgb(value) ? {primary:rosterRgbToHex(...Object.values(rosterHexToRgb(value))), secondary:null} : {primary:ROSTER_THEME_DEFAULT, secondary:null};
+  const mode = value?.mode === "holographic" ? "holographic" : null;
+  const primary = rosterHexToRgb(value?.primary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.primary))) : (mode ? "#ff74d4" : ROSTER_THEME_DEFAULT);
+  const secondary = rosterHexToRgb(value?.secondary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.secondary))) : (mode ? "#72ddf7" : null);
+  return mode ? { primary, secondary, mode } : { primary, secondary };
+}
+function rosterReadStoredTheme(){
+  try{
+    const raw = localStorage.getItem(ROSTER_THEME_PALETTE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && rosterHexToRgb(parsed.primary)) return rosterNormalizeThemePalette(parsed);
+    }
+  }catch(e){}
+  try{
+    const legacy = localStorage.getItem(ROSTER_THEME_STORAGE_KEY);
+    if(legacy && rosterHexToRgb(legacy)) return { primary:legacy, secondary:null };
+  }catch(e){}
+  return { primary:ROSTER_THEME_DEFAULT, secondary:null };
+}
+function rosterApplyThemePalette(palette, { persist = true } = {}){
+  const normalized = rosterNormalizeThemePalette(palette);
+  const primary = rosterGenerateThemeVariants(normalized.primary);
+  const secondary = normalized.secondary ? rosterGenerateThemeVariants(normalized.secondary) : primary;
+  const holographic = normalized.mode === "holographic";
+  const dual = !!normalized.secondary || holographic;
+  const rootEl = document.documentElement;
+  const root = rootEl.style;
+  rootEl.classList.toggle("theme-dual", dual);
+  rootEl.classList.toggle("theme-holographic", holographic);
+  root.setProperty("--theme-primary", primary.primary);
+  root.setProperty("--theme-primary-deep", primary.primaryDeep);
+  root.setProperty("--theme-primary-mid", primary.primaryMid);
+  root.setProperty("--theme-primary-bright", primary.primaryBright);
+  root.setProperty("--theme-primary-soft", primary.primarySoft);
+  root.setProperty("--theme-primary-border", primary.primaryBorder);
+  root.setProperty("--theme-primary-shadow", primary.primaryShadow);
+  root.setProperty("--theme-primary-text", primary.primaryText);
+  root.setProperty("--theme-secondary", secondary.primary);
+  root.setProperty("--theme-secondary-mid", secondary.primaryMid);
+  root.setProperty("--theme-secondary-bright", secondary.primaryBright);
+  root.setProperty("--theme-accent-end", dual ? secondary.primaryBright : primary.primaryBright);
+  root.setProperty("--theme-bg-glow-1", primary.bgGlow1);
+  root.setProperty("--theme-bg-glow-2", dual ? secondary.bgGlow1.replace(/0\.16\)$/, "0.10)") : primary.bgGlow2);
+  const primaryRgb = rosterHexToRgb(primary.primary);
+  root.setProperty("--theme-focus-ring", `rgba(${primaryRgb.r},${primaryRgb.g},${primaryRgb.b},.14)`);
+  const holoGradient = `linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%)`;
+  root.setProperty("--theme-brand-gradient", holographic
+    ? holoGradient
+    : dual ? `linear-gradient(90deg, #fff 0%, ${primary.primaryBright} 56%, ${secondary.primaryBright} 100%)`
+    : `linear-gradient(90deg, #fff, ${primary.primaryBright} 80%)`);
+  root.setProperty("--theme-button-gradient", holographic
+    ? holoGradient
+    : dual ? `linear-gradient(100deg, ${primary.primary} 0%, ${secondary.primary} 100%)`
+    : `linear-gradient(90deg, ${primary.primaryBright}, ${primary.primary})`);
+  root.setProperty("--theme-button-hover-gradient", holographic
+    ? holoGradient
+    : dual ? `linear-gradient(100deg, ${primary.primaryBright} 0%, ${secondary.primaryBright} 100%)`
+    : `linear-gradient(90deg, ${primary.primaryBright}, ${primary.primary})`);
+  const gradientMid = dual ? rosterMixHex(primary.primary, secondary.primary, .5) : primary.primary;
+  root.setProperty("--theme-gradient-text", holographic ? "#07111d" : (dual ? rosterGetContrastTextColor(gradientMid) : "#04121f"));
+  root.setProperty("--theme-logo-gradient", holographic
+    ? holoGradient
+    : dual ? `linear-gradient(135deg, ${primary.primaryBright} 0%, ${secondary.primary} 100%)`
+    : `linear-gradient(135deg, ${primary.primaryBright} 0%, ${primary.primary} 100%)`);
+  document.querySelectorAll(".roster-theme-dot").forEach(el=>{
+    el.style.background = holographic ? holoGradient : (dual ? `linear-gradient(135deg, ${primary.primary} 0 48%, ${secondary.primary} 52% 100%)` : primary.primary);
+    el.style.backgroundSize = holographic ? "260% 260%" : "auto";
+    el.style.animation = holographic ? "rosterHolographicShift 8s ease-in-out infinite" : "none";
+  });
   if(persist){
-    try{ localStorage.setItem(ROSTER_THEME_STORAGE_KEY, variants.primary); }catch(e){ /* stockage indisponible — le thème reste appliqué pour cette session */ }
+    try{
+      localStorage.setItem(ROSTER_THEME_STORAGE_KEY, primary.primary);
+      localStorage.setItem(ROSTER_THEME_PALETTE_KEY, JSON.stringify(holographic?{primary:primary.primary, secondary:secondary.primary, mode:"holographic"}:{primary:primary.primary, secondary:dual?secondary.primary:null}));
+    }catch(e){}
   }
-  return variants;
+  return { primary, secondary:dual?secondary:null, palette:holographic?{primary:primary.primary, secondary:secondary.primary, mode:"holographic"}:{primary:primary.primary, secondary:dual?secondary.primary:null} };
 }
-function rosterLoadTheme(){
-  let saved = null;
-  try{ saved = localStorage.getItem(ROSTER_THEME_STORAGE_KEY); }catch(e){ /* stockage indisponible */ }
-  if(saved && rosterHexToRgb(saved)) rosterApplyThemeColor(saved, { persist:false });
-}
-function rosterSaveTheme(hex){ rosterApplyThemeColor(hex, { persist:true }); }
+// API legacy conservée pour les anciens tests / anciennes versions.
+function rosterApplyThemeColor(hex, options={}){ return rosterApplyThemePalette({primary:hex, secondary:null}, options); }
+function rosterLoadTheme(){ rosterApplyThemePalette(rosterReadStoredTheme(), { persist:false }); }
+function rosterSaveTheme(value){ rosterApplyThemePalette(value, { persist:true }); }
 function rosterResetTheme(){
-  try{ localStorage.removeItem(ROSTER_THEME_STORAGE_KEY); }catch(e){}
-  rosterApplyThemeColor(ROSTER_THEME_DEFAULT, { persist:false });
+  try{ localStorage.removeItem(ROSTER_THEME_STORAGE_KEY); localStorage.removeItem(ROSTER_THEME_PALETTE_KEY); }catch(e){}
+  rosterApplyThemePalette({primary:ROSTER_THEME_DEFAULT, secondary:null}, { persist:false });
 }
-// Appliqué ICI, avant </head> donc avant le premier rendu du <body> —
-// évite tout flash "couleur par défaut puis thème choisi".
+// Appliqué avant le premier rendu du <body> pour éviter le flash de thème.
 rosterLoadTheme();
 </script>
 </head>
@@ -1507,7 +1619,7 @@ rosterLoadTheme();
 
   <header class="top">
     <div class="roster-brand">
-      <img class="roster-logo" src="assets/roster-logo.png" alt="Logo Roster EMS">
+      <span class="roster-logo-wrap" aria-hidden="true"><img class="roster-logo" src="assets/roster-logo.png" alt=""></span>
       <div class="roster-brand-copy">
         <h1>Roster EMS</h1>
         <div class="sub">Employés · ID Discord · grades — LS City Roleplay</div>
@@ -1527,16 +1639,29 @@ rosterLoadTheme();
        Aperçu en direct sans rien enregistrer tant que "Appliquer" n'est pas
        cliqué ; fermer sans appliquer restaure la couleur précédente. -->
   <div id="rosterThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:320px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
       <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
-      <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Couleur du site</div>
-      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:14px;">Propre au Roster — n'affecte jamais Pillbox.</div>
-      <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
-      <label style="display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:18px;color:var(--text);">
-        <span>🎨 Personnalisée</span>
-        <input type="color" id="rosterThemeCustomInput" value="#2563eb" style="width:40px;height:30px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:0;background:var(--panel-2);">
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Palette du site</div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">1 couleur classique ou 2 couleurs en duo. Propre au Roster.</div>
+      <div style="font-weight:800;font-size:12px;color:var(--text);margin-bottom:8px;">Couleur principale</div>
+      <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--text);">
+        <span>Personnalisée</span>
+        <input type="color" id="rosterThemeCustomInput" value="#2563eb" style="width:44px;height:32px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:0;background:var(--panel-2);">
       </label>
-      <div style="display:flex;justify-content:space-between;gap:8px;">
+      <button type="button" class="btn-ghost" id="rosterThemeAddSecondaryBtn" style="width:100%;margin-bottom:14px;">＋ Ajouter une deuxième couleur</button>
+      <div id="rosterThemeSecondarySection" style="display:none;border-top:1px solid var(--border-soft);padding-top:14px;margin-top:2px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <div style="font-weight:800;font-size:12px;color:var(--text);">Couleur secondaire</div>
+          <button type="button" class="btn-ghost btn-small" id="rosterThemeRemoveSecondaryBtn">✕ Supprimer</button>
+        </div>
+        <div id="rosterThemeSecondaryPresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:18px;color:var(--text);">
+          <span>Personnalisée</span>
+          <input type="color" id="rosterThemeSecondaryInput" value="#38bdf8" style="width:44px;height:32px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:0;background:var(--panel-2);">
+        </label>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <button type="button" class="btn-ghost" id="rosterThemeResetBtn" style="flex:0 0 auto;">↺ Réinitialiser</button>
         <button type="button" class="btn-primary" id="rosterThemeApplyBtn" style="flex:0 0 auto;">✅ Appliquer</button>
       </div>
@@ -2087,70 +2212,85 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   const modal = document.getElementById('rosterThemeModal');
   const openBtn = document.getElementById('rosterThemeBtn');
   const presetsBox = document.getElementById('rosterThemePresets');
+  const secondaryPresetsBox = document.getElementById('rosterThemeSecondaryPresets');
   const customInput = document.getElementById('rosterThemeCustomInput');
+  const secondaryInput = document.getElementById('rosterThemeSecondaryInput');
+  const secondarySection = document.getElementById('rosterThemeSecondarySection');
+  const addSecondaryBtn = document.getElementById('rosterThemeAddSecondaryBtn');
+  const removeSecondaryBtn = document.getElementById('rosterThemeRemoveSecondaryBtn');
   const applyBtn = document.getElementById('rosterThemeApplyBtn');
   const resetBtn = document.getElementById('rosterThemeResetBtn');
   if(!modal || !openBtn) return;
 
-  let colorBeforeOpen = ROSTER_THEME_DEFAULT;
-  let pendingHex = ROSTER_THEME_DEFAULT;
+  let paletteBeforeOpen = {primary:ROSTER_THEME_DEFAULT, secondary:null};
+  let pendingPalette = {primary:ROSTER_THEME_DEFAULT, secondary:null};
 
-  presetsBox.innerHTML = ROSTER_THEME_PRESETS.map(p=>`
-    <button type="button" class="btn-ghost roster-theme-preset" data-hex="${p.hex}" title="${p.name}${p.swatchGradient?' (couleur appliquée : vif, pas animé)':''}"
+  const presetMarkup = (klass)=>ROSTER_THEME_PRESETS.map(p=>`
+    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-secondary="${p.secondary||''}" data-mode="${p.mode||''}" title="${p.name}${p.mode==='holographic'?' — vrai dégradé holographique animé':''}"
       style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
       <span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient || p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
       ${p.emoji}
     </button>`).join("");
+  presetsBox.innerHTML = presetMarkup('roster-theme-preset');
+  secondaryPresetsBox.innerHTML = presetMarkup('roster-theme-secondary-preset');
 
-  function selectPreview(hex){
-    pendingHex = hex;
-    customInput.value = hex;
-    rosterApplyThemeColor(hex, { persist:false }); // aperçu uniquement
-    presetsBox.querySelectorAll('.roster-theme-preset').forEach(b=>{
-      const active = b.dataset.hex.toLowerCase() === hex.toLowerCase();
+  function updatePresetSelection(box, selector, hex, mode){
+    box.querySelectorAll(selector).forEach(b=>{
+      const active = b.dataset.mode ? (mode === b.dataset.mode) : (!!hex && !mode && b.dataset.hex.toLowerCase() === hex.toLowerCase());
       b.style.outline = active ? '2px solid var(--text)' : 'none';
       b.style.outlineOffset = active ? '2px' : '0';
     });
   }
+  function renderPending(){
+    pendingPalette = rosterNormalizeThemePalette(pendingPalette);
+    customInput.value = pendingPalette.primary;
+    const dual = !!pendingPalette.secondary;
+    secondarySection.style.display = dual ? 'block' : 'none';
+    addSecondaryBtn.style.display = dual ? 'none' : 'block';
+    if(dual) secondaryInput.value = pendingPalette.secondary;
+    updatePresetSelection(presetsBox, '.roster-theme-preset', pendingPalette.primary, pendingPalette.mode);
+    updatePresetSelection(secondaryPresetsBox, '.roster-theme-secondary-preset', pendingPalette.secondary, null);
+    rosterApplyThemePalette(pendingPalette, { persist:false });
+  }
+  function selectPrimary(hex){ pendingPalette.primary = hex; pendingPalette.mode = null; renderPending(); }
+  function selectSecondary(hex){ pendingPalette.secondary = hex; pendingPalette.mode = null; renderPending(); }
+  function selectPresetButton(button, target){
+    if(button.dataset.mode === "holographic"){
+      pendingPalette = {primary:button.dataset.hex || "#ff74d4", secondary:button.dataset.secondary || "#72ddf7", mode:"holographic"};
+      renderPending();
+      return;
+    }
+    if(target === "secondary") selectSecondary(button.dataset.hex); else selectPrimary(button.dataset.hex);
+  }
 
   openBtn.addEventListener('click', ()=>{
-    try{ colorBeforeOpen = localStorage.getItem(ROSTER_THEME_STORAGE_KEY) || ROSTER_THEME_DEFAULT; }catch(e){ colorBeforeOpen = ROSTER_THEME_DEFAULT; }
-    selectPreview(colorBeforeOpen);
+    paletteBeforeOpen = rosterReadStoredTheme();
+    pendingPalette = {...paletteBeforeOpen};
+    renderPending();
     modal.style.display = 'flex';
   });
-
   function closeWithoutApplying(){
-    rosterApplyThemeColor(colorBeforeOpen, { persist:false }); // annule l'aperçu
+    rosterApplyThemePalette(paletteBeforeOpen, { persist:false });
     modal.style.display = 'none';
   }
-  // (signalé — fermeture accidentelle de la modale) Même correctif que
-  // côté Pillbox : il faut qu'un VRAI clic démarre ET se termine sur le
-  // fond lui-même pour fermer — un évènement isolé/synthétique causé par
-  // le sélecteur <input type="color"> natif ne suffit plus.
   let rosterThemeMousedownOnBackdrop = false;
   modal.addEventListener('mousedown', (e)=>{ rosterThemeMousedownOnBackdrop = (e.target === modal); });
   modal.addEventListener('click', (e)=>{
     if(e.target === modal && rosterThemeMousedownOnBackdrop) closeWithoutApplying();
     rosterThemeMousedownOnBackdrop = false;
   });
-  const closeBtn = document.getElementById('rosterThemeCloseBtn');
-  if(closeBtn) closeBtn.addEventListener('click', closeWithoutApplying);
-
-  presetsBox.addEventListener('click', (e)=>{
-    const b = e.target.closest('.roster-theme-preset');
-    if(b) selectPreview(b.dataset.hex);
-  });
-  customInput.addEventListener('input', ()=> selectPreview(customInput.value));
-
-  applyBtn.addEventListener('click', ()=>{
-    rosterSaveTheme(pendingHex);
-    modal.style.display = 'none';
-  });
-  resetBtn.addEventListener('click', ()=>{
-    rosterResetTheme();
-    modal.style.display = 'none';
-  });
+  document.getElementById('rosterThemeCloseBtn')?.addEventListener('click', closeWithoutApplying);
+  presetsBox.addEventListener('click', (e)=>{ const b=e.target.closest('.roster-theme-preset'); if(b) selectPresetButton(b,'primary'); });
+  secondaryPresetsBox.addEventListener('click', (e)=>{ const b=e.target.closest('.roster-theme-secondary-preset'); if(b) selectPresetButton(b,'secondary'); });
+  customInput.addEventListener('input', ()=> selectPrimary(customInput.value));
+  secondaryInput.addEventListener('input', ()=> selectSecondary(secondaryInput.value));
+  addSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = ROSTER_THEME_SECONDARY_DEFAULT; pendingPalette.mode = null; renderPending(); });
+  removeSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = null; pendingPalette.mode = null; renderPending(); });
+  applyBtn.addEventListener('click', ()=>{ rosterSaveTheme(pendingPalette); modal.style.display = 'none'; });
+  resetBtn.addEventListener('click', ()=>{ rosterResetTheme(); modal.style.display = 'none'; });
 })();
+
+;
 
 // ═══════════════════════════ DONNÉES DE RÉFÉRENCE ═══════════════════════════
 
