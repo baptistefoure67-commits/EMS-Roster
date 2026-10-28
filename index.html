@@ -53,6 +53,9 @@
        thème choisi. */
     --theme-bg-glow-1:rgba(37,99,235,0.16);
     --theme-bg-glow-2:rgba(56,189,248,0.10);
+    --theme-bg-glow-3:rgba(0,0,0,0);
+    --theme-bg-grid:rgba(37,99,235,.032);
+    --theme-bg-grid-strong:rgba(56,189,248,.045);
     --green:#34d399;
     --red:#f87171;
     --amber:#fbbf24;
@@ -65,7 +68,13 @@
     background:
       radial-gradient(1100px 600px at 15% -10%, var(--theme-bg-glow-1), transparent 60%),
       radial-gradient(900px 500px at 100% 0%, var(--theme-bg-glow-2), transparent 55%),
+      radial-gradient(760px 460px at 52% 16%, var(--theme-bg-glow-3), transparent 62%),
+      linear-gradient(var(--theme-bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--theme-bg-grid) 1px, transparent 1px),
+      radial-gradient(circle, var(--theme-bg-grid-strong) 0 1.1px, transparent 1.4px),
       linear-gradient(180deg, var(--bg-0), var(--bg-1) 40%, var(--bg-0));
+    background-size:auto,auto,auto,48px 48px,48px 48px,96px 96px,auto;
+    background-position:center,center,center,0 0,0 0,24px 18px,center;
     background-attachment:fixed;
     color:var(--text);
     font-family:var(--sans);
@@ -126,12 +135,19 @@
   html.theme-holographic .roster-logo{
     filter:drop-shadow(0 0 12px rgba(114,221,247,.22)) drop-shadow(0 0 6px rgba(255,116,212,.16));
   }
+  html.theme-metallic .btn-primary{color:#07111d!important;text-shadow:0 1px 0 rgba(255,255,255,.34);}
+
   html.theme-holographic body{
     background:
-      radial-gradient(900px 520px at 10% -8%, rgba(255,116,212,.13), transparent 60%),
-      radial-gradient(820px 480px at 92% 0%, rgba(114,221,247,.12), transparent 58%),
-      radial-gradient(700px 420px at 55% 12%, rgba(126,247,211,.055), transparent 62%),
+      radial-gradient(980px 560px at 10% -8%, var(--theme-bg-glow-1), transparent 60%),
+      radial-gradient(880px 500px at 94% 0%, var(--theme-bg-glow-2), transparent 58%),
+      radial-gradient(760px 440px at 55% 12%, var(--theme-bg-glow-3), transparent 62%),
+      linear-gradient(var(--theme-bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--theme-bg-grid) 1px, transparent 1px),
+      radial-gradient(circle, var(--theme-bg-grid-strong) 0 1.1px, transparent 1.4px),
       linear-gradient(180deg, var(--bg-0), var(--bg-1) 40%, var(--bg-0));
+    background-size:auto,auto,auto,48px 48px,48px 48px,96px 96px,auto;
+    background-position:center,center,center,0 0,0 0,24px 18px,center;
     background-attachment:fixed;
   }
   @media(prefers-reduced-motion:reduce){
@@ -1147,9 +1163,19 @@ body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doo
 .save-review-overlay{position:fixed;inset:0;z-index:12050;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(2,7,15,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 
 /* F5 sécurisé : dernier snapshot visible immédiatement, édition bloquée tant que Firebase n'a pas confirmé. */
-body.roster-cloud-readonly #rosterView button,body.roster-cloud-readonly #rosterView input,body.roster-cloud-readonly #rosterView select,body.roster-cloud-readonly #rosterView textarea,body.roster-cloud-readonly #rosterView summary{pointer-events:none!important;opacity:.62!important;}
+/* Firebase non confirmé : mode lecture seule de sécurité.
+   Exception UX : « Modifier » peut ouvrir la fiche et les champs peuvent être préparés,
+   mais Enregistrer reste bloqué jusqu'à la confirmation Firebase. */
+body.roster-cloud-readonly #rosterView button,
+body.roster-cloud-readonly #rosterView input,
+body.roster-cloud-readonly #rosterView select,
+body.roster-cloud-readonly #rosterView textarea,
+body.roster-cloud-readonly #rosterView summary{pointer-events:none!important;opacity:.62!important;}
 body.roster-cloud-readonly #btnSaveAll,body.roster-cloud-readonly #btnSyncPillbox{pointer-events:none!important;opacity:.55!important;}
-
+body.roster-cloud-readonly #rosterView [data-edit],
+body.roster-cloud-readonly #rosterView [data-cancel],
+body.roster-cloud-readonly #rosterView [data-edit-slot] input,
+body.roster-cloud-readonly #rosterView [data-edit-slot] select{pointer-events:auto!important;opacity:1!important;}
 .save-review-overlay[hidden]{display:none!important}.save-review-dialog{width:min(760px,100%);max-height:min(86vh,820px);overflow:auto;border:1px solid rgba(96,190,255,.28);border-radius:20px;background:linear-gradient(155deg,#101d2b,#08111d);box-shadow:0 30px 110px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.025) inset;color:var(--text);padding:22px}
 .save-review-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}.save-review-icon{width:46px;height:46px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);font-size:24px}.save-review-title{font-size:1.08rem;font-weight:900;margin:0 0 4px}.save-review-sub{font-size:.82rem;color:var(--text-dim);line-height:1.45}
 .save-review-danger{display:none;margin:12px 0 16px;padding:13px 14px;border-radius:14px;border:1px solid rgba(248,113,113,.55);background:linear-gradient(180deg,rgba(127,29,29,.36),rgba(69,10,10,.2));color:#fecaca;box-shadow:0 0 22px rgba(248,113,113,.08) inset}.save-review-overlay[data-risk="high"] .save-review-danger{display:block}.save-review-danger strong{display:block;color:#fff;margin-bottom:4px;font-size:.92rem}.save-review-risk-check{display:none;margin:12px 0;padding:10px 12px;border-radius:12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.18);font-size:.8rem;color:#fecaca}.save-review-overlay[data-risk="high"] .save-review-risk-check{display:flex;gap:9px;align-items:flex-start}.save-review-risk-check input{margin-top:2px}
@@ -1189,8 +1215,8 @@ const ROSTER_THEME_PRESETS = [
   { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
   { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
   { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
-  { name: "Holographique", hex: "#ff74d4", secondary: "#72ddf7", mode: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
-  { name: "Or",            hex: "#b45309", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
+  { name: "Holographique", hex: "#ff74d4", effect: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
+  { name: "Or métallique", hex: "#d4af37", effect: "gold", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
 ];
 
 function rosterHexToRgb(hex){
@@ -1266,83 +1292,89 @@ function rosterGenerateThemeVariants(hex){
   };
 }
 function rosterNormalizeThemePalette(value){
-  if(typeof value === "string") return rosterHexToRgb(value) ? {primary:rosterRgbToHex(...Object.values(rosterHexToRgb(value))), secondary:null} : {primary:ROSTER_THEME_DEFAULT, secondary:null};
-  const mode = value?.mode === "holographic" ? "holographic" : null;
-  const primary = rosterHexToRgb(value?.primary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.primary))) : (mode ? "#ff74d4" : ROSTER_THEME_DEFAULT);
-  const secondary = rosterHexToRgb(value?.secondary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.secondary))) : (mode ? "#72ddf7" : null);
-  return mode ? { primary, secondary, mode } : { primary, secondary };
+  if(typeof value === "string") return rosterHexToRgb(value) ? {primary:rosterRgbToHex(...Object.values(rosterHexToRgb(value))), secondary:null, primaryEffect:null, secondaryEffect:null} : {primary:ROSTER_THEME_DEFAULT, secondary:null, primaryEffect:null, secondaryEffect:null};
+  // Compatibilité V2 : l'ancien mode holographique représentait tout le thème.
+  // On le convertit en deux extrémités holographiques afin de retrouver le même rendu.
+  const legacyHolo = value?.mode === "holographic";
+  const validEffect = v => (v === "holographic" || v === "gold") ? v : null;
+  const primaryEffect = validEffect(value?.primaryEffect) || (legacyHolo ? "holographic" : null);
+  const secondaryEffect = validEffect(value?.secondaryEffect) || (legacyHolo ? "holographic" : null);
+  const primary = rosterHexToRgb(value?.primary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.primary))) : (primaryEffect === "holographic" ? "#ff74d4" : (primaryEffect === "gold" ? "#d4af37" : ROSTER_THEME_DEFAULT));
+  let secondary = rosterHexToRgb(value?.secondary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.secondary))) : null;
+  if(!secondary && secondaryEffect) secondary = secondaryEffect === "holographic" ? "#72ddf7" : "#d4af37";
+  return { primary, secondary, primaryEffect, secondaryEffect: secondary ? secondaryEffect : null };
+}
+function rosterEffectColors(effect, fallback, brightFallback){
+  if(effect === "holographic") return ["#ff74d4","#ffad72","#ffe66d","#7ef7d3","#72ddf7","#7c83fd","#c77dff"];
+  if(effect === "gold") return ["#fffbe6","#e7c85a","#d4af37","#996515","#fff4c2"];
+  return [brightFallback || fallback];
+}
+function rosterBuildCombinedGradient(normalized, primary, secondary, angle=110, useBright=false){
+  const hasSecondary = !!normalized.secondary;
+  const left = rosterEffectColors(normalized.primaryEffect, primary.primary, useBright ? primary.primaryBright : primary.primary);
+  const right = hasSecondary ? rosterEffectColors(normalized.secondaryEffect, secondary.primary, useBright ? secondary.primaryBright : secondary.primary) : [];
+  const colors = hasSecondary ? [...left, ...right] : left;
+  if(colors.length <= 1) return colors[0] || primary.primary;
+  const stops = colors.map((c,i)=>`${c} ${Math.round((i/(colors.length-1))*100)}%`).join(", ");
+  return `linear-gradient(${angle}deg, ${stops})`;
 }
 function rosterReadStoredTheme(){
   try{
     const raw = localStorage.getItem(ROSTER_THEME_PALETTE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      if(parsed && rosterHexToRgb(parsed.primary)) return rosterNormalizeThemePalette(parsed);
-    }
+    if(raw){ const parsed = JSON.parse(raw); if(parsed && rosterHexToRgb(parsed.primary)) return rosterNormalizeThemePalette(parsed); }
   }catch(e){}
-  try{
-    const legacy = localStorage.getItem(ROSTER_THEME_STORAGE_KEY);
-    if(legacy && rosterHexToRgb(legacy)) return { primary:legacy, secondary:null };
-  }catch(e){}
-  return { primary:ROSTER_THEME_DEFAULT, secondary:null };
+  try{ const legacy = localStorage.getItem(ROSTER_THEME_STORAGE_KEY); if(legacy && rosterHexToRgb(legacy)) return { primary:legacy, secondary:null, primaryEffect:null, secondaryEffect:null }; }catch(e){}
+  return { primary:ROSTER_THEME_DEFAULT, secondary:null, primaryEffect:null, secondaryEffect:null };
 }
-function rosterApplyThemePalette(palette, { persist = true } = {}){
-  const normalized = rosterNormalizeThemePalette(palette);
-  const primary = rosterGenerateThemeVariants(normalized.primary);
-  const secondary = normalized.secondary ? rosterGenerateThemeVariants(normalized.secondary) : primary;
-  const holographic = normalized.mode === "holographic";
-  const dual = !!normalized.secondary || holographic;
-  const rootEl = document.documentElement;
-  const root = rootEl.style;
-  rootEl.classList.toggle("theme-dual", dual);
-  rootEl.classList.toggle("theme-holographic", holographic);
-  root.setProperty("--theme-primary", primary.primary);
-  root.setProperty("--theme-primary-deep", primary.primaryDeep);
-  root.setProperty("--theme-primary-mid", primary.primaryMid);
-  root.setProperty("--theme-primary-bright", primary.primaryBright);
-  root.setProperty("--theme-primary-soft", primary.primarySoft);
-  root.setProperty("--theme-primary-border", primary.primaryBorder);
-  root.setProperty("--theme-primary-shadow", primary.primaryShadow);
-  root.setProperty("--theme-primary-text", primary.primaryText);
-  root.setProperty("--theme-secondary", secondary.primary);
-  root.setProperty("--theme-secondary-mid", secondary.primaryMid);
-  root.setProperty("--theme-secondary-bright", secondary.primaryBright);
-  root.setProperty("--theme-accent-end", dual ? secondary.primaryBright : primary.primaryBright);
-  root.setProperty("--theme-bg-glow-1", primary.bgGlow1);
-  root.setProperty("--theme-bg-glow-2", dual ? secondary.bgGlow1.replace(/0\.16\)$/, "0.10)") : primary.bgGlow2);
-  const primaryRgb = rosterHexToRgb(primary.primary);
-  root.setProperty("--theme-focus-ring", `rgba(${primaryRgb.r},${primaryRgb.g},${primaryRgb.b},.14)`);
-  const holoGradient = `linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%)`;
-  root.setProperty("--theme-brand-gradient", holographic
-    ? holoGradient
-    : dual ? `linear-gradient(90deg, #fff 0%, ${primary.primaryBright} 56%, ${secondary.primaryBright} 100%)`
-    : `linear-gradient(90deg, #fff, ${primary.primaryBright} 80%)`);
-  root.setProperty("--theme-button-gradient", holographic
-    ? holoGradient
-    : dual ? `linear-gradient(100deg, ${primary.primary} 0%, ${secondary.primary} 100%)`
-    : `linear-gradient(90deg, ${primary.primaryBright}, ${primary.primary})`);
-  root.setProperty("--theme-button-hover-gradient", holographic
-    ? holoGradient
-    : dual ? `linear-gradient(100deg, ${primary.primaryBright} 0%, ${secondary.primaryBright} 100%)`
-    : `linear-gradient(90deg, ${primary.primaryBright}, ${primary.primary})`);
-  const gradientMid = dual ? rosterMixHex(primary.primary, secondary.primary, .5) : primary.primary;
-  root.setProperty("--theme-gradient-text", holographic ? "#07111d" : (dual ? rosterGetContrastTextColor(gradientMid) : "#04121f"));
-  root.setProperty("--theme-logo-gradient", holographic
-    ? holoGradient
-    : dual ? `linear-gradient(135deg, ${primary.primaryBright} 0%, ${secondary.primary} 100%)`
-    : `linear-gradient(135deg, ${primary.primaryBright} 0%, ${primary.primary} 100%)`);
-  document.querySelectorAll(".roster-theme-dot").forEach(el=>{
-    el.style.background = holographic ? holoGradient : (dual ? `linear-gradient(135deg, ${primary.primary} 0 48%, ${secondary.primary} 52% 100%)` : primary.primary);
-    el.style.backgroundSize = holographic ? "260% 260%" : "auto";
-    el.style.animation = holographic ? "rosterHolographicShift 8s ease-in-out infinite" : "none";
-  });
-  if(persist){
-    try{
-      localStorage.setItem(ROSTER_THEME_STORAGE_KEY, primary.primary);
-      localStorage.setItem(ROSTER_THEME_PALETTE_KEY, JSON.stringify(holographic?{primary:primary.primary, secondary:secondary.primary, mode:"holographic"}:{primary:primary.primary, secondary:dual?secondary.primary:null}));
-    }catch(e){}
+function rosterApplyThemePalette(palette,{persist=true}={}){
+  const normalized=rosterNormalizeThemePalette(palette),primary=rosterGenerateThemeVariants(normalized.primary),secondary=normalized.secondary?rosterGenerateThemeVariants(normalized.secondary):primary;
+  const dual=!!normalized.secondary;
+  const hasHolographic=normalized.primaryEffect==="holographic" || normalized.secondaryEffect==="holographic";
+  const hasGold=normalized.primaryEffect==="gold" || normalized.secondaryEffect==="gold";
+  const specialGradient=hasHolographic || hasGold;
+  const rootEl=document.documentElement,root=rootEl.style;
+  rootEl.classList.toggle("theme-dual",dual);
+  rootEl.classList.toggle("theme-holographic",hasHolographic);
+  rootEl.classList.toggle("theme-metallic",hasGold);
+  root.setProperty("--theme-primary",primary.primary); root.setProperty("--theme-primary-deep",primary.primaryDeep); root.setProperty("--theme-primary-mid",primary.primaryMid); root.setProperty("--theme-primary-bright",primary.primaryBright); root.setProperty("--theme-primary-soft",primary.primarySoft); root.setProperty("--theme-primary-border",primary.primaryBorder); root.setProperty("--theme-primary-shadow",primary.primaryShadow); root.setProperty("--theme-primary-text",primary.primaryText);
+  root.setProperty("--theme-secondary",secondary.primary); root.setProperty("--theme-secondary-mid",secondary.primaryMid); root.setProperty("--theme-secondary-bright",secondary.primaryBright); root.setProperty("--theme-accent-end",dual?secondary.primaryBright:primary.primaryBright);
+  const prgb=rosterHexToRgb(primary.primary), srgb=rosterHexToRgb(secondary.primary);
+  let glow1=primary.bgGlow1, glow2=dual?secondary.bgGlow1.replace(/0\.16\)$/, "0.10)"):primary.bgGlow2, glow3="rgba(0,0,0,0)";
+  if(hasHolographic){
+    const solidRgb = normalized.primaryEffect!=="holographic" ? prgb : (dual && normalized.secondaryEffect!=="holographic" ? srgb : null);
+    glow1 = solidRgb ? `rgba(${solidRgb.r},${solidRgb.g},${solidRgb.b},.13)` : "rgba(255,116,212,.13)";
+    glow2 = "rgba(114,221,247,.12)";
+    glow3 = "rgba(199,125,255,.07)";
+  } else if(hasGold){
+    glow1 = "rgba(212,175,55,.13)";
+    glow2 = dual && normalized.secondaryEffect!=="gold" ? `rgba(${srgb.r},${srgb.g},${srgb.b},.10)` : "rgba(255,244,194,.07)";
+    glow3 = "rgba(153,101,21,.045)";
   }
-  return { primary, secondary:dual?secondary:null, palette:holographic?{primary:primary.primary, secondary:secondary.primary, mode:"holographic"}:{primary:primary.primary, secondary:dual?secondary.primary:null} };
+  root.setProperty("--theme-bg-glow-1",glow1); root.setProperty("--theme-bg-glow-2",glow2); root.setProperty("--theme-bg-glow-3",glow3);
+  root.setProperty("--theme-bg-grid",`rgba(${prgb.r},${prgb.g},${prgb.b},.032)`);
+  root.setProperty("--theme-bg-grid-strong",`rgba(${srgb.r},${srgb.g},${srgb.b},.045)`);
+  root.setProperty("--theme-focus-ring",`rgba(${prgb.r},${prgb.g},${prgb.b},.14)`);
+  const buttonGradient=rosterBuildCombinedGradient(normalized,primary,secondary,100,false);
+  const hoverGradient=rosterBuildCombinedGradient(normalized,primary,secondary,100,true);
+  const logoGradient=rosterBuildCombinedGradient(normalized,primary,secondary,135,true);
+  const brandGradient=rosterBuildCombinedGradient(normalized,primary,secondary,90,true);
+  root.setProperty("--theme-holo-gradient",buttonGradient);
+  root.setProperty("--theme-button-gradient",buttonGradient);
+  root.setProperty("--theme-button-hover-gradient",hoverGradient);
+  root.setProperty("--theme-brand-gradient", specialGradient || dual
+    ? brandGradient
+    : `linear-gradient(90deg, #fff, ${primary.primaryBright} 80%)`);
+  const mid=dual?rosterMixHex(primary.primary,secondary.primary,.5):primary.primary;
+  root.setProperty("--theme-gradient-text",hasHolographic||hasGold?"#07111d":(dual?rosterGetContrastTextColor(mid):'#04121f'));
+  root.setProperty("--theme-logo-gradient",logoGradient);
+  document.querySelectorAll(".roster-theme-dot").forEach(el=>{
+    el.style.background=specialGradient||dual?logoGradient:primary.primary;
+    el.style.backgroundSize=hasHolographic?"260% 260%":"auto";
+    el.style.animation=hasHolographic?"rosterHolographicShift 8s ease-in-out infinite":"none";
+  });
+  const stored={primary:primary.primary,secondary:dual?secondary.primary:null,primaryEffect:normalized.primaryEffect||null,secondaryEffect:dual?(normalized.secondaryEffect||null):null};
+  if(persist){try{localStorage.setItem(ROSTER_THEME_STORAGE_KEY,primary.primary);localStorage.setItem(ROSTER_THEME_PALETTE_KEY,JSON.stringify(stored));}catch(e){}}
+  return {primary,secondary:dual?secondary:null,palette:stored};
 }
 // API legacy conservée pour les anciens tests / anciennes versions.
 function rosterApplyThemeColor(hex, options={}){ return rosterApplyThemePalette({primary:hex, secondary:null}, options); }
@@ -1642,8 +1674,8 @@ rosterLoadTheme();
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
       <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Palette du site</div>
-      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">1 couleur classique ou 2 couleurs en duo. Propre au Roster.</div>
-      <div style="font-weight:800;font-size:12px;color:var(--text);margin-bottom:8px;">Couleur principale</div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">Mixe 1 ou 2 couleurs/effets librement (ex. Holographique + Or). Propre au Roster.</div>
+      <div style="font-weight:800;font-size:12px;color:var(--text);margin-bottom:8px;">Couleur / effet principal</div>
       <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
       <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--text);">
         <span>Personnalisée</span>
@@ -1652,7 +1684,7 @@ rosterLoadTheme();
       <button type="button" class="btn-ghost" id="rosterThemeAddSecondaryBtn" style="width:100%;margin-bottom:14px;">＋ Ajouter une deuxième couleur</button>
       <div id="rosterThemeSecondarySection" style="display:none;border-top:1px solid var(--border-soft);padding-top:14px;margin-top:2px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <div style="font-weight:800;font-size:12px;color:var(--text);">Couleur secondaire</div>
+          <div style="font-weight:800;font-size:12px;color:var(--text);">Couleur / effet secondaire</div>
           <button type="button" class="btn-ghost btn-small" id="rosterThemeRemoveSecondaryBtn">✕ Supprimer</button>
         </div>
         <div id="rosterThemeSecondaryPresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
@@ -2226,7 +2258,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   let pendingPalette = {primary:ROSTER_THEME_DEFAULT, secondary:null};
 
   const presetMarkup = (klass)=>ROSTER_THEME_PRESETS.map(p=>`
-    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-secondary="${p.secondary||''}" data-mode="${p.mode||''}" title="${p.name}${p.mode==='holographic'?' — vrai dégradé holographique animé':''}"
+    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect==='holographic'?' — effet holographique animé combinable':p.effect==='gold'?' — effet or métallique combinable':''}"
       style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
       <span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient || p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
       ${p.emoji}
@@ -2234,9 +2266,10 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   presetsBox.innerHTML = presetMarkup('roster-theme-preset');
   secondaryPresetsBox.innerHTML = presetMarkup('roster-theme-secondary-preset');
 
-  function updatePresetSelection(box, selector, hex, mode){
+  function updatePresetSelection(box, selector, hex, effect){
     box.querySelectorAll(selector).forEach(b=>{
-      const active = b.dataset.mode ? (mode === b.dataset.mode) : (!!hex && !mode && b.dataset.hex.toLowerCase() === hex.toLowerCase());
+      const bEffect = b.dataset.effect || null;
+      const active = !!hex && b.dataset.hex.toLowerCase() === hex.toLowerCase() && bEffect === (effect || null);
       b.style.outline = active ? '2px solid var(--text)' : 'none';
       b.style.outlineOffset = active ? '2px' : '0';
     });
@@ -2248,19 +2281,15 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     secondarySection.style.display = dual ? 'block' : 'none';
     addSecondaryBtn.style.display = dual ? 'none' : 'block';
     if(dual) secondaryInput.value = pendingPalette.secondary;
-    updatePresetSelection(presetsBox, '.roster-theme-preset', pendingPalette.primary, pendingPalette.mode);
-    updatePresetSelection(secondaryPresetsBox, '.roster-theme-secondary-preset', pendingPalette.secondary, null);
+    updatePresetSelection(presetsBox, '.roster-theme-preset', pendingPalette.primary, pendingPalette.primaryEffect);
+    updatePresetSelection(secondaryPresetsBox, '.roster-theme-secondary-preset', pendingPalette.secondary, pendingPalette.secondaryEffect);
     rosterApplyThemePalette(pendingPalette, { persist:false });
   }
-  function selectPrimary(hex){ pendingPalette.primary = hex; pendingPalette.mode = null; renderPending(); }
-  function selectSecondary(hex){ pendingPalette.secondary = hex; pendingPalette.mode = null; renderPending(); }
+  function selectPrimary(hex, effect=null){ pendingPalette.primary = hex; pendingPalette.primaryEffect = effect || null; renderPending(); }
+  function selectSecondary(hex, effect=null){ pendingPalette.secondary = hex; pendingPalette.secondaryEffect = effect || null; renderPending(); }
   function selectPresetButton(button, target){
-    if(button.dataset.mode === "holographic"){
-      pendingPalette = {primary:button.dataset.hex || "#ff74d4", secondary:button.dataset.secondary || "#72ddf7", mode:"holographic"};
-      renderPending();
-      return;
-    }
-    if(target === "secondary") selectSecondary(button.dataset.hex); else selectPrimary(button.dataset.hex);
+    const effect = button.dataset.effect || null;
+    if(target === "secondary") selectSecondary(button.dataset.hex, effect); else selectPrimary(button.dataset.hex, effect);
   }
 
   openBtn.addEventListener('click', ()=>{
@@ -2282,10 +2311,10 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   document.getElementById('rosterThemeCloseBtn')?.addEventListener('click', closeWithoutApplying);
   presetsBox.addEventListener('click', (e)=>{ const b=e.target.closest('.roster-theme-preset'); if(b) selectPresetButton(b,'primary'); });
   secondaryPresetsBox.addEventListener('click', (e)=>{ const b=e.target.closest('.roster-theme-secondary-preset'); if(b) selectPresetButton(b,'secondary'); });
-  customInput.addEventListener('input', ()=> selectPrimary(customInput.value));
-  secondaryInput.addEventListener('input', ()=> selectSecondary(secondaryInput.value));
-  addSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = ROSTER_THEME_SECONDARY_DEFAULT; pendingPalette.mode = null; renderPending(); });
-  removeSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = null; pendingPalette.mode = null; renderPending(); });
+  customInput.addEventListener('input', ()=> selectPrimary(customInput.value, null));
+  secondaryInput.addEventListener('input', ()=> selectSecondary(secondaryInput.value, null));
+  addSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = ROSTER_THEME_SECONDARY_DEFAULT; pendingPalette.secondaryEffect = null; renderPending(); });
+  removeSecondaryBtn.addEventListener('click', ()=>{ pendingPalette.secondary = null; pendingPalette.secondaryEffect = null; renderPending(); });
   applyBtn.addEventListener('click', ()=>{ rosterSaveTheme(pendingPalette); modal.style.display = 'none'; });
   resetBtn.addEventListener('click', ()=>{ rosterResetTheme(); modal.style.display = 'none'; });
 })();
@@ -3121,6 +3150,7 @@ function editRowHtml(e){
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
       <button class="btn-ghost btn-small" data-cancel="${e.id}">Annuler</button>
+      ${!rosterCloudConfirmed ? `<span class="sub" style="color:var(--amber);font-weight:700;">⏳ Firebase en vérification : tu peux préparer la modification, l'enregistrement se débloquera automatiquement après confirmation.</span>` : ""}
       ${["OWNER","DG","D"].includes(currentUserLevel) && e.discordId ? `
       <button class="btn-ghost btn-small" data-lock-anim="${esc(e.discordId)}" title="Désactive ses animations de sauvegarde/synchro de force — elle ne pourra plus les réactiver elle-même tant que tu n'auras pas levé ce verrou (Roster + Pillbox).">🔒 Bloquer ses animations</button>
       <button class="btn-ghost btn-small" data-unlock-anim="${esc(e.discordId)}" title="Redonne à cette personne le contrôle de ses propres animations.">🔓 Débloquer</button>
@@ -3520,6 +3550,7 @@ function attachRowHandlers(){
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
       slot.innerHTML = editRowHtml(e);
       slot.querySelector(`[data-save="${id}"]`).addEventListener("click", async ()=>{
+        if(!rosterCloudConfirmed){ toast("⏳ Firebase est encore en vérification — attends la confirmation avant d'enregistrer."); return; }
         const before = { name:e.name, discordId:e.discordId, grade:e.grade, role:e.role, aliases:(e.aliases||[]).slice() };
         const newName = slot.querySelector(`[data-edit-name="${id}"]`).value.trim() || e.name;
         const newDiscordId = slot.querySelector(`[data-edit-discord="${id}"]`).value.trim() || e.discordId;
@@ -7146,7 +7177,47 @@ function goToDiscordLogin(){
 }
 document.getElementById("btnDiscordLoginGate").addEventListener("click", goToDiscordLogin);
 
+let rosterFirebaseRecoveryTimer = null;
+let rosterFirebaseRecoveryAttempts = 0;
+function stopRosterFirebaseRecovery(){
+  if(rosterFirebaseRecoveryTimer){ clearTimeout(rosterFirebaseRecoveryTimer); rosterFirebaseRecoveryTimer = null; }
+  rosterFirebaseRecoveryAttempts = 0;
+}
+function scheduleRosterFirebaseRecovery(message="Vérification avec Firebase…"){
+  if(!currentSessionToken || currentFirebaseIdToken || rosterFirebaseRecoveryTimer) return;
+  setRosterCloudConfirmed(false, message);
+  const run = async ()=>{
+    rosterFirebaseRecoveryTimer = null;
+    if(!currentSessionToken || currentFirebaseIdToken) return;
+    rosterFirebaseRecoveryAttempts++;
+    try{
+      const res = await fetch("/.netlify/functions/refresh-firebase-token", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({token:currentSessionToken})
+      });
+      const data = await res.json().catch(()=>({}));
+      if(res.ok && data.firebaseCustomToken){
+        const fresh = await exchangeFirebaseCustomToken(data.firebaseCustomToken);
+        if(fresh){
+          currentFirebaseIdToken = fresh;
+          stopRosterFirebaseRecovery();
+          await finishRosterInit();
+          toast("✓ Connexion Firebase rétablie — modifications de nouveau disponibles.");
+          return;
+        }
+      }
+    }catch(e){}
+    if(rosterFirebaseRecoveryAttempts < 8 && currentSessionToken && !currentFirebaseIdToken){
+      const delay = Math.min(15000, 1800 + rosterFirebaseRecoveryAttempts*1400);
+      rosterFirebaseRecoveryTimer = setTimeout(run, delay);
+    } else if(!currentFirebaseIdToken){
+      setRosterCloudConfirmed(false,"⚠ Firebase non confirmé — lecture seule. Recharge ou reconnecte-toi si ça persiste.");
+    }
+  };
+  rosterFirebaseRecoveryTimer = setTimeout(run, 1200);
+}
+
 function showGate(errorMsg){
+  stopRosterFirebaseRecovery();
   document.getElementById("accessGate").style.display = "";
   document.getElementById("appContent").style.display = "none";
   document.getElementById("accessGateError").textContent = errorMsg || "";
@@ -8063,14 +8134,17 @@ async function restoreSessionFromStorage(){
     }
     currentFirebaseIdToken = await exchangeFirebaseCustomToken(data.firebaseCustomToken);
     if(!currentFirebaseIdToken){
-      toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
+      toast("⚠ Authentification Firebase temporairement impossible — nouvelle tentative automatique.");
+      scheduleRosterFirebaseRecovery("⏳ Reconnexion Firebase automatique…");
     } else {
+      stopRosterFirebaseRecovery();
       await finishRosterInit();
     }
     return true;
   }catch(err){
-    toast(`⚠ Impossible de restaurer la session : ${err.message}`);
-    return true; // la session elle-même reste valide, juste le rafraîchissement Firebase a échoué cette fois
+    toast(`⚠ Impossible de restaurer Firebase : ${err.message} — nouvelle tentative automatique.`);
+    scheduleRosterFirebaseRecovery("⏳ Reconnexion Firebase automatique…");
+    return true; // la session reste valide ; récupération Firebase automatique en arrière-plan
   }
 }
 
@@ -8094,10 +8168,14 @@ async function restoreSessionFromStorage(){
     if(firebaseCustomToken){
       currentFirebaseIdToken = await exchangeFirebaseCustomToken(firebaseCustomToken);
       if(!currentFirebaseIdToken){
-        toast("⚠ Authentification Firebase impossible — le Roster ne pourra pas se charger depuis le cloud.");
+        toast("⚠ Authentification Firebase temporairement impossible — nouvelle tentative automatique.");
+        scheduleRosterFirebaseRecovery("⏳ Reconnexion Firebase automatique…");
       } else {
+        stopRosterFirebaseRecovery();
         await finishRosterInit();
       }
+    } else {
+      scheduleRosterFirebaseRecovery("⏳ Jeton Firebase manquant — récupération automatique…");
     }
     return;
   } else if(params.get("discord_ok")==="0"){
