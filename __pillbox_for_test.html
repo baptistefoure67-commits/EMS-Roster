@@ -126,8 +126,8 @@
   #logoImg{width:100%;height:100%;display:block;filter:hue-rotate(var(--theme-logo-hue-rotate, 0deg)) saturate(var(--theme-logo-saturate, 100%)) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
   .pillbox-logo-wrap::after{content:"";position:absolute;inset:0;background:var(--theme-logo-gradient);mix-blend-mode:color;opacity:0;pointer-events:none;}
   @supports (mix-blend-mode:color){
-    html.theme-dual .pillbox-logo-wrap::after{opacity:1;}
-    html.theme-dual #logoImg{filter:grayscale(1) contrast(1.05) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
+    html.theme-dual .pillbox-logo-wrap::after, html.theme-metallic .pillbox-logo-wrap::after{opacity:1;}
+    html.theme-dual #logoImg, html.theme-metallic #logoImg{filter:grayscale(1) contrast(1.05) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
   }
   @keyframes pillboxHolographicShift{
     0%{background-position:0% 50%;}
@@ -143,6 +143,7 @@
   }
   html.theme-holographic .btn-primary{color:#07111d!important;text-shadow:0 1px 0 rgba(255,255,255,.28);}
   html.theme-holographic .step-head{color:#08111d;text-shadow:0 1px 0 rgba(255,255,255,.24);}
+  html.theme-metallic .btn-primary,html.theme-metallic .step-head{color:#07111d!important;text-shadow:0 1px 0 rgba(255,255,255,.26);}
   html.theme-holographic #logoImg{filter:grayscale(1) contrast(1.05) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
   html.theme-holographic body{
     background:
@@ -868,8 +869,8 @@ const PILLBOX_THEME_PRESETS = [
   { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
   { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
   { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
-  { name: "Holographique", hex: "#ff74d4", secondary: "#72ddf7", mode: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
-  { name: "Or",            hex: "#b45309", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
+  { name: "Holographique", hex: "#ff74d4", effect: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
+  { name: "Or métallique", hex: "#d4af37", effect: "gold", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
 ];
 function pillboxHexToRgb(hex){
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex||"").trim());
@@ -919,31 +920,87 @@ function pillboxLogoFilterFor(hex){
   const {h,s}=pillboxRgbToHsl(rgb.r,rgb.g,rgb.b); return {rotate:Math.round(((h-PILLBOX_LOGO_REFERENCE_HUE)%360+360)%360),saturate:Math.max(15,Math.min(140,Math.round((s/85.2)*100)))};
 }
 function pillboxNormalizeThemePalette(value){
-  if(typeof value === "string") return pillboxHexToRgb(value)?{primary:value,secondary:null}:{primary:PILLBOX_THEME_DEFAULT,secondary:null};
-  const mode=value?.mode === "holographic" ? "holographic" : null;
-  const primary=pillboxHexToRgb(value?.primary)?value.primary:(mode?"#ff74d4":PILLBOX_THEME_DEFAULT),secondary=pillboxHexToRgb(value?.secondary)?value.secondary:(mode?"#72ddf7":null); return mode?{primary,secondary,mode}:{primary,secondary};
+  if(typeof value === "string") return pillboxHexToRgb(value) ? {primary:pillboxRgbToHex(...Object.values(pillboxHexToRgb(value))), secondary:null, primaryEffect:null, secondaryEffect:null} : {primary:PILLBOX_THEME_DEFAULT, secondary:null, primaryEffect:null, secondaryEffect:null};
+  // Compatibilité V2 : l'ancien mode holographique représentait tout le thème.
+  // On le convertit en deux extrémités holographiques afin de retrouver le même rendu.
+  const legacyHolo = value?.mode === "holographic";
+  const validEffect = v => (v === "holographic" || v === "gold") ? v : null;
+  const primaryEffect = validEffect(value?.primaryEffect) || (legacyHolo ? "holographic" : null);
+  const secondaryEffect = validEffect(value?.secondaryEffect) || (legacyHolo ? "holographic" : null);
+  const primary = pillboxHexToRgb(value?.primary) ? pillboxRgbToHex(...Object.values(pillboxHexToRgb(value.primary))) : (primaryEffect === "holographic" ? "#ff74d4" : (primaryEffect === "gold" ? "#d4af37" : PILLBOX_THEME_DEFAULT));
+  let secondary = pillboxHexToRgb(value?.secondary) ? pillboxRgbToHex(...Object.values(pillboxHexToRgb(value.secondary))) : null;
+  if(!secondary && secondaryEffect) secondary = secondaryEffect === "holographic" ? "#72ddf7" : "#d4af37";
+  return { primary, secondary, primaryEffect, secondaryEffect: secondary ? secondaryEffect : null };
+}
+function pillboxEffectColors(effect, fallback, brightFallback){
+  if(effect === "holographic") return ["#ff74d4","#ffad72","#ffe66d","#7ef7d3","#72ddf7","#7c83fd","#c77dff"];
+  if(effect === "gold") return ["#fffbe6","#e7c85a","#d4af37","#996515","#fff4c2"];
+  return [brightFallback || fallback];
+}
+function pillboxBuildCombinedGradient(normalized, primary, secondary, angle=110, useBright=false){
+  const hasSecondary = !!normalized.secondary;
+  const left = pillboxEffectColors(normalized.primaryEffect, primary.primary, useBright ? primary.primaryBright : primary.primary);
+  const right = hasSecondary ? pillboxEffectColors(normalized.secondaryEffect, secondary.primary, useBright ? secondary.primaryBright : secondary.primary) : [];
+  const colors = hasSecondary ? [...left, ...right] : left;
+  if(colors.length <= 1) return colors[0] || primary.primary;
+  const stops = colors.map((c,i)=>`${c} ${Math.round((i/(colors.length-1))*100)}%`).join(", ");
+  return `linear-gradient(${angle}deg, ${stops})`;
 }
 function pillboxReadStoredTheme(){
-  try{const raw=localStorage.getItem(PILLBOX_THEME_PALETTE_KEY);if(raw){const parsed=JSON.parse(raw);if(parsed&&pillboxHexToRgb(parsed.primary))return pillboxNormalizeThemePalette(parsed);}}catch(e){}
-  try{const legacy=localStorage.getItem(PILLBOX_THEME_STORAGE_KEY);if(legacy&&pillboxHexToRgb(legacy))return {primary:legacy,secondary:null};}catch(e){}
-  return {primary:PILLBOX_THEME_DEFAULT,secondary:null};
+  try{
+    const raw = localStorage.getItem(PILLBOX_THEME_PALETTE_KEY);
+    if(raw){ const parsed = JSON.parse(raw); if(parsed && pillboxHexToRgb(parsed.primary)) return pillboxNormalizeThemePalette(parsed); }
+  }catch(e){}
+  try{ const legacy = localStorage.getItem(PILLBOX_THEME_STORAGE_KEY); if(legacy && pillboxHexToRgb(legacy)) return { primary:legacy, secondary:null, primaryEffect:null, secondaryEffect:null }; }catch(e){}
+  return { primary:PILLBOX_THEME_DEFAULT, secondary:null, primaryEffect:null, secondaryEffect:null };
 }
 function pillboxApplyThemePalette(palette,{persist=true}={}){
-  const normalized=pillboxNormalizeThemePalette(palette),primary=pillboxGenerateThemeVariants(normalized.primary),secondary=normalized.secondary?pillboxGenerateThemeVariants(normalized.secondary):primary,holographic=normalized.mode==="holographic",dual=!!normalized.secondary||holographic;
-  const rootEl=document.documentElement,root=rootEl.style; rootEl.classList.toggle("theme-dual",dual); rootEl.classList.toggle("theme-holographic",holographic);
+  const normalized=pillboxNormalizeThemePalette(palette),primary=pillboxGenerateThemeVariants(normalized.primary),secondary=normalized.secondary?pillboxGenerateThemeVariants(normalized.secondary):primary;
+  const dual=!!normalized.secondary;
+  const hasHolographic=normalized.primaryEffect==="holographic" || normalized.secondaryEffect==="holographic";
+  const hasGold=normalized.primaryEffect==="gold" || normalized.secondaryEffect==="gold";
+  const specialGradient=hasHolographic || hasGold;
+  const rootEl=document.documentElement,root=rootEl.style;
+  rootEl.classList.toggle("theme-dual",dual);
+  rootEl.classList.toggle("theme-holographic",hasHolographic);
+  rootEl.classList.toggle("theme-metallic",hasGold);
   root.setProperty("--theme-primary",primary.primary); root.setProperty("--theme-primary-deep",primary.primaryDeep); root.setProperty("--theme-primary-mid",primary.primaryMid); root.setProperty("--theme-primary-bright",primary.primaryBright); root.setProperty("--theme-primary-soft",primary.primarySoft); root.setProperty("--theme-primary-border",primary.primaryBorder); root.setProperty("--theme-primary-shadow",primary.primaryShadow); root.setProperty("--theme-primary-text",primary.primaryText);
   root.setProperty("--theme-secondary",secondary.primary); root.setProperty("--theme-secondary-mid",secondary.primaryMid); root.setProperty("--theme-secondary-bright",secondary.primaryBright); root.setProperty("--theme-accent-end",dual?secondary.primaryBright:primary.primaryBright);
-  root.setProperty("--theme-bg-shadow-1",primary.bgShadow1); root.setProperty("--theme-bg-shadow-2",primary.bgShadow2);
-  const prgb=pillboxHexToRgb(primary.primary); root.setProperty("--theme-focus-ring",`rgba(${prgb.r},${prgb.g},${prgb.b},.15)`);
-  const holoGradient=`linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%)`;
-  root.setProperty("--theme-button-gradient",holographic?holoGradient:(dual?`linear-gradient(100deg, ${primary.primary} 0%, ${secondary.primary} 100%)`:primary.primary));
-  root.setProperty("--theme-button-hover-gradient",holographic?holoGradient:(dual?`linear-gradient(100deg, ${primary.primaryBright} 0%, ${secondary.primaryBright} 100%)`:primary.primaryBright));
-  const mid=dual?pillboxMixHex(primary.primary,secondary.primary,.5):primary.primary; root.setProperty("--theme-gradient-text",holographic?"#07111d":(dual?pillboxGetContrastTextColor(mid):"#ffffff"));
-  root.setProperty("--theme-logo-gradient",holographic?holoGradient:(dual?`linear-gradient(135deg, ${primary.primaryBright} 0%, ${secondary.primary} 100%)`:`linear-gradient(135deg, ${primary.primaryBright}, ${primary.primary})`));
+  const prgb=pillboxHexToRgb(primary.primary), srgb=pillboxHexToRgb(secondary.primary);
+  let glow1=primary.bgShadow1, glow2=dual?secondary.bgShadow1.replace(/0\.16\)$/, "0.10)"):primary.bgShadow2, glow3="rgba(0,0,0,0)";
+  if(hasHolographic){
+    const solidRgb = normalized.primaryEffect!=="holographic" ? prgb : (dual && normalized.secondaryEffect!=="holographic" ? srgb : null);
+    glow1 = solidRgb ? `rgba(${solidRgb.r},${solidRgb.g},${solidRgb.b},.13)` : "rgba(255,116,212,.13)";
+    glow2 = "rgba(114,221,247,.12)";
+    glow3 = "rgba(199,125,255,.07)";
+  } else if(hasGold){
+    glow1 = "rgba(212,175,55,.13)";
+    glow2 = dual && normalized.secondaryEffect!=="gold" ? `rgba(${srgb.r},${srgb.g},${srgb.b},.10)` : "rgba(255,244,194,.07)";
+    glow3 = "rgba(153,101,21,.045)";
+  }
+  root.setProperty("--theme-bg-shadow-1",glow1); root.setProperty("--theme-bg-shadow-2",glow2); root.setProperty("--theme-bg-glow-3",glow3);
+  root.setProperty("--theme-bg-grid",`rgba(${prgb.r},${prgb.g},${prgb.b},.032)`);
+  root.setProperty("--theme-bg-grid-strong",`rgba(${srgb.r},${srgb.g},${srgb.b},.045)`);
+  root.setProperty("--theme-focus-ring",`rgba(${prgb.r},${prgb.g},${prgb.b},.14)`);
+  const buttonGradient=pillboxBuildCombinedGradient(normalized,primary,secondary,100,false);
+  const hoverGradient=pillboxBuildCombinedGradient(normalized,primary,secondary,100,true);
+  const logoGradient=pillboxBuildCombinedGradient(normalized,primary,secondary,135,true);
+  const brandGradient=pillboxBuildCombinedGradient(normalized,primary,secondary,90,true);
+  root.setProperty("--theme-holo-gradient",buttonGradient);
+  root.setProperty("--theme-button-gradient",buttonGradient);
+  root.setProperty("--theme-button-hover-gradient",hoverGradient);
+  const mid=dual?pillboxMixHex(primary.primary,secondary.primary,.5):primary.primary;
+  root.setProperty("--theme-gradient-text",hasHolographic||hasGold?"#07111d":(dual?pillboxGetContrastTextColor(mid):'#ffffff'));
+  root.setProperty("--theme-logo-gradient",logoGradient);
   const logoFilter=pillboxLogoFilterFor(primary.primary); root.setProperty("--theme-logo-hue-rotate",`${logoFilter.rotate}deg`); root.setProperty("--theme-logo-saturate",`${logoFilter.saturate}%`);
-  document.querySelectorAll(".pillbox-theme-dot").forEach(el=>{el.style.background=holographic?holoGradient:(dual?`linear-gradient(135deg, ${primary.primary} 0 48%, ${secondary.primary} 52% 100%)`:primary.primary);el.style.backgroundSize=holographic?"260% 260%":"auto";el.style.animation=holographic?"pillboxHolographicShift 8s ease-in-out infinite":"none";});
-  if(persist){try{localStorage.setItem(PILLBOX_THEME_STORAGE_KEY,primary.primary);localStorage.setItem(PILLBOX_THEME_PALETTE_KEY,JSON.stringify(holographic?{primary:primary.primary,secondary:secondary.primary,mode:"holographic"}:{primary:primary.primary,secondary:dual?secondary.primary:null}));}catch(e){}}
-  return {primary,secondary:dual?secondary:null,palette:holographic?{primary:primary.primary,secondary:secondary.primary,mode:"holographic"}:{primary:primary.primary,secondary:dual?secondary.primary:null}};
+  document.querySelectorAll(".pillbox-theme-dot").forEach(el=>{
+    el.style.background=specialGradient||dual?logoGradient:primary.primary;
+    el.style.backgroundSize=hasHolographic?"260% 260%":"auto";
+    el.style.animation=hasHolographic?"pillboxHolographicShift 8s ease-in-out infinite":"none";
+  });
+  const stored={primary:primary.primary,secondary:dual?secondary.primary:null,primaryEffect:normalized.primaryEffect||null,secondaryEffect:dual?(normalized.secondaryEffect||null):null};
+  if(persist){try{localStorage.setItem(PILLBOX_THEME_STORAGE_KEY,primary.primary);localStorage.setItem(PILLBOX_THEME_PALETTE_KEY,JSON.stringify(stored));}catch(e){}}
+  return {primary,secondary:dual?secondary:null,palette:stored};
 }
 function pillboxApplyThemeColor(hex,options={}){return pillboxApplyThemePalette({primary:hex,secondary:null},options);}
 function pillboxLoadTheme(){pillboxApplyThemePalette(pillboxReadStoredTheme(),{persist:false});}
@@ -992,8 +1049,8 @@ pillboxLoadTheme();
   <div style="background:var(--paper);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.35);position:relative;">
     <button type="button" id="pillboxThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--ink-dim);padding:4px;">✕</button>
     <div style="font-weight:800;font-size:15px;margin-bottom:2px;color:var(--ink);">🎨 Palette du site</div>
-    <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:16px;">1 couleur classique ou 2 couleurs en duo. Propre à Pillbox.</div>
-    <div style="font-weight:800;font-size:12px;color:var(--ink);margin-bottom:8px;">Couleur principale</div>
+    <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:16px;">Mixe 1 ou 2 couleurs/effets librement (ex. Holographique + Or). Propre à Pillbox.</div>
+    <div style="font-weight:800;font-size:12px;color:var(--ink);margin-bottom:8px;">Couleur / effet principal</div>
     <div id="pillboxThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
     <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--ink);">
       <span>Personnalisée</span>
@@ -1002,7 +1059,7 @@ pillboxLoadTheme();
     <button type="button" class="clear-save-btn" id="pillboxThemeAddSecondaryBtn" style="display:flex;width:100%;justify-content:center;margin-bottom:14px;color:var(--theme-primary);border-color:var(--theme-primary);">＋ Ajouter une deuxième couleur</button>
     <div id="pillboxThemeSecondarySection" style="display:none;border-top:1px solid var(--line);padding-top:14px;margin-top:2px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-        <div style="font-weight:800;font-size:12px;color:var(--ink);">Couleur secondaire</div>
+        <div style="font-weight:800;font-size:12px;color:var(--ink);">Couleur / effet secondaire</div>
         <button type="button" class="clear-save-btn" id="pillboxThemeRemoveSecondaryBtn" style="display:flex;color:var(--ink-dim);">✕ Supprimer</button>
       </div>
       <div id="pillboxThemeSecondaryPresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
@@ -6672,19 +6729,19 @@ async function fetchDiscordIdsListSilent(attempt = 1){
   const modal=document.getElementById('pillboxThemeModal'),openBtn=document.getElementById('pillboxThemeBtn'),presetsBox=document.getElementById('pillboxThemePresets'),secondaryPresetsBox=document.getElementById('pillboxThemeSecondaryPresets'),customInput=document.getElementById('pillboxThemeCustomInput'),secondaryInput=document.getElementById('pillboxThemeSecondaryInput'),secondarySection=document.getElementById('pillboxThemeSecondarySection'),addSecondaryBtn=document.getElementById('pillboxThemeAddSecondaryBtn'),removeSecondaryBtn=document.getElementById('pillboxThemeRemoveSecondaryBtn'),applyBtn=document.getElementById('pillboxThemeApplyBtn'),resetBtn=document.getElementById('pillboxThemeResetBtn');
   if(!modal||!openBtn)return;
   let paletteBeforeOpen={primary:PILLBOX_THEME_DEFAULT,secondary:null},pendingPalette={primary:PILLBOX_THEME_DEFAULT,secondary:null};
-  const presetMarkup=(klass)=>PILLBOX_THEME_PRESETS.map(p=>`<button type="button" class="clear-save-btn ${klass}" data-hex="${p.hex}" data-secondary="${p.secondary||''}" data-mode="${p.mode||''}" title="${p.name}${p.mode==='holographic'?' — vrai dégradé holographique animé':''}" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;color:var(--ink-dim);"><span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient||p.hex};border:1.5px solid rgba(0,0,0,.15);"></span>${p.emoji}</button>`).join("");
+  const presetMarkup=(klass)=>PILLBOX_THEME_PRESETS.map(p=>`<button type="button" class="clear-save-btn ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect==='holographic'?' — effet holographique animé combinable':p.effect==='gold'?' — effet or métallique combinable':''}" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;color:var(--ink-dim);"><span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient||p.hex};border:1.5px solid rgba(0,0,0,.15);"></span>${p.emoji}</button>`).join("");
   presetsBox.innerHTML=presetMarkup('pillbox-theme-preset'); secondaryPresetsBox.innerHTML=presetMarkup('pillbox-theme-secondary-preset');
-  function updatePresetSelection(box,selector,hex,mode){box.querySelectorAll(selector).forEach(b=>{const active=b.dataset.mode?(mode===b.dataset.mode):!!hex&&!mode&&b.dataset.hex.toLowerCase()===hex.toLowerCase();b.style.outline=active?'2px solid var(--ink)':'none';b.style.outlineOffset=active?'2px':'0';b.querySelector('.pillbox-theme-check')?.remove();if(active&&document.body.classList.contains('colorblind-mode')){const check=document.createElement('span');check.className='pillbox-theme-check';check.textContent='✓';check.style.cssText='position:absolute;font-weight:900;color:var(--ink);';b.appendChild(check);}});}
-  function renderPending(){pendingPalette=pillboxNormalizeThemePalette(pendingPalette);customInput.value=pendingPalette.primary;const dual=!!pendingPalette.secondary;secondarySection.style.display=dual?'block':'none';addSecondaryBtn.style.display=dual?'none':'flex';if(dual)secondaryInput.value=pendingPalette.secondary;updatePresetSelection(presetsBox,'.pillbox-theme-preset',pendingPalette.primary,pendingPalette.mode);updatePresetSelection(secondaryPresetsBox,'.pillbox-theme-secondary-preset',pendingPalette.secondary,null);pillboxApplyThemePalette(pendingPalette,{persist:false});}
+  function updatePresetSelection(box,selector,hex,effect){box.querySelectorAll(selector).forEach(b=>{const bEffect=b.dataset.effect||null;const active=!!hex&&b.dataset.hex.toLowerCase()===hex.toLowerCase()&&bEffect===(effect||null);b.style.outline=active?'2px solid var(--ink)':'none';b.style.outlineOffset=active?'2px':'0';b.querySelector('.pillbox-theme-check')?.remove();if(active&&document.body.classList.contains('colorblind-mode')){const check=document.createElement('span');check.className='pillbox-theme-check';check.textContent='✓';check.style.cssText='position:absolute;font-weight:900;color:var(--ink);';b.appendChild(check);}});}
+  function renderPending(){pendingPalette=pillboxNormalizeThemePalette(pendingPalette);customInput.value=pendingPalette.primary;const dual=!!pendingPalette.secondary;secondarySection.style.display=dual?'block':'none';addSecondaryBtn.style.display=dual?'none':'flex';if(dual)secondaryInput.value=pendingPalette.secondary;updatePresetSelection(presetsBox,'.pillbox-theme-preset',pendingPalette.primary,pendingPalette.primaryEffect);updatePresetSelection(secondaryPresetsBox,'.pillbox-theme-secondary-preset',pendingPalette.secondary,pendingPalette.secondaryEffect);pillboxApplyThemePalette(pendingPalette,{persist:false});}
   openBtn.addEventListener('click',()=>{paletteBeforeOpen=pillboxReadStoredTheme();pendingPalette={...paletteBeforeOpen};renderPending();modal.style.display='flex';});
   function closeWithoutApplying(){pillboxApplyThemePalette(paletteBeforeOpen,{persist:false});modal.style.display='none';}
   let pillboxThemeMousedownOnBackdrop=false;modal.addEventListener('mousedown',e=>{pillboxThemeMousedownOnBackdrop=e.target===modal;});modal.addEventListener('click',e=>{if(e.target===modal&&pillboxThemeMousedownOnBackdrop)closeWithoutApplying();pillboxThemeMousedownOnBackdrop=false;});
   document.getElementById('pillboxThemeCloseBtn')?.addEventListener('click',closeWithoutApplying);
-  const choosePreset=(b,target)=>{if(b.dataset.mode==='holographic'){pendingPalette={primary:b.dataset.hex||'#ff74d4',secondary:b.dataset.secondary||'#72ddf7',mode:'holographic'};}else{pendingPalette.mode=null;if(target==='secondary')pendingPalette.secondary=b.dataset.hex;else pendingPalette.primary=b.dataset.hex;}renderPending();};
+  const choosePreset=(b,target)=>{const effect=b.dataset.effect||null;if(target==='secondary'){pendingPalette.secondary=b.dataset.hex;pendingPalette.secondaryEffect=effect;}else{pendingPalette.primary=b.dataset.hex;pendingPalette.primaryEffect=effect;}renderPending();};
   presetsBox.addEventListener('click',e=>{const b=e.target.closest('.pillbox-theme-preset');if(b)choosePreset(b,'primary');});
   secondaryPresetsBox.addEventListener('click',e=>{const b=e.target.closest('.pillbox-theme-secondary-preset');if(b)choosePreset(b,'secondary');});
-  customInput.addEventListener('input',()=>{pendingPalette.primary=customInput.value;pendingPalette.mode=null;renderPending();}); secondaryInput.addEventListener('input',()=>{pendingPalette.secondary=secondaryInput.value;pendingPalette.mode=null;renderPending();});
-  addSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=PILLBOX_THEME_SECONDARY_DEFAULT;pendingPalette.mode=null;renderPending();}); removeSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=null;pendingPalette.mode=null;renderPending();});
+  customInput.addEventListener('input',()=>{pendingPalette.primary=customInput.value;pendingPalette.primaryEffect=null;renderPending();}); secondaryInput.addEventListener('input',()=>{pendingPalette.secondary=secondaryInput.value;pendingPalette.secondaryEffect=null;renderPending();});
+  addSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=PILLBOX_THEME_SECONDARY_DEFAULT;pendingPalette.secondaryEffect=null;renderPending();}); removeSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=null;pendingPalette.secondaryEffect=null;renderPending();});
   applyBtn.addEventListener('click',()=>{pillboxSaveTheme(pendingPalette);modal.style.display='none';}); resetBtn.addEventListener('click',()=>{pillboxResetTheme();modal.style.display='none';});
 })();
 
