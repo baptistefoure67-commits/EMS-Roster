@@ -42,7 +42,11 @@ const t = (name, cond, extra='') => { if(cond){results.push('✅ '+name);} else 
   t('Aperçu en direct appliqué (violet)', r2.live === '#7c3aed', r2.live);
   t('Rien n\'est encore sauvegardé', r2.saved === null, r2.saved);
 
-  await page.evaluate(() => document.getElementById('rosterThemeModal').click());
+  await page.evaluate(() => {
+    const modal = document.getElementById('rosterThemeModal');
+    modal.dispatchEvent(new MouseEvent('mousedown', { bubbles:true }));
+    modal.dispatchEvent(new MouseEvent('click', { bubbles:true }));
+  });
   await page.waitForTimeout(50);
   const r3 = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-primary').trim());
   t('Fermer sans appliquer restaure la couleur précédente', r3 === '#2563eb', r3);
