@@ -43,6 +43,7 @@
     --theme-button-gradient:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary));
     --theme-button-hover-gradient:linear-gradient(90deg, var(--theme-primary-bright), var(--theme-primary));
     --theme-gradient-text:#04121f;
+    --theme-gradient-text-shadow:none;
     --theme-focus-ring:rgba(56,189,248,.12);
     --theme-logo-gradient:linear-gradient(135deg, var(--theme-primary-bright), var(--theme-primary));
     --theme-holo-gradient:linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%);
@@ -172,6 +173,13 @@
     background:var(--bg-0); border:1px solid var(--border); border-radius:8px;
     padding:9px 12px; outline:none;
   }
+
+  /* (28/10) Finition palette : plus de présence du thème sans toucher aux couleurs métier/grades. */
+  ::selection{background:color-mix(in srgb,var(--theme-primary) 32%, transparent);color:var(--text);}
+  *{scrollbar-color:color-mix(in srgb,var(--theme-primary) 68%, #506070) transparent;}
+  html.theme-dual .tab-btn.active,html.theme-special .tab-btn.active{background:linear-gradient(180deg,color-mix(in srgb,var(--theme-primary) 10%, var(--panel-2)),var(--panel-2));box-shadow:inset 0 -2px var(--theme-primary-bright);}
+  html.theme-dual .btn-primary,html.theme-special .btn-primary{text-shadow:var(--theme-gradient-text-shadow);}
+
   input:focus, select:focus, textarea:focus{border-color:var(--theme-primary-bright); box-shadow:0 0 0 3px var(--theme-focus-ring);}
   ::placeholder{color:var(--text-faint);}
 
@@ -1224,6 +1232,12 @@ const ROSTER_THEME_PRESETS = [
   { name: "Plasma", hex: "#6366f1", effect: "plasma", emoji: "⚡", swatchGradient: "linear-gradient(115deg, #22d3ee, #6366f1 27%, #a855f7 55%, #ec4899 80%, #22d3ee)" },
   { name: "Chrome", hex: "#94a3b8", effect: "chrome", emoji: "🪩", swatchGradient: "linear-gradient(115deg, #f8fafc, #94a3b8 24%, #475569 46%, #e2e8f0 68%, #64748b 84%, #f8fafc)" },
   { name: "Émeraude", hex: "#10b981", effect: "emerald", emoji: "💚", swatchGradient: "linear-gradient(115deg, #064e3b, #10b981 28%, #6ee7b7 54%, #22d3ee 78%, #0f766e)" },
+  { name: "Nébuleuse", hex: "#8b5cf6", effect: "nebula", emoji: "🌠", swatchGradient: "linear-gradient(115deg, #0f172a, #312e81 20%, #7c3aed 43%, #db2777 67%, #38bdf8 88%, #0f172a)" },
+  { name: "Océan", hex: "#0ea5e9", effect: "ocean", emoji: "🌊", swatchGradient: "linear-gradient(115deg, #082f49, #0369a1 25%, #0ea5e9 48%, #22d3ee 70%, #2dd4bf)" },
+  { name: "Sakura", hex: "#f472b6", effect: "sakura", emoji: "🌸", swatchGradient: "linear-gradient(115deg, #fff1f2, #fbcfe8 25%, #f472b6 50%, #fb7185 72%, #c4b5fd)" },
+  { name: "Lave", hex: "#ef4444", effect: "lava", emoji: "🌋", swatchGradient: "linear-gradient(115deg, #7f1d1d, #dc2626 26%, #f97316 54%, #facc15 78%, #ef4444)" },
+  { name: "Minuit", hex: "#312e81", effect: "midnight", emoji: "🌙", swatchGradient: "linear-gradient(115deg, #020617, #0f172a 25%, #312e81 52%, #4338ca 76%, #64748b)" },
+  { name: "Perle", hex: "#e2e8f0", effect: "pearl", emoji: "🫧", swatchGradient: "linear-gradient(115deg, #ffffff, #fce7f3 24%, #e0f2fe 48%, #ede9fe 72%, #f8fafc)" },
 ];
 
 function rosterHexToRgb(hex){
@@ -1308,7 +1322,12 @@ function rosterThemeEffectDefinition(effect){
     plasma:       { base:"#6366f1", alt:"#ec4899", colors:["#22d3ee","#6366f1","#a855f7","#ec4899","#22d3ee"], animated:true, metallic:false, darkText:false },
     chrome:       { base:"#94a3b8", alt:"#e2e8f0", colors:["#f8fafc","#94a3b8","#475569","#e2e8f0","#64748b","#f8fafc"], animated:false, metallic:true, darkText:true },
     emerald:      { base:"#10b981", alt:"#22d3ee", colors:["#064e3b","#10b981","#6ee7b7","#22d3ee","#0f766e"], animated:true, metallic:false, darkText:false },
-  };
+    nebula:       { base:"#8b5cf6", alt:"#38bdf8", colors:["#0f172a","#312e81","#7c3aed","#db2777","#38bdf8"], animated:true, metallic:false, darkText:false },
+    ocean:        { base:"#0ea5e9", alt:"#2dd4bf", colors:["#082f49","#0369a1","#0ea5e9","#22d3ee","#2dd4bf"], animated:true, metallic:false, darkText:false },
+    sakura:       { base:"#f472b6", alt:"#c4b5fd", colors:["#fff1f2","#fbcfe8","#f472b6","#fb7185","#c4b5fd"], animated:false, metallic:false, darkText:true },
+    lava:         { base:"#ef4444", alt:"#facc15", colors:["#7f1d1d","#dc2626","#f97316","#facc15","#ef4444"], animated:true, metallic:false, darkText:false },
+    midnight:     { base:"#312e81", alt:"#64748b", colors:["#020617","#0f172a","#312e81","#4338ca","#64748b"], animated:false, metallic:false, darkText:false },
+    pearl:        { base:"#e2e8f0", alt:"#ede9fe", colors:["#ffffff","#fce7f3","#e0f2fe","#ede9fe","#f8fafc"], animated:true, metallic:true, darkText:true },  };
   return defs[effect] || null;
 }
 function rosterNormalizeThemePalette(value){
@@ -1328,6 +1347,27 @@ function rosterNormalizeThemePalette(value){
 function rosterEffectColors(effect, fallback, brightFallback){
   const def = rosterThemeEffectDefinition(effect);
   return def ? def.colors.slice() : [brightFallback || fallback];
+}
+function rosterRelativeLuminance(hex){
+  const rgb=rosterHexToRgb(hex); if(!rgb)return 0;
+  const lin=(v)=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};
+  return 0.2126*lin(rgb.r)+0.7152*lin(rgb.g)+0.0722*lin(rgb.b);
+}
+function rosterContrastRatio(a,b){
+  const l1=rosterRelativeLuminance(a),l2=rosterRelativeLuminance(b),hi=Math.max(l1,l2),lo=Math.min(l1,l2);
+  return (hi+0.05)/(lo+0.05);
+}
+function rosterGradientTextStyle(normalized,primary,secondary){
+  const colors=[...rosterEffectColors(normalized.primaryEffect,primary.primary,primary.primary)];
+  if(normalized.secondary) colors.push(...rosterEffectColors(normalized.secondaryEffect,secondary.primary,secondary.primary));
+  if(!colors.length) colors.push(primary.primary);
+  const light='#ffffff',dark='#07111d';
+  const minLight=Math.min(...colors.map(c=>rosterContrastRatio(c,light)));
+  const minDark=Math.min(...colors.map(c=>rosterContrastRatio(c,dark)));
+  const useLight=minLight>=minDark;
+  return useLight
+    ? {color:light,shadow:'0 1px 2px rgba(0,0,0,.78), 0 0 3px rgba(0,0,0,.28)'}
+    : {color:dark,shadow:'0 1px 1px rgba(255,255,255,.72), 0 0 2px rgba(255,255,255,.30)'};
 }
 function rosterHexToRgba(hex, alpha){
   const rgb=rosterHexToRgb(hex); if(!rgb) return `rgba(0,0,0,${alpha})`;
@@ -1389,7 +1429,9 @@ function rosterApplyThemePalette(palette,{persist=true}={}){
     ? brandGradient
     : `linear-gradient(90deg, #fff, ${primary.primaryBright} 80%)`);
   const mid=dual?rosterMixHex(primary.primary,secondary.primary,.5):primary.primary;
-  root.setProperty("--theme-gradient-text",specialDarkText?"#07111d":(dual?rosterGetContrastTextColor(mid):'#04121f'));
+  const gradientText=rosterGradientTextStyle(normalized,primary,secondary);
+  root.setProperty("--theme-gradient-text",(dual||specialGradient)?gradientText.color:'#04121f');
+  root.setProperty("--theme-gradient-text-shadow",(dual||specialGradient)?gradientText.shadow:'none');
   root.setProperty("--theme-logo-gradient",logoGradient);
   document.querySelectorAll(".roster-theme-dot").forEach(el=>{
     el.style.background=specialGradient||dual?logoGradient:primary.primary;
@@ -1699,6 +1741,18 @@ rosterLoadTheme();
       <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Palette du site</div>
       <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">Mixe 1 ou 2 couleurs/effets librement (ex. Aurore + Or, Glace + Rouge). Propre au Roster.</div>
+      <div id="rosterThemePreview" style="border:1px solid var(--border);background:var(--panel-2);border-radius:10px;padding:10px 11px;margin:0 0 15px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-dim);margin-bottom:7px;">Aperçu en direct</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="roster-theme-dot" style="width:18px;height:18px;border-radius:50%;display:inline-block;background:var(--theme-logo-gradient);border:1px solid rgba(255,255,255,.16);"></span>
+          <strong style="font-size:12px;color:var(--text);margin-right:auto;">Roster EMS</strong>
+          <button type="button" class="btn-primary btn-small" tabindex="-1" style="pointer-events:none;">Action</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:10.5px;color:var(--text-dim);">
+          <span style="border:1px solid var(--theme-primary-bright);border-radius:6px;padding:3px 6px;">Sélection</span>
+          <span style="border:1px solid var(--border);border-radius:6px;padding:3px 6px;">Carte</span>
+        </div>
+      </div>
       <div style="font-weight:800;font-size:12px;color:var(--text);margin-bottom:8px;">Couleur / effet principal</div>
       <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
       <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--text);">
@@ -2282,10 +2336,11 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   let pendingPalette = {primary:ROSTER_THEME_DEFAULT, secondary:null};
 
   const presetButtonMarkup = (p,klass)=>`
-    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect?' — effet spécial combinable':''}"
-      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
+    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect?' — effet spécial combinable':''}" aria-label="${p.name}"
+      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 3px;font-size:10px;position:relative;min-height:58px;">
       <span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient || p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
-      ${p.emoji}
+      <span aria-hidden="true">${p.emoji}</span>
+      <span style="font-size:9px;line-height:1.05;text-align:center;max-width:88px;overflow-wrap:anywhere;">${p.name}</span>
     </button>`;
   const presetMarkup = (klass)=>{
     const colors=ROSTER_THEME_PRESETS.filter(p=>!p.effect).map(p=>presetButtonMarkup(p,klass)).join("");
