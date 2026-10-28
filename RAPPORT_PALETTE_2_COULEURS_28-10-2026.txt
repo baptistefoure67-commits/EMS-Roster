@@ -1,0 +1,22 @@
+PALETTE 2 COULEURS — ROSTER EMS — 28/10/2026
+
+Modifications :
+- Le thème accepte maintenant 1 couleur (mode historique) ou 2 couleurs (principale + secondaire facultative).
+- Aperçu en direct des deux couleurs dans la modale.
+- Ajout / suppression immédiate de la couleur secondaire.
+- Stockage rétrocompatible :
+  * rosterThemeColor conserve la couleur principale pour les anciennes versions.
+  * rosterThemePaletteV2 stocke { primary, secondary }.
+- Les anciennes préférences contenant uniquement #RRGGBB restent reconnues.
+- Le logo Roster suit la palette avec un dégradé, sans génération d'image à l'exécution.
+- Le titre, les boutons principaux et les halos de fond utilisent le duo de manière discrète.
+- Les couleurs d'animations --cyan / --blue et les couleurs fonctionnelles ne sont pas modifiées.
+- Pillbox de test (__pillbox_for_test.html) mis à jour avec la même évolution pour garder les tests alignés.
+
+Tests :
+- Vérification syntaxique JavaScript : OK.
+- Test VM sans navigateur (tests/theme-dual-palette-static.test.js) : 15/15 contrôles OK sur Roster + Pillbox.
+- Cas testés : rose/violet, jaune/bleu foncé, rouge/vert, couleurs identiques, noir, blanc, ancienne préférence locale.
+- Les suites Playwright Node existantes restent présentes ; dans l'environnement de travail actuel le paquet Node playwright n'est pas installé, elles se mettent donc en SKIP comme prévu par leurs scripts.
+
+Fichiers métier/Firebase non modifiés.
