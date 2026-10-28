@@ -1,0 +1,27 @@
+ROSTER EMS — Palette combinable + correctifs — 28/10/2026
+
+1) PALETTE
+- Chaque colonne accepte désormais une couleur OU un effet.
+- Holographique est combinable avec n'importe quel second choix.
+- Or métallique est combinable avec n'importe quel second choix.
+- Exemples : Holographique + Or, Rouge + Holographique, Or + Cyan, Rose + Violet.
+- Les effets principal/secondaire sont sauvegardés séparément dans rosterThemePaletteV2.
+- Compatibilité conservée avec l'ancien format 1 couleur et l'ancien mode holographique.
+
+2) FOND ROSTER
+- Ajout d'une grille technique très discrète + points fins.
+- Ajout d'une troisième lueur de fond liée au thème.
+- Le fond reste bleu nuit/sombre et ne devient pas RGB agressif.
+
+3) BOUTON MODIFIER / FIREBASE
+- En mode « Vérification avec Firebase… », le bouton Modifier reste cliquable.
+- La fiche peut être ouverte et préparée pendant la vérification.
+- Enregistrer reste bloqué tant que Firebase n'a pas confirmé (sécurité conservée).
+- Une récupération Firebase automatique est lancée en cas d'échec temporaire d'authentification.
+- Jusqu'à 8 nouvelles tentatives espacées, puis maintien propre en lecture seule si Firebase reste indisponible.
+
+4) TESTS
+- Syntaxe JS inline : OK Roster + Pillbox.
+- 45 fichiers de tests Node existants : 45 sorties sans échec.
+- Nouveaux tests : combinaisons Holographique/Or, stockage des effets, correctif Modifier, récupération Firebase, fond Roster.
+- Les tests navigateur qui dépendent du paquet npm Playwright se mettent eux-mêmes en SKIP dans cet environnement.
