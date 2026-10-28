@@ -3,7 +3,7 @@
 
   const APP_NAME = 'Roster EMS';
   const APP_KIND = 'roster';
-  const REPORTER_VERSION = '1.0.0';
+  const REPORTER_VERSION = '1.0.1';
   const MAX_EVENTS = 120;
   const events = [];
   let panel = null;
@@ -297,12 +297,18 @@
     app: APP_NAME
   });
 
+  // Ctrl+Shift+B est conserve pour compatibilite, mais Chrome peut le
+  // reserver a la barre de favoris. Ctrl+Alt+D est le raccourci fiable.
   window.addEventListener('keydown', (event) => {
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'b') {
+    const key = String(event.key || '').toLowerCase();
+    const legacyShortcut = event.ctrlKey && event.shiftKey && !event.altKey && key === 'b';
+    const diagnosticShortcut = event.ctrlKey && event.altKey && !event.shiftKey && key === 'd';
+    if (legacyShortcut || diagnosticShortcut) {
       event.preventDefault();
+      event.stopPropagation();
       openPanel();
     }
-  });
+  }, true);
 
   try {
     const params = new URLSearchParams(location.search);
