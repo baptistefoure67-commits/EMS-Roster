@@ -47,7 +47,11 @@ const t = (name, cond, extra='') => { if(cond){results.push('✅ '+name);} else 
   t('MAIS rien n\'est encore sauvegardé (pas d\'Appliquer cliqué)', r2.saved === null, r2.saved);
 
   // 3) ferme SANS appliquer -> revient au rouge d'origine
-  await page.evaluate(() => document.getElementById('pillboxThemeModal').click());
+  await page.evaluate(() => {
+    const modal = document.getElementById('pillboxThemeModal');
+    modal.dispatchEvent(new MouseEvent('mousedown', { bubbles:true }));
+    modal.dispatchEvent(new MouseEvent('click', { bubbles:true }));
+  });
   await page.waitForTimeout(50);
   const r3 = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-primary').trim());
   t('Fermer sans appliquer restaure la couleur précédente', r3 === '#c8102e', r3);
