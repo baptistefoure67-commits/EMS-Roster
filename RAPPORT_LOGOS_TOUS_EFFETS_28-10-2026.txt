@@ -1,0 +1,10 @@
+LOGOS — EFFETS PREMIUM COMPLETS (28/10/2026)
+
+Effets retravaillés sur Roster : Holographique, Or métallique, Aurore, Coucher de soleil, Glace, Plasma, Chrome, Émeraude, Nébuleuse, Océan, Perle.
+Lave, Sakura et Minuit conservent leur version MAX déjà validée.
+
+Chaque effet possède maintenant une matière visuelle dédiée dans le logo : mouvement interne, reflet, aura et rythme adaptés.
+Le dégradé issu des deux choix de palette reste conservé, afin de maintenir les combinaisons.
+Le mode daltonien / les couleurs fonctionnelles ne sont pas modifiés.
+
+Validation : 46/46 fichiers de tests Node Roster passent. Vérification syntaxique JS Roster + Pillbox OK.
