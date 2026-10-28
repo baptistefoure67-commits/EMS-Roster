@@ -94,19 +94,40 @@
   .roster-logo-wrap{
     width:64px; height:64px; flex:0 0 64px; position:relative; display:block; isolation:isolate;
     user-select:none; pointer-events:none;
+    --theme-logo-glow-a:color-mix(in srgb, var(--theme-primary-bright) 46%, transparent);
+    --theme-logo-glow-b:color-mix(in srgb, var(--theme-secondary-bright) 32%, transparent);
+    --theme-logo-sheen-opacity:.58;
+    --theme-logo-flow-speed:8.6s;
+    --theme-logo-sheen-speed:6.2s;
+    --theme-logo-aura-speed:5.4s;
   }
   .roster-logo{
-    width:100%; height:100%; object-fit:contain; display:block;
-    filter:drop-shadow(0 0 10px color-mix(in srgb, var(--theme-primary-bright) 28%, transparent));
+    position:relative; z-index:1; width:100%; height:100%; object-fit:contain; display:block;
+    filter:drop-shadow(0 2px 8px rgba(0,0,0,.32));
   }
-  .roster-logo-wrap::after{content:none;}
+  .roster-logo-wrap::before,.roster-logo-wrap::after{content:none;}
+  .roster-logo-sheen{display:none;}
   @supports (mix-blend-mode:color) and ((-webkit-mask-image:url("")) or (mask-image:url(""))){
-    .roster-logo-wrap::after{
-      content:""; position:absolute; inset:0; pointer-events:none;
-      background:var(--theme-logo-gradient); mix-blend-mode:color; opacity:.96;
+    .roster-logo-wrap::before,.roster-logo-wrap::after,.roster-logo-sheen{
+      position:absolute; inset:0; pointer-events:none;
       -webkit-mask:url("assets/roster-logo.png") center/contain no-repeat;
       mask:url("assets/roster-logo.png") center/contain no-repeat;
     }
+    .roster-logo-wrap::before,.roster-logo-wrap::after{content:"";}
+    .roster-logo-sheen{display:block;}
+  }
+  .roster-logo-wrap::before{
+    z-index:0; background:var(--theme-logo-gradient); opacity:.18; transform:scale(1.04);
+    filter:blur(7px) drop-shadow(0 0 7px var(--theme-logo-glow-a));
+  }
+  .roster-logo-wrap::after{
+    z-index:2; background:var(--theme-logo-gradient); opacity:.96; mix-blend-mode:color;
+    background-size:180% 180%; background-position:35% 50%;
+  }
+  .roster-logo-sheen{
+    z-index:3; opacity:0; mix-blend-mode:screen;
+    background:linear-gradient(108deg,transparent 12%,rgba(255,255,255,0) 30%,rgba(255,255,255,.18) 41%,rgba(255,255,255,.96) 49%,rgba(255,255,255,.28) 57%,rgba(255,255,255,0) 69%,transparent 88%);
+    background-size:320% 100%; background-position:150% 50%;
   }
   header.top h1{
     margin:0; font-size:1.65rem; letter-spacing:0.01em; font-weight:700;
@@ -123,13 +144,189 @@
     50%{background-position:100% 50%;}
     100%{background-position:0% 50%;}
   }
+  @keyframes rosterLogoGradientFlow{
+    0%{background-position:0% 35%;}
+    28%{background-position:72% 20%;}
+    55%{background-position:100% 72%;}
+    78%{background-position:34% 100%;}
+    100%{background-position:0% 35%;}
+  }
+  @keyframes rosterLogoSheenSweep{
+    0%,13%{background-position:155% 50%;opacity:0;}
+    20%{opacity:.34;}
+    31%{opacity:var(--theme-logo-sheen-opacity);}
+    45%{background-position:-55% 50%;opacity:.22;}
+    52%,100%{background-position:-55% 50%;opacity:0;}
+  }
+  @keyframes rosterLogoAuraBreath{
+    0%,100%{opacity:.15;transform:scale(1.025);filter:blur(7px) drop-shadow(0 0 4px var(--theme-logo-glow-a));}
+    45%{opacity:.32;transform:scale(1.075);filter:blur(9px) drop-shadow(0 0 11px var(--theme-logo-glow-a)) drop-shadow(0 0 7px var(--theme-logo-glow-b));}
+    72%{opacity:.22;transform:scale(1.045);}
+  }
   html.theme-animated-gradient header.top h1,
-  html.theme-animated-gradient .btn-primary,
-  html.theme-animated-gradient .roster-logo-wrap::after{
+  html.theme-animated-gradient .btn-primary{
     background-image:var(--theme-holo-gradient)!important;
     background-size:260% 260%!important;
     animation:rosterHolographicShift 8s ease-in-out infinite;
   }
+  html.theme-dual .roster-logo-wrap::after,html.theme-special .roster-logo-wrap::after{
+    background-image:var(--theme-logo-gradient)!important;
+    background-size:340% 340%!important;
+    animation:rosterLogoGradientFlow var(--theme-logo-flow-speed) cubic-bezier(.45,.05,.25,1) infinite;
+  }
+  html.theme-dual .roster-logo-sheen,html.theme-special .roster-logo-sheen{
+    animation:rosterLogoSheenSweep var(--theme-logo-sheen-speed) cubic-bezier(.22,.61,.36,1) infinite;
+  }
+  html.theme-dual .roster-logo-wrap::before,html.theme-special .roster-logo-wrap::before{
+    animation:rosterLogoAuraBreath var(--theme-logo-aura-speed) ease-in-out infinite;
+  }
+  html.theme-metallic .roster-logo-wrap{--theme-logo-sheen-opacity:.88;--theme-logo-sheen-speed:4.2s;--theme-logo-flow-speed:12s;}
+  html[data-theme-effects~="holographic"] .roster-logo-wrap{--theme-logo-sheen-opacity:.72;--theme-logo-flow-speed:7.2s;--theme-logo-sheen-speed:5.1s;}
+  html[data-theme-effects~="aurora"] .roster-logo-wrap,html[data-theme-effects~="ocean"] .roster-logo-wrap{--theme-logo-flow-speed:9.8s;--theme-logo-sheen-speed:6.8s;}
+  html[data-theme-effects~="plasma"] .roster-logo-wrap{--theme-logo-flow-speed:5.8s;--theme-logo-sheen-speed:4.8s;--theme-logo-aura-speed:4.1s;}
+  html[data-theme-effects~="lava"] .roster-logo-wrap{--theme-logo-flow-speed:4.9s;--theme-logo-sheen-speed:5.6s;--theme-logo-aura-speed:3.8s;}
+  html[data-theme-effects~="midnight"] .roster-logo-wrap{--theme-logo-flow-speed:14s;--theme-logo-sheen-speed:10s;--theme-logo-aura-speed:8s;--theme-logo-sheen-opacity:.34;}
+  html[data-theme-effects~="ice"] .roster-logo-wrap,html[data-theme-effects~="pearl"] .roster-logo-wrap{--theme-logo-sheen-opacity:.82;--theme-logo-sheen-speed:5.4s;}
+  /* Effets premium logo — Lave / Sakura / Perle / Minuit */
+  @keyframes rosterLogoLavaFlow{
+    0%{background-position:0% 76%,15% 18%,0% 45%;filter:saturate(1.08) brightness(.92);}
+    22%{background-position:72% 20%,48% 74%,42% 5%;filter:saturate(1.28) brightness(1.05);}
+    48%{background-position:100% 82%,86% 32%,100% 58%;filter:saturate(1.16) brightness(.96);}
+    74%{background-position:38% 100%,22% 86%,58% 100%;filter:saturate(1.34) brightness(1.09);}
+    100%{background-position:0% 76%,15% 18%,0% 45%;filter:saturate(1.08) brightness(.92);}
+  }
+  @keyframes rosterLogoLavaSheen{
+    0%,9%{background-position:155% 50%;opacity:0;}
+    18%{opacity:.30;} 27%{opacity:.94;} 34%{background-position:-55% 50%;opacity:.16;}
+    48%,58%{opacity:0;background-position:155% 50%;}
+    69%{opacity:.20;} 76%{opacity:.72;} 84%{background-position:-55% 50%;opacity:.10;} 100%{opacity:0;}
+  }
+  @keyframes rosterLogoLavaAura{
+    0%,100%{opacity:.20;transform:scale(1.025);filter:blur(7px) drop-shadow(0 0 5px #dc2626);}
+    34%{opacity:.48;transform:scale(1.10);filter:blur(10px) drop-shadow(0 0 14px #f97316) drop-shadow(0 0 8px #facc15);}
+    56%{opacity:.27;transform:scale(1.045);filter:blur(8px) drop-shadow(0 0 7px #ef4444);}
+    78%{opacity:.42;transform:scale(1.085);filter:blur(9px) drop-shadow(0 0 12px #f97316);}
+  }
+  @keyframes rosterLogoSakuraFlow{
+    0%{background-position:0% 34%,92% 12%,0% 50%;}
+    30%{background-position:74% 8%,26% 72%,48% 24%;}
+    62%{background-position:100% 78%,6% 34%,100% 68%;}
+    100%{background-position:0% 34%,92% 12%,0% 50%;}
+  }
+  @keyframes rosterLogoSakuraSheen{
+    0%,18%{background-position:150% 50%;opacity:0;}
+    31%{opacity:.22;} 43%{opacity:.72;} 57%{background-position:-50% 50%;opacity:.14;} 68%,100%{opacity:0;}
+  }
+  @keyframes rosterLogoPearlFlow{
+    0%{background-position:12% 20%,88% 82%,0% 50%;filter:brightness(1.02) saturate(.88);}
+    33%{background-position:88% 12%,18% 34%,52% 0%;filter:brightness(1.12) saturate(1.02);}
+    66%{background-position:44% 92%,92% 12%,100% 70%;filter:brightness(1.05) saturate(.94);}
+    100%{background-position:12% 20%,88% 82%,0% 50%;filter:brightness(1.02) saturate(.88);}
+  }
+  @keyframes rosterLogoMidnightFlow{
+    0%{background-position:8% 22%,78% 16%,0% 50%;filter:brightness(.82) saturate(1.18);}
+    28%{background-position:82% 10%,22% 86%,46% 18%;filter:brightness(1.02) saturate(1.32);}
+    56%{background-position:94% 88%,88% 42%,100% 76%;filter:brightness(.90) saturate(1.20);}
+    82%{background-position:20% 74%,10% 22%,58% 100%;filter:brightness(1.06) saturate(1.36);}
+    100%{background-position:8% 22%,78% 16%,0% 50%;filter:brightness(.82) saturate(1.18);}
+  }
+  @keyframes rosterLogoMidnightStars{
+    0%,100%{opacity:.10;filter:brightness(.8);}
+    18%{opacity:.42;filter:brightness(1.45);} 31%{opacity:.14;}
+    52%{opacity:.55;filter:brightness(1.8);} 63%{opacity:.18;}
+    82%{opacity:.36;filter:brightness(1.35);}
+  }
+  html[data-theme-effects~="lava"] .roster-logo-wrap{--theme-logo-sheen-opacity:.96;--theme-logo-flow-speed:3.8s;--theme-logo-sheen-speed:4.1s;--theme-logo-aura-speed:2.9s;}
+  html[data-theme-effects~="lava"] .roster-logo-wrap::after{
+    background-image:radial-gradient(circle at 24% 72%,rgba(255,247,178,.98) 0 5%,rgba(249,115,22,.54) 10%,transparent 23%),radial-gradient(circle at 78% 26%,rgba(250,204,21,.82) 0 4%,rgba(220,38,38,.32) 13%,transparent 25%),var(--theme-logo-gradient)!important;
+    background-size:155% 155%,170% 170%,390% 390%!important;animation:rosterLogoLavaFlow 3.8s cubic-bezier(.42,0,.34,1) infinite!important;mix-blend-mode:color!important;
+  }
+  html[data-theme-effects~="lava"] .roster-logo-sheen{animation:rosterLogoLavaSheen 4.4s ease-in-out infinite!important;background-image:linear-gradient(104deg,transparent 8%,rgba(255,255,255,0) 31%,rgba(255,247,178,.55) 42%,rgba(255,255,255,1) 49%,rgba(250,204,21,.58) 55%,rgba(255,255,255,0) 68%,transparent 90%)!important;}
+  html[data-theme-effects~="lava"] .roster-logo-wrap::before{animation:rosterLogoLavaAura 2.9s ease-in-out infinite!important;}
+
+  html[data-theme-effects~="sakura"] .roster-logo-wrap{--theme-logo-sheen-opacity:.78;--theme-logo-flow-speed:8.8s;--theme-logo-sheen-speed:7.6s;--theme-logo-aura-speed:6.8s;}
+  html[data-theme-effects~="sakura"] .roster-logo-wrap::after{
+    background-image:radial-gradient(ellipse at 18% 22%,rgba(255,255,255,.78) 0 4%,rgba(255,214,232,.34) 7%,transparent 18%),radial-gradient(ellipse at 82% 72%,rgba(196,181,253,.52) 0 5%,rgba(244,114,182,.24) 10%,transparent 22%),var(--theme-logo-gradient)!important;
+    background-size:180% 180%,170% 170%,360% 360%!important;animation:rosterLogoSakuraFlow 8.8s ease-in-out infinite!important;
+  }
+  html[data-theme-effects~="sakura"] .roster-logo-sheen{animation:rosterLogoSakuraSheen 7.6s ease-in-out infinite!important;background-image:linear-gradient(112deg,transparent 15%,rgba(255,255,255,0) 32%,rgba(255,255,255,.30) 42%,rgba(255,247,251,.94) 50%,rgba(249,168,212,.34) 59%,rgba(255,255,255,0) 70%,transparent 88%)!important;}
+  html[data-theme-effects~="sakura"] .roster-logo-wrap::before{opacity:.22!important;filter:blur(8px) drop-shadow(0 0 8px rgba(244,114,182,.54)) drop-shadow(0 0 6px rgba(196,181,253,.35))!important;}
+
+  html[data-theme-effects~="pearl"] .roster-logo-wrap{--theme-logo-sheen-opacity:1;--theme-logo-flow-speed:7.4s;--theme-logo-sheen-speed:4.4s;--theme-logo-aura-speed:6.2s;}
+  html[data-theme-effects~="pearl"] .roster-logo-wrap::after{
+    background-image:radial-gradient(circle at 22% 28%,rgba(255,255,255,.96) 0 5%,rgba(252,231,243,.32) 10%,transparent 23%),radial-gradient(circle at 78% 70%,rgba(224,242,254,.72) 0 6%,rgba(237,233,254,.28) 13%,transparent 27%),var(--theme-logo-gradient)!important;
+    background-size:165% 165%,175% 175%,390% 390%!important;animation:rosterLogoPearlFlow 7.4s ease-in-out infinite!important;mix-blend-mode:color!important;
+  }
+  html[data-theme-effects~="pearl"] .roster-logo-sheen{background-image:linear-gradient(106deg,transparent 12%,rgba(255,255,255,0) 28%,rgba(255,238,248,.46) 38%,rgba(255,255,255,1) 49%,rgba(224,242,254,.58) 60%,rgba(255,255,255,0) 72%,transparent 90%)!important;}
+
+  html[data-theme-effects~="midnight"] .roster-logo-wrap{--theme-logo-sheen-opacity:.72;--theme-logo-flow-speed:15.8s;--theme-logo-sheen-speed:6.6s;--theme-logo-aura-speed:7.8s;}
+  html[data-theme-effects~="midnight"] .roster-logo-wrap::after{
+    background-image:radial-gradient(circle at 18% 28%,rgba(224,231,255,.95) 0 1.2%,transparent 2.4%),radial-gradient(circle at 72% 20%,rgba(125,211,252,.88) 0 1%,transparent 2.1%),radial-gradient(circle at 82% 72%,rgba(196,181,253,.82) 0 1.1%,transparent 2.2%),var(--theme-logo-gradient)!important;
+    background-size:82% 82%,68% 68%,96% 96%,430% 430%!important;animation:rosterLogoMidnightFlow 15.8s ease-in-out infinite!important;filter:contrast(1.06) saturate(1.24);
+  }
+  html[data-theme-effects~="midnight"] .roster-logo-sheen{animation:rosterLogoMidnightStars 6.6s ease-in-out infinite!important;background-image:radial-gradient(circle at 28% 34%,rgba(255,255,255,.96) 0 1.5%,transparent 3%),radial-gradient(circle at 70% 62%,rgba(125,211,252,.92) 0 1.3%,transparent 2.8%),linear-gradient(108deg,transparent 20%,rgba(255,255,255,0) 39%,rgba(224,231,255,.88) 50%,rgba(125,211,252,.24) 59%,rgba(255,255,255,0) 71%,transparent 88%)!important;background-size:100% 100%,100% 100%,330% 100%!important;}
+  html[data-theme-effects~="midnight"] .roster-logo-wrap::before{opacity:.24!important;filter:blur(9px) drop-shadow(0 0 12px rgba(49,46,129,.66)) drop-shadow(0 0 8px rgba(56,189,248,.30))!important;}
+
+  /* (28/10) Logos premium V3 — effets dédiés pour tous les presets sauf Lave/Sakura/Minuit */
+  @keyframes rosterLogoHoloPrism{0%{background-position:12% 30%,86% 72%,0% 50%;filter:saturate(1.08) brightness(1)}35%{background-position:82% 8%,20% 38%,62% 24%;filter:saturate(1.32) brightness(1.08)}68%{background-position:48% 92%,94% 18%,100% 76%;filter:saturate(1.18) brightness(1.02)}100%{background-position:12% 30%,86% 72%,0% 50%;filter:saturate(1.08) brightness(1)}}
+  @keyframes rosterLogoGoldFlow{0%{background-position:5% 66%,92% 18%,0% 50%;filter:contrast(1.08) brightness(.95)}42%{background-position:88% 22%,18% 84%,76% 16%;filter:contrast(1.15) brightness(1.12)}72%{background-position:46% 94%,74% 42%,100% 72%;filter:contrast(1.11) brightness(1.02)}100%{background-position:5% 66%,92% 18%,0% 50%;filter:contrast(1.08) brightness(.95)}}
+  @keyframes rosterLogoAuroraCurtain{0%{background-position:0% 82%,18% 8%,0% 46%;filter:saturate(1.05)}32%{background-position:72% 12%,54% 84%,42% 8%;filter:saturate(1.28)}67%{background-position:100% 76%,88% 26%,100% 64%;filter:saturate(1.14)}100%{background-position:0% 82%,18% 8%,0% 46%;filter:saturate(1.05)}}
+  @keyframes rosterLogoSunsetFlow{0%{background-position:8% 72%,86% 18%,0% 50%;filter:brightness(.96) saturate(1.08)}45%{background-position:80% 16%,26% 78%,70% 20%;filter:brightness(1.10) saturate(1.24)}72%{background-position:96% 82%,74% 50%,100% 80%;filter:brightness(1.02) saturate(1.15)}100%{background-position:8% 72%,86% 18%,0% 50%;filter:brightness(.96) saturate(1.08)}}
+  @keyframes rosterLogoIceFlow{0%{background-position:10% 18%,88% 78%,0% 50%;filter:brightness(1.06) saturate(.84)}36%{background-position:86% 12%,28% 36%,66% 8%;filter:brightness(1.18) saturate(.98)}70%{background-position:46% 92%,92% 18%,100% 74%;filter:brightness(1.10) saturate(.90)}100%{background-position:10% 18%,88% 78%,0% 50%;filter:brightness(1.06) saturate(.84)}}
+  @keyframes rosterLogoPlasmaArc{0%{background-position:0% 50%,92% 20%,0% 50%;filter:saturate(1.20) contrast(1.03)}24%{background-position:88% 22%,18% 84%,46% 8%;filter:saturate(1.52) contrast(1.10)}52%{background-position:100% 78%,78% 34%,100% 76%;filter:saturate(1.34) contrast(1.06)}78%{background-position:28% 94%,8% 26%,62% 100%;filter:saturate(1.58) contrast(1.12)}100%{background-position:0% 50%,92% 20%,0% 50%;filter:saturate(1.20) contrast(1.03)}}
+  @keyframes rosterLogoChromeFlow{0%{background-position:4% 50%,92% 18%,0% 50%;filter:contrast(1.16) brightness(.92) saturate(.50)}38%{background-position:88% 20%,20% 78%,74% 12%;filter:contrast(1.28) brightness(1.18) saturate(.62)}68%{background-position:48% 86%,86% 44%,100% 72%;filter:contrast(1.20) brightness(1.02) saturate(.48)}100%{background-position:4% 50%,92% 18%,0% 50%;filter:contrast(1.16) brightness(.92) saturate(.50)}}
+  @keyframes rosterLogoEmeraldFlow{0%{background-position:12% 78%,86% 18%,0% 50%;filter:saturate(1.06) brightness(.94)}34%{background-position:82% 12%,28% 84%,58% 10%;filter:saturate(1.30) brightness(1.08)}68%{background-position:94% 82%,80% 38%,100% 74%;filter:saturate(1.18) brightness(1.00)}100%{background-position:12% 78%,86% 18%,0% 50%;filter:saturate(1.06) brightness(.94)}}
+  @keyframes rosterLogoNebulaFlow{0%{background-position:8% 24%,88% 76%,0% 50%;filter:brightness(.88) saturate(1.22)}31%{background-position:80% 12%,24% 34%,52% 10%;filter:brightness(1.05) saturate(1.48)}64%{background-position:96% 88%,86% 24%,100% 80%;filter:brightness(.96) saturate(1.30)}100%{background-position:8% 24%,88% 76%,0% 50%;filter:brightness(.88) saturate(1.22)}}
+  @keyframes rosterLogoOceanFlow{0%{background-position:0% 64%,88% 18%,0% 50%;filter:saturate(1.02) brightness(.94)}30%{background-position:74% 10%,20% 82%,52% 14%;filter:saturate(1.24) brightness(1.06)}62%{background-position:100% 84%,82% 36%,100% 76%;filter:saturate(1.12) brightness(1.00)}100%{background-position:0% 64%,88% 18%,0% 50%;filter:saturate(1.02) brightness(.94)}}
+  @keyframes rosterLogoPearlOpal{0%{background-position:8% 22%,88% 80%,0% 50%;filter:brightness(1.04) saturate(.80)}33%{background-position:84% 10%,24% 36%,54% 8%;filter:brightness(1.18) saturate(1.00)}66%{background-position:48% 92%,92% 18%,100% 76%;filter:brightness(1.08) saturate(.90)}100%{background-position:8% 22%,88% 80%,0% 50%;filter:brightness(1.04) saturate(.80)}}
+  @keyframes rosterLogoSparkle{0%,100%{opacity:.08;filter:brightness(.8)}18%{opacity:.68;filter:brightness(1.55)}33%{opacity:.12}57%{opacity:.82;filter:brightness(1.9)}72%{opacity:.16}88%{opacity:.52;filter:brightness(1.4)}}
+  @keyframes rosterLogoWaveSheen{0%,12%{background-position:150% 50%;opacity:0}28%{opacity:.34}45%{background-position:-45% 50%;opacity:.82}58%,100%{background-position:-45% 50%;opacity:0}}
+  @keyframes rosterLogoPulseFast{0%,100%{opacity:.18;transform:scale(1.02)}50%{opacity:.42;transform:scale(1.09)}}
+
+  html[data-theme-effects~="holographic"] .roster-logo-wrap::after{background-image:radial-gradient(circle at 22% 30%,rgba(255,255,255,.78) 0 4%,rgba(255,116,212,.20) 10%,transparent 22%),radial-gradient(circle at 80% 68%,rgba(126,247,211,.58) 0 6%,rgba(124,131,253,.22) 14%,transparent 28%),var(--theme-logo-gradient)!important;background-size:160% 160%,175% 175%,420% 420%!important;animation:rosterLogoHoloPrism 6.4s ease-in-out infinite!important}
+  html[data-theme-effects~="holographic"] .roster-logo-sheen{background-image:linear-gradient(108deg,transparent 8%,rgba(255,255,255,0) 28%,rgba(255,255,255,.72) 40%,rgba(126,247,211,.45) 48%,rgba(255,255,255,.96) 54%,rgba(255,116,212,.34) 63%,rgba(255,255,255,0) 74%,transparent 92%)!important;animation:rosterLogoWaveSheen 4.9s ease-in-out infinite!important}
+  html[data-theme-effects~="holographic"] .roster-logo-wrap::before{opacity:.28!important;filter:blur(9px) drop-shadow(0 0 10px rgba(114,221,247,.52)) drop-shadow(0 0 9px rgba(255,116,212,.38))!important}
+
+  html[data-theme-effects~="gold"] .roster-logo-wrap::after{background-image:radial-gradient(circle at 28% 72%,rgba(255,250,210,.92) 0 4%,rgba(251,191,36,.34) 10%,transparent 23%),radial-gradient(circle at 76% 24%,rgba(255,255,255,.74) 0 3%,rgba(180,83,9,.25) 12%,transparent 24%),var(--theme-logo-gradient)!important;background-size:155% 155%,170% 170%,390% 390%!important;animation:rosterLogoGoldFlow 8.4s ease-in-out infinite!important}
+  html[data-theme-effects~="gold"] .roster-logo-sheen{background-image:linear-gradient(106deg,transparent 10%,rgba(255,255,255,0) 31%,rgba(255,244,186,.45) 40%,rgba(255,255,255,1) 49%,rgba(251,191,36,.56) 58%,rgba(255,255,255,0) 69%,transparent 90%)!important;animation:rosterLogoWaveSheen 4.2s ease-in-out infinite!important}
+  html[data-theme-effects~="gold"] .roster-logo-wrap::before{opacity:.24!important;filter:blur(8px) drop-shadow(0 0 10px rgba(245,158,11,.60)) drop-shadow(0 0 6px rgba(253,224,71,.38))!important}
+
+  html[data-theme-effects~="aurora"] .roster-logo-wrap::after{background-image:linear-gradient(118deg,transparent 5%,rgba(52,211,153,.28) 18%,rgba(34,211,238,.46) 36%,rgba(96,165,250,.24) 52%,rgba(167,139,250,.42) 70%,rgba(240,171,252,.22) 88%,transparent),radial-gradient(ellipse at 26% 28%,rgba(255,255,255,.34),transparent 32%),var(--theme-logo-gradient)!important;background-size:260% 180%,170% 170%,390% 390%!important;animation:rosterLogoAuroraCurtain 9.2s ease-in-out infinite!important}
+  html[data-theme-effects~="aurora"] .roster-logo-sheen{background-image:linear-gradient(112deg,transparent 18%,rgba(255,255,255,0) 34%,rgba(236,253,245,.76) 47%,rgba(224,231,255,.46) 54%,rgba(255,255,255,0) 68%,transparent 86%)!important;animation:rosterLogoWaveSheen 7s ease-in-out infinite!important}
+  html[data-theme-effects~="aurora"] .roster-logo-wrap::before{opacity:.27!important;filter:blur(10px) drop-shadow(0 0 11px rgba(34,211,238,.44)) drop-shadow(0 0 8px rgba(167,139,250,.38))!important}
+
+  html[data-theme-effects~="sunset"] .roster-logo-wrap::after{background-image:radial-gradient(circle at 22% 70%,rgba(254,240,138,.92) 0 7%,rgba(251,146,60,.42) 15%,transparent 30%),radial-gradient(circle at 80% 24%,rgba(244,63,94,.48) 0 7%,rgba(124,58,237,.22) 18%,transparent 32%),var(--theme-logo-gradient)!important;background-size:165% 165%,175% 175%,390% 390%!important;animation:rosterLogoSunsetFlow 7.8s ease-in-out infinite!important}
+  html[data-theme-effects~="sunset"] .roster-logo-sheen{background-image:linear-gradient(110deg,transparent 12%,rgba(255,255,255,0) 30%,rgba(254,240,138,.62) 42%,rgba(255,255,255,.94) 50%,rgba(251,113,133,.40) 59%,rgba(255,255,255,0) 70%,transparent 90%)!important;animation:rosterLogoWaveSheen 5.6s ease-in-out infinite!important}
+  html[data-theme-effects~="sunset"] .roster-logo-wrap::before{opacity:.25!important;filter:blur(9px) drop-shadow(0 0 10px rgba(249,115,22,.52)) drop-shadow(0 0 7px rgba(219,39,119,.36))!important}
+
+  html[data-theme-effects~="ice"] .roster-logo-wrap::after{background-image:linear-gradient(132deg,transparent 12%,rgba(255,255,255,.46) 20%,transparent 28%,rgba(125,211,252,.34) 42%,transparent 50%,rgba(224,231,255,.60) 62%,transparent 72%),radial-gradient(circle at 78% 24%,rgba(255,255,255,.92) 0 4%,rgba(125,211,252,.28) 11%,transparent 23%),var(--theme-logo-gradient)!important;background-size:230% 230%,170% 170%,390% 390%!important;animation:rosterLogoIceFlow 9.4s ease-in-out infinite!important}
+  html[data-theme-effects~="ice"] .roster-logo-sheen{background-image:linear-gradient(106deg,transparent 10%,rgba(255,255,255,0) 27%,rgba(224,242,254,.56) 38%,rgba(255,255,255,1) 49%,rgba(186,230,253,.48) 60%,rgba(255,255,255,0) 72%,transparent 90%)!important;animation:rosterLogoWaveSheen 5.2s ease-in-out infinite!important}
+  html[data-theme-effects~="ice"] .roster-logo-wrap::before{opacity:.22!important;filter:blur(8px) drop-shadow(0 0 10px rgba(125,211,252,.58)) drop-shadow(0 0 7px rgba(224,231,255,.44))!important}
+
+  html[data-theme-effects~="plasma"] .roster-logo-wrap::after{background-image:linear-gradient(118deg,transparent 8%,rgba(34,211,238,.54) 18%,transparent 24%,rgba(168,85,247,.62) 38%,transparent 44%,rgba(236,72,153,.52) 58%,transparent 66%),radial-gradient(circle at 76% 24%,rgba(255,255,255,.80) 0 3%,rgba(99,102,241,.32) 11%,transparent 24%),var(--theme-logo-gradient)!important;background-size:240% 220%,165% 165%,410% 410%!important;animation:rosterLogoPlasmaArc 4.6s cubic-bezier(.45,0,.25,1) infinite!important}
+  html[data-theme-effects~="plasma"] .roster-logo-sheen{background-image:linear-gradient(102deg,transparent 12%,rgba(34,211,238,0) 29%,rgba(34,211,238,.72) 39%,rgba(255,255,255,1) 48%,rgba(236,72,153,.66) 56%,rgba(255,255,255,0) 68%,transparent 90%)!important;animation:rosterLogoWaveSheen 3.8s ease-in-out infinite!important}
+  html[data-theme-effects~="plasma"] .roster-logo-wrap::before{animation:rosterLogoPulseFast 3.4s ease-in-out infinite!important;filter:blur(9px) drop-shadow(0 0 13px rgba(99,102,241,.60)) drop-shadow(0 0 8px rgba(34,211,238,.42))!important}
+
+  html[data-theme-effects~="chrome"] .roster-logo-wrap::after{background-image:linear-gradient(108deg,rgba(15,23,42,.72) 0%,rgba(248,250,252,.96) 14%,rgba(71,85,105,.72) 27%,rgba(255,255,255,1) 42%,rgba(100,116,139,.76) 56%,rgba(226,232,240,.96) 72%,rgba(30,41,59,.72) 88%,rgba(248,250,252,.92) 100%),radial-gradient(circle at 78% 26%,rgba(255,255,255,.94) 0 3%,transparent 18%),var(--theme-logo-gradient)!important;background-size:310% 100%,170% 170%,360% 360%!important;animation:rosterLogoChromeFlow 7.2s ease-in-out infinite!important;mix-blend-mode:screen!important}
+  html[data-theme-effects~="chrome"] .roster-logo-sheen{background-image:linear-gradient(104deg,transparent 10%,rgba(255,255,255,0) 30%,rgba(255,255,255,.78) 39%,rgba(255,255,255,1) 48%,rgba(148,163,184,.54) 59%,rgba(255,255,255,0) 70%,transparent 90%)!important;animation:rosterLogoWaveSheen 3.9s ease-in-out infinite!important}
+  html[data-theme-effects~="chrome"] .roster-logo-wrap::before{opacity:.18!important;filter:blur(7px) drop-shadow(0 0 8px rgba(226,232,240,.50)) drop-shadow(0 0 5px rgba(100,116,139,.44))!important}
+
+  html[data-theme-effects~="emerald"] .roster-logo-wrap::after{background-image:radial-gradient(ellipse at 22% 76%,rgba(167,243,208,.78) 0 7%,rgba(16,185,129,.26) 15%,transparent 30%),linear-gradient(126deg,transparent 18%,rgba(110,231,183,.36) 31%,transparent 44%,rgba(34,211,238,.28) 58%,transparent 72%),var(--theme-logo-gradient)!important;background-size:170% 170%,230% 230%,390% 390%!important;animation:rosterLogoEmeraldFlow 8.2s ease-in-out infinite!important}
+  html[data-theme-effects~="emerald"] .roster-logo-sheen{background-image:linear-gradient(108deg,transparent 12%,rgba(255,255,255,0) 31%,rgba(209,250,229,.70) 42%,rgba(255,255,255,.96) 50%,rgba(45,212,191,.44) 59%,rgba(255,255,255,0) 70%,transparent 90%)!important;animation:rosterLogoWaveSheen 5.8s ease-in-out infinite!important}
+  html[data-theme-effects~="emerald"] .roster-logo-wrap::before{opacity:.24!important;filter:blur(9px) drop-shadow(0 0 11px rgba(16,185,129,.55)) drop-shadow(0 0 7px rgba(34,211,238,.32))!important}
+
+  html[data-theme-effects~="nebula"] .roster-logo-wrap::after{background-image:radial-gradient(circle at 18% 30%,rgba(255,255,255,.92) 0 1.2%,transparent 2.5%),radial-gradient(circle at 72% 22%,rgba(56,189,248,.88) 0 1.1%,transparent 2.4%),radial-gradient(ellipse at 76% 72%,rgba(219,39,119,.46) 0 9%,rgba(124,58,237,.20) 20%,transparent 38%),var(--theme-logo-gradient)!important;background-size:80% 80%,70% 70%,180% 180%,430% 430%!important;animation:rosterLogoNebulaFlow 11.2s ease-in-out infinite!important}
+  html[data-theme-effects~="nebula"] .roster-logo-sheen{background-image:radial-gradient(circle at 32% 38%,rgba(255,255,255,.96) 0 1.5%,transparent 3%),radial-gradient(circle at 68% 64%,rgba(125,211,252,.90) 0 1.2%,transparent 2.8%),linear-gradient(108deg,transparent 16%,rgba(255,255,255,0) 36%,rgba(224,231,255,.78) 49%,rgba(216,180,254,.28) 58%,rgba(255,255,255,0) 70%,transparent 88%)!important;background-size:100% 100%,100% 100%,330% 100%!important;animation:rosterLogoSparkle 6.2s ease-in-out infinite!important}
+  html[data-theme-effects~="nebula"] .roster-logo-wrap::before{opacity:.25!important;filter:blur(10px) drop-shadow(0 0 12px rgba(124,58,237,.54)) drop-shadow(0 0 8px rgba(219,39,119,.34))!important}
+
+  html[data-theme-effects~="ocean"] .roster-logo-wrap::after{background-image:radial-gradient(ellipse at 22% 78%,rgba(103,232,249,.62) 0 7%,rgba(14,165,233,.22) 15%,transparent 30%),linear-gradient(165deg,transparent 18%,rgba(255,255,255,.28) 27%,transparent 36%,rgba(45,212,191,.26) 48%,transparent 60%),var(--theme-logo-gradient)!important;background-size:175% 175%,240% 240%,390% 390%!important;animation:rosterLogoOceanFlow 8.6s ease-in-out infinite!important}
+  html[data-theme-effects~="ocean"] .roster-logo-sheen{background-image:linear-gradient(112deg,transparent 12%,rgba(255,255,255,0) 31%,rgba(207,250,254,.64) 42%,rgba(255,255,255,.92) 50%,rgba(45,212,191,.40) 59%,rgba(255,255,255,0) 70%,transparent 90%)!important;animation:rosterLogoWaveSheen 6.2s ease-in-out infinite!important}
+  html[data-theme-effects~="ocean"] .roster-logo-wrap::before{opacity:.23!important;filter:blur(9px) drop-shadow(0 0 11px rgba(14,165,233,.56)) drop-shadow(0 0 7px rgba(45,212,191,.34))!important}
+
+  html[data-theme-effects~="pearl"] .roster-logo-wrap::after{background-image:radial-gradient(circle at 20% 28%,rgba(255,255,255,1) 0 5%,rgba(252,231,243,.38) 10%,transparent 23%),radial-gradient(circle at 78% 72%,rgba(224,242,254,.82) 0 6%,rgba(237,233,254,.34) 13%,transparent 28%),linear-gradient(132deg,transparent 20%,rgba(255,255,255,.28) 31%,transparent 42%,rgba(244,114,182,.14) 54%,transparent 66%),var(--theme-logo-gradient)!important;background-size:165% 165%,175% 175%,240% 240%,410% 410%!important;animation:rosterLogoPearlOpal 7s ease-in-out infinite!important;mix-blend-mode:color!important}
+  html[data-theme-effects~="pearl"] .roster-logo-sheen{background-image:linear-gradient(106deg,transparent 10%,rgba(255,255,255,0) 27%,rgba(255,238,248,.58) 37%,rgba(255,255,255,1) 48%,rgba(224,242,254,.66) 59%,rgba(237,233,254,.36) 64%,rgba(255,255,255,0) 73%,transparent 90%)!important;animation:rosterLogoWaveSheen 4.8s ease-in-out infinite!important}
+  html[data-theme-effects~="pearl"] .roster-logo-wrap::before{opacity:.20!important;filter:blur(8px) drop-shadow(0 0 8px rgba(252,231,243,.48)) drop-shadow(0 0 7px rgba(224,242,254,.44))!important}
+
   html.theme-holographic .btn-primary{
     color:#07111d!important;
     text-shadow:0 1px 0 rgba(255,255,255,.34);
@@ -153,7 +350,8 @@
     background-attachment:fixed;
   }
   @media(prefers-reduced-motion:reduce){
-    html.theme-animated-gradient header.top h1,html.theme-animated-gradient .btn-primary,html.theme-animated-gradient .roster-logo-wrap::after{animation:none!important;background-position:50% 50%!important;}
+    html.theme-animated-gradient header.top h1,html.theme-animated-gradient .btn-primary,html.theme-dual .roster-logo-wrap::after,html.theme-special .roster-logo-wrap::after,html.theme-dual .roster-logo-sheen,html.theme-special .roster-logo-sheen,html.theme-dual .roster-logo-wrap::before,html.theme-special .roster-logo-wrap::before{animation:none!important;background-position:50% 50%!important;}
+    .roster-logo-sheen{opacity:0!important;}
   }
   .stats{display:flex; gap:18px; font-size:0.78rem; color:var(--text-dim);}
   .stats b{color:var(--text); font-size:1rem; display:block; font-weight:700;}
@@ -1234,10 +1432,10 @@ const ROSTER_THEME_PRESETS = [
   { name: "Émeraude", hex: "#10b981", effect: "emerald", emoji: "💚", swatchGradient: "linear-gradient(115deg, #064e3b, #10b981 28%, #6ee7b7 54%, #22d3ee 78%, #0f766e)" },
   { name: "Nébuleuse", hex: "#8b5cf6", effect: "nebula", emoji: "🌠", swatchGradient: "linear-gradient(115deg, #0f172a, #312e81 20%, #7c3aed 43%, #db2777 67%, #38bdf8 88%, #0f172a)" },
   { name: "Océan", hex: "#0ea5e9", effect: "ocean", emoji: "🌊", swatchGradient: "linear-gradient(115deg, #082f49, #0369a1 25%, #0ea5e9 48%, #22d3ee 70%, #2dd4bf)" },
-  { name: "Sakura", hex: "#f472b6", effect: "sakura", emoji: "🌸", swatchGradient: "linear-gradient(115deg, #fff1f2, #fbcfe8 25%, #f472b6 50%, #fb7185 72%, #c4b5fd)" },
-  { name: "Lave", hex: "#ef4444", effect: "lava", emoji: "🌋", swatchGradient: "linear-gradient(115deg, #7f1d1d, #dc2626 26%, #f97316 54%, #facc15 78%, #ef4444)" },
-  { name: "Minuit", hex: "#312e81", effect: "midnight", emoji: "🌙", swatchGradient: "linear-gradient(115deg, #020617, #0f172a 25%, #312e81 52%, #4338ca 76%, #64748b)" },
-  { name: "Perle", hex: "#e2e8f0", effect: "pearl", emoji: "🫧", swatchGradient: "linear-gradient(115deg, #ffffff, #fce7f3 24%, #e0f2fe 48%, #ede9fe 72%, #f8fafc)" },
+  { name: "Sakura", hex: "#f472b6", effect: "sakura", emoji: "🌸", swatchGradient: "linear-gradient(120deg, #fff7fb 0%, #ffd6e8 18%, #f9a8d4 36%, #f472b6 53%, #fb7185 68%, #c4b5fd 84%, #fff7fb 100%)" },
+  { name: "Lave", hex: "#ef4444", effect: "lava", emoji: "🌋", swatchGradient: "linear-gradient(120deg, #170303 0%, #7f1d1d 16%, #dc2626 34%, #f97316 53%, #facc15 68%, #fff7b2 78%, #ef4444 91%, #3b0505 100%)" },
+  { name: "Minuit", hex: "#312e81", effect: "midnight", emoji: "🌙", swatchGradient: "linear-gradient(120deg, #00030b 0%, #020617 18%, #0f172a 34%, #1e1b4b 50%, #312e81 64%, #4338ca 77%, #38bdf8 90%, #e0e7ff 100%)" },
+  { name: "Perle", hex: "#e2e8f0", effect: "pearl", emoji: "🫧", swatchGradient: "linear-gradient(120deg, #ffffff 0%, #ffeef8 18%, #e0f2fe 36%, #dbeafe 50%, #ede9fe 64%, #fce7f3 80%, #ffffff 100%)" },
 ];
 
 function rosterHexToRgb(hex){
@@ -1324,10 +1522,10 @@ function rosterThemeEffectDefinition(effect){
     emerald:      { base:"#10b981", alt:"#22d3ee", colors:["#064e3b","#10b981","#6ee7b7","#22d3ee","#0f766e"], animated:true, metallic:false, darkText:false },
     nebula:       { base:"#8b5cf6", alt:"#38bdf8", colors:["#0f172a","#312e81","#7c3aed","#db2777","#38bdf8"], animated:true, metallic:false, darkText:false },
     ocean:        { base:"#0ea5e9", alt:"#2dd4bf", colors:["#082f49","#0369a1","#0ea5e9","#22d3ee","#2dd4bf"], animated:true, metallic:false, darkText:false },
-    sakura:       { base:"#f472b6", alt:"#c4b5fd", colors:["#fff1f2","#fbcfe8","#f472b6","#fb7185","#c4b5fd"], animated:false, metallic:false, darkText:true },
-    lava:         { base:"#ef4444", alt:"#facc15", colors:["#7f1d1d","#dc2626","#f97316","#facc15","#ef4444"], animated:true, metallic:false, darkText:false },
-    midnight:     { base:"#312e81", alt:"#64748b", colors:["#020617","#0f172a","#312e81","#4338ca","#64748b"], animated:false, metallic:false, darkText:false },
-    pearl:        { base:"#e2e8f0", alt:"#ede9fe", colors:["#ffffff","#fce7f3","#e0f2fe","#ede9fe","#f8fafc"], animated:true, metallic:true, darkText:true },  };
+    sakura:       { base:"#f472b6", alt:"#c4b5fd", colors:["#fff7fb","#ffd6e8","#f9a8d4","#f472b6","#fb7185","#c4b5fd","#fff7fb"], animated:true, metallic:false, darkText:true },
+    lava:         { base:"#ef4444", alt:"#facc15", colors:["#170303","#7f1d1d","#dc2626","#f97316","#facc15","#fff7b2","#ef4444","#3b0505"], animated:true, metallic:false, darkText:false },
+    midnight:     { base:"#312e81", alt:"#38bdf8", colors:["#00030b","#020617","#0f172a","#1e1b4b","#312e81","#4338ca","#38bdf8","#e0e7ff"], animated:true, metallic:false, darkText:false },
+    pearl:        { base:"#e2e8f0", alt:"#ede9fe", colors:["#ffffff","#ffeef8","#e0f2fe","#dbeafe","#ede9fe","#fce7f3","#ffffff"], animated:true, metallic:true, darkText:true },  };
   return defs[effect] || null;
 }
 function rosterNormalizeThemePalette(value){
@@ -1405,6 +1603,8 @@ function rosterApplyThemePalette(palette,{persist=true}={}){
   rootEl.classList.toggle("theme-animated-gradient",hasAnimatedEffect);
   rootEl.classList.toggle("theme-holographic",activeEffects.includes("holographic"));
   rootEl.classList.toggle("theme-metallic",hasMetallic);
+  if(activeEffects.length) rootEl.setAttribute?.("data-theme-effects", activeEffects.join(" "));
+  else rootEl.removeAttribute?.("data-theme-effects");
   root.setProperty("--theme-primary",primary.primary); root.setProperty("--theme-primary-deep",primary.primaryDeep); root.setProperty("--theme-primary-mid",primary.primaryMid); root.setProperty("--theme-primary-bright",primary.primaryBright); root.setProperty("--theme-primary-soft",primary.primarySoft); root.setProperty("--theme-primary-border",primary.primaryBorder); root.setProperty("--theme-primary-shadow",primary.primaryShadow); root.setProperty("--theme-primary-text",primary.primaryText);
   root.setProperty("--theme-secondary",secondary.primary); root.setProperty("--theme-secondary-mid",secondary.primaryMid); root.setProperty("--theme-secondary-bright",secondary.primaryBright); root.setProperty("--theme-accent-end",dual?secondary.primaryBright:primary.primaryBright);
   const prgb=rosterHexToRgb(primary.primary), srgb=rosterHexToRgb(secondary.primary);
@@ -1418,6 +1618,12 @@ function rosterApplyThemePalette(palette,{persist=true}={}){
   root.setProperty("--theme-bg-grid",`rgba(${prgb.r},${prgb.g},${prgb.b},.032)`);
   root.setProperty("--theme-bg-grid-strong",`rgba(${srgb.r},${srgb.g},${srgb.b},.045)`);
   root.setProperty("--theme-focus-ring",`rgba(${prgb.r},${prgb.g},${prgb.b},.14)`);
+  const logoGlowColors=specialGradient
+    ? [...rosterEffectColors(normalized.primaryEffect,primary.primary,primary.primaryBright), ...(dual?rosterEffectColors(normalized.secondaryEffect,secondary.primary,secondary.primaryBright):[])]
+    : [primary.primaryBright, dual?secondary.primaryBright:primary.primary];
+  const logoGlowA=logoGlowColors[0]||primary.primaryBright, logoGlowB=logoGlowColors[logoGlowColors.length-1]||secondary.primaryBright;
+  root.setProperty("--theme-logo-glow-a",rosterHexToRgba(logoGlowA,.54));
+  root.setProperty("--theme-logo-glow-b",rosterHexToRgba(logoGlowB,.40));
   const buttonGradient=rosterBuildCombinedGradient(normalized,primary,secondary,100,false);
   const hoverGradient=rosterBuildCombinedGradient(normalized,primary,secondary,100,true);
   const logoGradient=rosterBuildCombinedGradient(normalized,primary,secondary,135,true);
@@ -1717,7 +1923,7 @@ rosterLoadTheme();
 
   <header class="top">
     <div class="roster-brand">
-      <span class="roster-logo-wrap" aria-hidden="true"><img class="roster-logo" src="assets/roster-logo.png" alt=""></span>
+      <span class="roster-logo-wrap" aria-hidden="true"><img class="roster-logo" src="assets/roster-logo.png" alt=""><span class="roster-logo-sheen"></span></span>
       <div class="roster-brand-copy">
         <h1>Roster EMS</h1>
         <div class="sub">Employés · ID Discord · grades — LS City Roleplay</div>
