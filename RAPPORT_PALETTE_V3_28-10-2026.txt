@@ -1,0 +1,15 @@
+PALETTE V3 — ROSTER EMS — 28/10/2026
+
+Améliorations :
+- 6 nouveaux effets combinables : Nébuleuse, Océan, Sakura, Lave, Minuit, Perle.
+- Les presets affichent maintenant leur nom en plus de l'emoji/couleur.
+- Ajout d'un aperçu en direct dans la modale de palette.
+- Calcul du contraste du texte sur toutes les teintes réelles d'un dégradé, avec ombre adaptée.
+- Le thème apparaît légèrement davantage sur les onglets actifs, la sélection de texte et les scrollbars.
+- Les couleurs des grades / états métier ne sont pas remplacées par le thème.
+- Les effets animés continuent de respecter prefers-reduced-motion.
+
+Tests :
+- 46 fichiers de tests Node existants : 46/46 OK.
+- Tests couleur supplémentaires : nouveaux effets, combinaisons, contraste, aperçu : OK.
+- Syntaxe JS des scripts modifiés : OK.
