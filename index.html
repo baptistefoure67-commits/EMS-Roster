@@ -122,9 +122,9 @@
     50%{background-position:100% 50%;}
     100%{background-position:0% 50%;}
   }
-  html.theme-holographic header.top h1,
-  html.theme-holographic .btn-primary,
-  html.theme-holographic .roster-logo-wrap::after{
+  html.theme-animated-gradient header.top h1,
+  html.theme-animated-gradient .btn-primary,
+  html.theme-animated-gradient .roster-logo-wrap::after{
     background-image:var(--theme-holo-gradient)!important;
     background-size:260% 260%!important;
     animation:rosterHolographicShift 8s ease-in-out infinite;
@@ -133,12 +133,12 @@
     color:#07111d!important;
     text-shadow:0 1px 0 rgba(255,255,255,.34);
   }
-  html.theme-holographic .roster-logo{
-    filter:drop-shadow(0 0 12px rgba(114,221,247,.22)) drop-shadow(0 0 6px rgba(255,116,212,.16));
+  html.theme-special .roster-logo{
+    filter:drop-shadow(0 0 12px var(--theme-bg-glow-2)) drop-shadow(0 0 6px var(--theme-bg-glow-1));
   }
   html.theme-metallic .btn-primary{color:#07111d!important;text-shadow:0 1px 0 rgba(255,255,255,.34);}
 
-  html.theme-holographic body{
+  html.theme-special body{
     background:
       radial-gradient(980px 560px at 10% -8%, var(--theme-bg-glow-1), transparent 60%),
       radial-gradient(880px 500px at 94% 0%, var(--theme-bg-glow-2), transparent 58%),
@@ -152,7 +152,7 @@
     background-attachment:fixed;
   }
   @media(prefers-reduced-motion:reduce){
-    html.theme-holographic header.top h1,html.theme-holographic .btn-primary,html.theme-holographic .roster-logo-wrap::after{animation:none!important;background-position:50% 50%!important;}
+    html.theme-animated-gradient header.top h1,html.theme-animated-gradient .btn-primary,html.theme-animated-gradient .roster-logo-wrap::after{animation:none!important;background-position:50% 50%!important;}
   }
   .stats{display:flex; gap:18px; font-size:0.78rem; color:var(--text-dim);}
   .stats b{color:var(--text); font-size:1rem; display:block; font-weight:700;}
@@ -1218,6 +1218,12 @@ const ROSTER_THEME_PRESETS = [
   { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
   { name: "Holographique", hex: "#ff74d4", effect: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
   { name: "Or métallique", hex: "#d4af37", effect: "gold", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
+  { name: "Aurore", hex: "#22d3ee", effect: "aurora", emoji: "🌌", swatchGradient: "linear-gradient(115deg, #34d399, #22d3ee 28%, #60a5fa 52%, #a78bfa 74%, #f0abfc)" },
+  { name: "Coucher de soleil", hex: "#f97316", effect: "sunset", emoji: "🌅", swatchGradient: "linear-gradient(115deg, #fbbf24, #fb923c 28%, #f43f5e 55%, #db2777 76%, #7c3aed)" },
+  { name: "Glace", hex: "#67e8f9", effect: "ice", emoji: "❄️", swatchGradient: "linear-gradient(115deg, #ffffff, #cffafe 24%, #67e8f9 52%, #60a5fa 76%, #c4b5fd)" },
+  { name: "Plasma", hex: "#6366f1", effect: "plasma", emoji: "⚡", swatchGradient: "linear-gradient(115deg, #22d3ee, #6366f1 27%, #a855f7 55%, #ec4899 80%, #22d3ee)" },
+  { name: "Chrome", hex: "#94a3b8", effect: "chrome", emoji: "🪩", swatchGradient: "linear-gradient(115deg, #f8fafc, #94a3b8 24%, #475569 46%, #e2e8f0 68%, #64748b 84%, #f8fafc)" },
+  { name: "Émeraude", hex: "#10b981", effect: "emerald", emoji: "💚", swatchGradient: "linear-gradient(115deg, #064e3b, #10b981 28%, #6ee7b7 54%, #22d3ee 78%, #0f766e)" },
 ];
 
 function rosterHexToRgb(hex){
@@ -1292,23 +1298,40 @@ function rosterGenerateThemeVariants(hex){
     bgGlow2: `rgba(${brightRgb.r},${brightRgb.g},${brightRgb.b},0.10)`,
   };
 }
+function rosterThemeEffectDefinition(effect){
+  const defs = {
+    holographic: { base:"#ff74d4", alt:"#72ddf7", colors:["#ff74d4","#ffad72","#ffe66d","#7ef7d3","#72ddf7","#7c83fd","#c77dff"], animated:true, metallic:false, darkText:true },
+    gold:         { base:"#d4af37", alt:"#fff4c2", colors:["#fffbe6","#e7c85a","#d4af37","#996515","#fff4c2"], animated:false, metallic:true, darkText:true },
+    aurora:       { base:"#22d3ee", alt:"#a78bfa", colors:["#34d399","#22d3ee","#60a5fa","#a78bfa","#f0abfc"], animated:true, metallic:false, darkText:true },
+    sunset:       { base:"#f97316", alt:"#db2777", colors:["#fbbf24","#fb923c","#f43f5e","#db2777","#7c3aed"], animated:true, metallic:false, darkText:true },
+    ice:          { base:"#67e8f9", alt:"#60a5fa", colors:["#ffffff","#cffafe","#67e8f9","#60a5fa","#c4b5fd"], animated:false, metallic:false, darkText:true },
+    plasma:       { base:"#6366f1", alt:"#ec4899", colors:["#22d3ee","#6366f1","#a855f7","#ec4899","#22d3ee"], animated:true, metallic:false, darkText:false },
+    chrome:       { base:"#94a3b8", alt:"#e2e8f0", colors:["#f8fafc","#94a3b8","#475569","#e2e8f0","#64748b","#f8fafc"], animated:false, metallic:true, darkText:true },
+    emerald:      { base:"#10b981", alt:"#22d3ee", colors:["#064e3b","#10b981","#6ee7b7","#22d3ee","#0f766e"], animated:true, metallic:false, darkText:false },
+  };
+  return defs[effect] || null;
+}
 function rosterNormalizeThemePalette(value){
   if(typeof value === "string") return rosterHexToRgb(value) ? {primary:rosterRgbToHex(...Object.values(rosterHexToRgb(value))), secondary:null, primaryEffect:null, secondaryEffect:null} : {primary:ROSTER_THEME_DEFAULT, secondary:null, primaryEffect:null, secondaryEffect:null};
   // Compatibilité V2 : l'ancien mode holographique représentait tout le thème.
-  // On le convertit en deux extrémités holographiques afin de retrouver le même rendu.
   const legacyHolo = value?.mode === "holographic";
-  const validEffect = v => (v === "holographic" || v === "gold") ? v : null;
+  const validEffect = v => rosterThemeEffectDefinition(v) ? v : null;
   const primaryEffect = validEffect(value?.primaryEffect) || (legacyHolo ? "holographic" : null);
   const secondaryEffect = validEffect(value?.secondaryEffect) || (legacyHolo ? "holographic" : null);
-  const primary = rosterHexToRgb(value?.primary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.primary))) : (primaryEffect === "holographic" ? "#ff74d4" : (primaryEffect === "gold" ? "#d4af37" : ROSTER_THEME_DEFAULT));
+  const pDef = rosterThemeEffectDefinition(primaryEffect);
+  const sDef = rosterThemeEffectDefinition(secondaryEffect);
+  const primary = rosterHexToRgb(value?.primary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.primary))) : (pDef?.base || ROSTER_THEME_DEFAULT);
   let secondary = rosterHexToRgb(value?.secondary) ? rosterRgbToHex(...Object.values(rosterHexToRgb(value.secondary))) : null;
-  if(!secondary && secondaryEffect) secondary = secondaryEffect === "holographic" ? "#72ddf7" : "#d4af37";
+  if(!secondary && sDef) secondary = sDef.alt || sDef.base;
   return { primary, secondary, primaryEffect, secondaryEffect: secondary ? secondaryEffect : null };
 }
 function rosterEffectColors(effect, fallback, brightFallback){
-  if(effect === "holographic") return ["#ff74d4","#ffad72","#ffe66d","#7ef7d3","#72ddf7","#7c83fd","#c77dff"];
-  if(effect === "gold") return ["#fffbe6","#e7c85a","#d4af37","#996515","#fff4c2"];
-  return [brightFallback || fallback];
+  const def = rosterThemeEffectDefinition(effect);
+  return def ? def.colors.slice() : [brightFallback || fallback];
+}
+function rosterHexToRgba(hex, alpha){
+  const rgb=rosterHexToRgb(hex); if(!rgb) return `rgba(0,0,0,${alpha})`;
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
 }
 function rosterBuildCombinedGradient(normalized, primary, secondary, angle=110, useBright=false){
   const hasSecondary = !!normalized.secondary;
@@ -1330,26 +1353,26 @@ function rosterReadStoredTheme(){
 function rosterApplyThemePalette(palette,{persist=true}={}){
   const normalized=rosterNormalizeThemePalette(palette),primary=rosterGenerateThemeVariants(normalized.primary),secondary=normalized.secondary?rosterGenerateThemeVariants(normalized.secondary):primary;
   const dual=!!normalized.secondary;
-  const hasHolographic=normalized.primaryEffect==="holographic" || normalized.secondaryEffect==="holographic";
-  const hasGold=normalized.primaryEffect==="gold" || normalized.secondaryEffect==="gold";
-  const specialGradient=hasHolographic || hasGold;
+  const activeEffects=[normalized.primaryEffect, normalized.secondaryEffect].filter(Boolean);
+  const effectDefs=activeEffects.map(rosterThemeEffectDefinition).filter(Boolean);
+  const specialGradient=effectDefs.length>0;
+  const hasAnimatedEffect=effectDefs.some(d=>d.animated);
+  const hasMetallic=effectDefs.some(d=>d.metallic);
+  const specialDarkText=effectDefs.some(d=>d.darkText);
   const rootEl=document.documentElement,root=rootEl.style;
   rootEl.classList.toggle("theme-dual",dual);
-  rootEl.classList.toggle("theme-holographic",hasHolographic);
-  rootEl.classList.toggle("theme-metallic",hasGold);
+  rootEl.classList.toggle("theme-special",specialGradient);
+  rootEl.classList.toggle("theme-animated-gradient",hasAnimatedEffect);
+  rootEl.classList.toggle("theme-holographic",activeEffects.includes("holographic"));
+  rootEl.classList.toggle("theme-metallic",hasMetallic);
   root.setProperty("--theme-primary",primary.primary); root.setProperty("--theme-primary-deep",primary.primaryDeep); root.setProperty("--theme-primary-mid",primary.primaryMid); root.setProperty("--theme-primary-bright",primary.primaryBright); root.setProperty("--theme-primary-soft",primary.primarySoft); root.setProperty("--theme-primary-border",primary.primaryBorder); root.setProperty("--theme-primary-shadow",primary.primaryShadow); root.setProperty("--theme-primary-text",primary.primaryText);
   root.setProperty("--theme-secondary",secondary.primary); root.setProperty("--theme-secondary-mid",secondary.primaryMid); root.setProperty("--theme-secondary-bright",secondary.primaryBright); root.setProperty("--theme-accent-end",dual?secondary.primaryBright:primary.primaryBright);
   const prgb=rosterHexToRgb(primary.primary), srgb=rosterHexToRgb(secondary.primary);
   let glow1=primary.bgGlow1, glow2=dual?secondary.bgGlow1.replace(/0\.16\)$/, "0.10)"):primary.bgGlow2, glow3="rgba(0,0,0,0)";
-  if(hasHolographic){
-    const solidRgb = normalized.primaryEffect!=="holographic" ? prgb : (dual && normalized.secondaryEffect!=="holographic" ? srgb : null);
-    glow1 = solidRgb ? `rgba(${solidRgb.r},${solidRgb.g},${solidRgb.b},.13)` : "rgba(255,116,212,.13)";
-    glow2 = "rgba(114,221,247,.12)";
-    glow3 = "rgba(199,125,255,.07)";
-  } else if(hasGold){
-    glow1 = "rgba(212,175,55,.13)";
-    glow2 = dual && normalized.secondaryEffect!=="gold" ? `rgba(${srgb.r},${srgb.g},${srgb.b},.10)` : "rgba(255,244,194,.07)";
-    glow3 = "rgba(153,101,21,.045)";
+  if(specialGradient){
+    const specialColors=[...rosterEffectColors(normalized.primaryEffect,primary.primary,primary.primaryBright), ...(dual?rosterEffectColors(normalized.secondaryEffect,secondary.primary,secondary.primaryBright):[])];
+    const first=specialColors[0]||primary.primary, mid=specialColors[Math.floor(specialColors.length/2)]||primary.primaryBright, last=specialColors[specialColors.length-1]||secondary.primary;
+    glow1=rosterHexToRgba(first,.13); glow2=rosterHexToRgba(last,.10); glow3=rosterHexToRgba(mid,.065);
   }
   root.setProperty("--theme-bg-glow-1",glow1); root.setProperty("--theme-bg-glow-2",glow2); root.setProperty("--theme-bg-glow-3",glow3);
   root.setProperty("--theme-bg-grid",`rgba(${prgb.r},${prgb.g},${prgb.b},.032)`);
@@ -1366,12 +1389,12 @@ function rosterApplyThemePalette(palette,{persist=true}={}){
     ? brandGradient
     : `linear-gradient(90deg, #fff, ${primary.primaryBright} 80%)`);
   const mid=dual?rosterMixHex(primary.primary,secondary.primary,.5):primary.primary;
-  root.setProperty("--theme-gradient-text",hasHolographic||hasGold?"#07111d":(dual?rosterGetContrastTextColor(mid):'#04121f'));
+  root.setProperty("--theme-gradient-text",specialDarkText?"#07111d":(dual?rosterGetContrastTextColor(mid):'#04121f'));
   root.setProperty("--theme-logo-gradient",logoGradient);
   document.querySelectorAll(".roster-theme-dot").forEach(el=>{
     el.style.background=specialGradient||dual?logoGradient:primary.primary;
-    el.style.backgroundSize=hasHolographic?"260% 260%":"auto";
-    el.style.animation=hasHolographic?"rosterHolographicShift 8s ease-in-out infinite":"none";
+    el.style.backgroundSize=hasAnimatedEffect?"260% 260%":"auto";
+    el.style.animation=hasAnimatedEffect?"rosterHolographicShift 9s ease-in-out infinite":"none";
   });
   const stored={primary:primary.primary,secondary:dual?secondary.primary:null,primaryEffect:normalized.primaryEffect||null,secondaryEffect:dual?(normalized.secondaryEffect||null):null};
   if(persist){try{localStorage.setItem(ROSTER_THEME_STORAGE_KEY,primary.primary);localStorage.setItem(ROSTER_THEME_PALETTE_KEY,JSON.stringify(stored));}catch(e){}}
@@ -1675,14 +1698,14 @@ rosterLoadTheme();
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
       <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Palette du site</div>
-      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">Mixe 1 ou 2 couleurs/effets librement (ex. Holographique + Or). Propre au Roster.</div>
+      <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:16px;">Mixe 1 ou 2 couleurs/effets librement (ex. Aurore + Or, Glace + Rouge). Propre au Roster.</div>
       <div style="font-weight:800;font-size:12px;color:var(--text);margin-bottom:8px;">Couleur / effet principal</div>
       <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
       <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--text);">
         <span>Personnalisée</span>
         <input type="color" id="rosterThemeCustomInput" value="#2563eb" style="width:44px;height:32px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:0;background:var(--panel-2);">
       </label>
-      <button type="button" class="btn-ghost" id="rosterThemeAddSecondaryBtn" style="width:100%;margin-bottom:14px;">＋ Ajouter une deuxième couleur</button>
+      <button type="button" class="btn-ghost" id="rosterThemeAddSecondaryBtn" style="width:100%;margin-bottom:14px;">＋ Ajouter une deuxième couleur / effet</button>
       <div id="rosterThemeSecondarySection" style="display:none;border-top:1px solid var(--border-soft);padding-top:14px;margin-top:2px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
           <div style="font-weight:800;font-size:12px;color:var(--text);">Couleur / effet secondaire</div>
@@ -2258,12 +2281,17 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   let paletteBeforeOpen = {primary:ROSTER_THEME_DEFAULT, secondary:null};
   let pendingPalette = {primary:ROSTER_THEME_DEFAULT, secondary:null};
 
-  const presetMarkup = (klass)=>ROSTER_THEME_PRESETS.map(p=>`
-    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect==='holographic'?' — effet holographique animé combinable':p.effect==='gold'?' — effet or métallique combinable':''}"
+  const presetButtonMarkup = (p,klass)=>`
+    <button type="button" class="btn-ghost ${klass}" data-hex="${p.hex}" data-effect="${p.effect||''}" title="${p.name}${p.effect?' — effet spécial combinable':''}"
       style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
       <span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient || p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
       ${p.emoji}
-    </button>`).join("");
+    </button>`;
+  const presetMarkup = (klass)=>{
+    const colors=ROSTER_THEME_PRESETS.filter(p=>!p.effect).map(p=>presetButtonMarkup(p,klass)).join("");
+    const effects=ROSTER_THEME_PRESETS.filter(p=>p.effect).map(p=>presetButtonMarkup(p,klass)).join("");
+    return `<div style="grid-column:1/-1;font-size:10px;font-weight:800;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase;margin-top:1px;">Couleurs classiques</div>${colors}<div style="grid-column:1/-1;font-size:10px;font-weight:800;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase;margin-top:5px;">Effets spéciaux</div>${effects}`;
+  };
   presetsBox.innerHTML = presetMarkup('roster-theme-preset');
   secondaryPresetsBox.innerHTML = presetMarkup('roster-theme-secondary-preset');
 
