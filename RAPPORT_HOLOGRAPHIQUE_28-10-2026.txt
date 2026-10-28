@@ -1,0 +1,15 @@
+MISE À JOUR HOLOGRAPHIQUE — 28/10/2026
+
+Roster EMS + Pillbox Terminal Paie
+
+- Le preset « Holographique » n'est plus une simple couleur violette.
+- Il active maintenant un mode dédié stocké sous mode: "holographic".
+- Palette réelle : rose, pêche, or clair, menthe, cyan, bleu et violet.
+- Dégradé lentement animé sur les éléments principaux.
+- Roster : logo, titre, boutons principaux et indicateur de thème animés.
+- Pillbox : logo, boutons principaux, en-têtes d'étapes et indicateur de thème animés.
+- Le fond reste sombre avec des halos holographiques discrets.
+- prefers-reduced-motion désactive l'animation et conserve un dégradé statique.
+- Les thèmes normaux et le mode 1/2 couleurs restent rétrocompatibles.
+- Le champ mode n'est ajouté au stockage V2 que pour le preset holographique.
+- Aucune règle métier ni Firebase modifiée.
