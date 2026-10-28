@@ -51,9 +51,9 @@ function runTheme(file, kind){
     `, ctx);
     t('Roster : duo appliqué', ctx.__dual === true);
     t('Roster : ancienne clé conservée', ctx.__legacy === '#ff3b81', ctx.__legacy);
-    t('Roster : palette V2 sauvegardée', JSON.stringify(ctx.__v2) === JSON.stringify({primary:'#ff3b81',secondary:'#7c4dff'}), JSON.stringify(ctx.__v2));
-    t('Roster : ancienne valeur relue en mode 1 couleur', JSON.stringify(ctx.__legacyRead) === JSON.stringify({primary:'#7c3aed',secondary:null}), JSON.stringify(ctx.__legacyRead));
-    t('Roster : variables gradient créées', String(ctx.__props.get('--theme-logo-gradient')||'').includes('linear-gradient'));
+    t('Roster : palette V2 sauvegardée', ctx.__v2.primary==='#ff3b81' && ctx.__v2.secondary==='#7c4dff', JSON.stringify(ctx.__v2));
+    t('Roster : ancienne valeur relue en mode 1 couleur', ctx.__legacyRead.primary==='#7c3aed' && ctx.__legacyRead.secondary===null && !ctx.__legacyRead.primaryEffect, JSON.stringify(ctx.__legacyRead));
+    vm.runInContext(`rosterApplyThemePalette({primary:'#ff3b81',secondary:'#7c4dff'},{persist:false});`,ctx); t('Roster : variables gradient créées', String(ctx.__props.get('--theme-logo-gradient')||'').includes('linear-gradient'));
     t('Roster : contrôles UI duo présents', html.includes('rosterThemeAddSecondaryBtn') && html.includes('rosterThemeSecondaryInput'));
     t('Roster : logo lié au thème avec fallback @supports', html.includes('roster-logo-wrap') && html.includes('@supports (mix-blend-mode:color) and ((-webkit-mask-image'));
   } else {
@@ -68,9 +68,9 @@ function runTheme(file, kind){
     `, ctx);
     t('Pillbox : duo appliqué', ctx.__dual === true);
     t('Pillbox : ancienne clé conservée', ctx.__legacy === '#ff3b81', ctx.__legacy);
-    t('Pillbox : palette V2 sauvegardée', JSON.stringify(ctx.__v2) === JSON.stringify({primary:'#ff3b81',secondary:'#7c4dff'}), JSON.stringify(ctx.__v2));
-    t('Pillbox : ancienne valeur relue en mode 1 couleur', JSON.stringify(ctx.__legacyRead) === JSON.stringify({primary:'#db2777',secondary:null}), JSON.stringify(ctx.__legacyRead));
-    t('Pillbox : variables gradient créées', String(ctx.__props.get('--theme-logo-gradient')||'').includes('linear-gradient'));
+    t('Pillbox : palette V2 sauvegardée', ctx.__v2.primary==='#ff3b81' && ctx.__v2.secondary==='#7c4dff', JSON.stringify(ctx.__v2));
+    t('Pillbox : ancienne valeur relue en mode 1 couleur', ctx.__legacyRead.primary==='#db2777' && ctx.__legacyRead.secondary===null && !ctx.__legacyRead.primaryEffect, JSON.stringify(ctx.__legacyRead));
+    vm.runInContext(`pillboxApplyThemePalette({primary:'#ff3b81',secondary:'#7c4dff'},{persist:false});`,ctx); t('Pillbox : variables gradient créées', String(ctx.__props.get('--theme-logo-gradient')||'').includes('linear-gradient'));
     t('Pillbox : contrôles UI duo présents', html.includes('pillboxThemeAddSecondaryBtn') && html.includes('pillboxThemeSecondaryInput'));
     t('Pillbox : logo duo protégé par @supports', html.includes('pillbox-logo-wrap') && html.includes('@supports (mix-blend-mode:color)'));
     t('Pillbox : couleurs métier non redéfinies par le JS thème', !firstInlineScript(html).includes('setProperty("--green"') && !firstInlineScript(html).includes('setProperty("--danger"'));
