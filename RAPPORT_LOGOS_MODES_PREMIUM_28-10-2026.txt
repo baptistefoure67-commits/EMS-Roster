@@ -1,0 +1,10 @@
+Mise à jour animations logos — 28/10/2026
+
+- Lave : magma animé renforcé, points chauds jaune/blanc, pulsation d'aura rouge/orange, double balayage lumineux.
+- Sakura : animation désormais active, dérive rose/lilas douce, reflets floraux, aura pastel.
+- Perle : irisation nacrée renforcée, reflets blanc/rose/bleu/lilas, balayage lumineux premium.
+- Minuit : animation désormais active, dégradé cosmique profond, micro-étoiles scintillantes, lueur indigo/cyan lente.
+- Les animations restent masquées dans la forme du logo.
+- prefers-reduced-motion reste respecté.
+- Aucun changement des couleurs fonctionnelles / du mode daltonien Pillbox.
+- Tests Roster : 46/46 fichiers passent.
