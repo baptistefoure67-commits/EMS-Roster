@@ -54,10 +54,51 @@
 </style>
 <style>
   :root{
-    --red-deep:#3a0000;
-    --red-mid:#7a0d15;
-    --red:#c8102e;
-    --red-bright:#e2263f;
+    /* (26/10, personnalisation de couleur) Famille de thème centralisée —
+       avant : --red/--red-mid/--red-deep/--red-bright codaient directement
+       le rouge de marque. Ces 4 variables deviennent les valeurs PAR
+       DÉFAUT du thème (identiques à l'ancien rouge, donc rien ne change
+       visuellement tant que personne n'a choisi une couleur) ; le JS de
+       personnalisation (applyThemeColor) les redéfinit sur :root à
+       l'exécution. --red/--red-mid/--red-deep/--red-bright restent en
+       alias par sécurité, au cas où une règle les référencerait encore
+       quelque part — mais plus aucune règle du site ne doit les utiliser
+       directement désormais, tout passe par --theme-primary*.
+       IMPORTANT : les couleurs sémantiques (--danger/--green/--amber) et
+       la modale d'animation #analysisAnimationModal n'utilisent JAMAIS
+       cette famille — elles restent volontairement hors de ce système. */
+    --theme-primary-deep:#3a0000;
+    --theme-primary-mid:#7a0d15;
+    --theme-primary:#c8102e;
+    --theme-primary-bright:#e2263f;
+    --theme-primary-soft:#fdeceb;
+    --theme-primary-border:#e7bcb9;
+    --theme-primary-shadow:rgba(200,16,46,.4);
+    --theme-primary-text:#ffffff;
+    --theme-secondary:#c8102e;
+    --theme-secondary-mid:#7a0d15;
+    --theme-secondary-bright:#e2263f;
+    --theme-accent-end:#e2263f;
+    --theme-button-gradient:var(--theme-primary);
+    --theme-button-hover-gradient:var(--theme-primary-bright);
+    --theme-gradient-text:#ffffff;
+    --theme-focus-ring:rgba(226,38,63,.15);
+    --theme-logo-gradient:linear-gradient(135deg, var(--theme-primary-bright), var(--theme-primary));
+    --theme-holo-gradient:linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%);
+    --theme-logo-hue-rotate:0deg;
+    --theme-logo-saturate:100%;
+    /* (audit du fond, suite au retour utilisateur) Le dégradé de fond de
+       <body> finissait sur deux teintes presque noires codées en dur
+       (#200000/#150000, un rouge pur très sombre) — jamais migrées lors du
+       premier passage car ce ne sont pas des var(--red...) mais des hex
+       directs. En bas de page (ou en scrollant), c'était donc tout ce qui
+       restait visible, toujours rouge quel que soit le thème choisi. */
+    --theme-bg-shadow-1:#200000;
+    --theme-bg-shadow-2:#150000;
+    --red-deep:var(--theme-primary-deep);
+    --red-mid:var(--theme-primary-mid);
+    --red:var(--theme-primary);
+    --red-bright:var(--theme-primary-bright);
     --white:#ffffff;
     --paper:#fdf8f5;
     --paper-2:#f7ede9;
@@ -77,6 +118,42 @@
     --body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     --mono: 'IBM Plex Mono', 'Consolas', ui-monospace, monospace;
   }
+  /* (section 12-13) Le logo suit le thème par rotation de teinte — propre
+     pour ce logo quasi-monochrome, jamais de filtre approximatif. Les
+     variables sont recalculées par pillboxLogoFilterFor() à chaque
+     changement de couleur ; à 0deg/100%, c'est un no-op (logo inchangé). */
+  .pillbox-logo-wrap{width:58px;height:58px;flex:0 0 58px;position:relative;display:block;isolation:isolate;}
+  #logoImg{width:100%;height:100%;display:block;filter:hue-rotate(var(--theme-logo-hue-rotate, 0deg)) saturate(var(--theme-logo-saturate, 100%)) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
+  .pillbox-logo-wrap::after{content:"";position:absolute;inset:0;background:var(--theme-logo-gradient);mix-blend-mode:color;opacity:0;pointer-events:none;}
+  @supports (mix-blend-mode:color){
+    html.theme-dual .pillbox-logo-wrap::after{opacity:1;}
+    html.theme-dual #logoImg{filter:grayscale(1) contrast(1.05) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
+  }
+  @keyframes pillboxHolographicShift{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+  }
+  html.theme-holographic .pillbox-logo-wrap::after,
+  html.theme-holographic .btn-primary,
+  html.theme-holographic .step-head{
+    background-image:var(--theme-holo-gradient)!important;
+    background-size:260% 260%!important;
+    animation:pillboxHolographicShift 8s ease-in-out infinite;
+  }
+  html.theme-holographic .btn-primary{color:#07111d!important;text-shadow:0 1px 0 rgba(255,255,255,.28);}
+  html.theme-holographic .step-head{color:#08111d;text-shadow:0 1px 0 rgba(255,255,255,.24);}
+  html.theme-holographic #logoImg{filter:grayscale(1) contrast(1.05) drop-shadow(0 3px 10px rgba(0,0,0,.5));}
+  html.theme-holographic body{
+    background:
+      radial-gradient(1000px 600px at 12% -150px, rgba(255,116,212,.30) 0%, transparent 58%),
+      radial-gradient(900px 540px at 100% -130px, rgba(114,221,247,.25) 0%, transparent 55%),
+      radial-gradient(720px 440px at 52% -80px, rgba(126,247,211,.10) 0%, transparent 62%),
+      linear-gradient(180deg, #241126 0%, #121729 44%, #0e1423 100%);
+  }
+  @media(prefers-reduced-motion:reduce){
+    html.theme-holographic .pillbox-logo-wrap::after,html.theme-holographic .btn-primary,html.theme-holographic .step-head{animation:none!important;background-position:50% 50%!important;}
+  }
   *{box-sizing:border-box;}
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
 
@@ -86,9 +163,9 @@
     font-family:var(--body);
     color:var(--ink);
     background:
-      radial-gradient(1100px 620px at 18% -160px, var(--red-mid) 0%, transparent 60%),
-      radial-gradient(900px 520px at 100% -120px, var(--red-mid) 0%, transparent 55%),
-      linear-gradient(180deg, var(--red-deep) 0%, #200000 42%, #150000 100%);
+      radial-gradient(1100px 620px at 18% -160px, var(--theme-primary-mid) 0%, transparent 60%),
+      radial-gradient(900px 520px at 100% -120px, var(--theme-secondary-mid) 0%, transparent 55%),
+      linear-gradient(180deg, var(--theme-primary-deep) 0%, var(--theme-bg-shadow-1) 42%, var(--theme-bg-shadow-2) 100%);
     padding-bottom:60px;
   }
   .mono{font-family:var(--mono);}
@@ -116,7 +193,7 @@
     z-index:2;
   }
   .hero-top{ display:flex; align-items:center; gap:20px; }
-  header.hero img{ width:58px; height:58px; filter:drop-shadow(0 3px 10px rgba(0,0,0,.5)); flex-shrink:0; }
+  header.hero img{ width:58px; height:58px; flex-shrink:0; }
   header.hero h1{
     font-family:var(--display); font-weight:400;
     color:var(--white); font-size:34px; letter-spacing:2.5px; margin:0; line-height:1;
@@ -157,14 +234,14 @@
   .step-head{
     display:flex; align-items:center; gap:14px;
     padding:15px 20px 15px 16px;
-    background:linear-gradient(90deg,var(--red) 0%, var(--red-bright) 100%);
+    background:linear-gradient(90deg,var(--theme-primary) 0%, var(--theme-accent-end) 100%);
     color:var(--white);
     border-radius:14px 14px 0 0;
     position:relative;
   }
   .step-num{
     width:34px; height:34px; flex-shrink:0;
-    background:var(--white); color:var(--red);
+    background:var(--white); color:var(--theme-primary);
     display:flex; align-items:center; justify-content:center;
     font-family:var(--display); font-weight:400; font-size:17px;
     border-radius:8px;
@@ -193,7 +270,7 @@
   }
   .wizard-nav .wizard-progress{
     text-align:center; font-family:var(--display); letter-spacing:.4px;
-    font-size:13px; color:var(--red-mid); margin-bottom:9px;
+    font-size:13px; color:var(--theme-primary-mid); margin-bottom:9px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .wizard-nav .wizard-steps{
@@ -207,17 +284,17 @@
     display:flex; align-items:center; justify-content:center;
     transition:background .15s ease, transform .1s ease, border-color .15s ease, color .15s ease;
   }
-  .wizard-nav .wizard-step-btn:hover{ transform:scale(1.12); border-color:var(--red-bright); }
+  .wizard-nav .wizard-step-btn:hover{ transform:scale(1.12); border-color:var(--theme-primary-bright); }
   .wizard-nav .wizard-step-btn:active{ transform:scale(.92); }
-  .wizard-nav .wizard-step-btn.done{ background:var(--red); border-color:var(--red); color:#fff; }
+  .wizard-nav .wizard-step-btn.done{ background:var(--theme-primary); border-color:var(--theme-primary); color:#fff; }
   .wizard-nav .wizard-step-btn.current{
     width:32px; height:32px; font-size:13px;
-    background:#fff; border-color:var(--red); color:var(--red);
+    background:#fff; border-color:var(--theme-primary); color:var(--theme-primary);
     box-shadow:0 0 0 4px rgba(200,16,46,.16);
   }
   .wizard-nav .wizard-connector{ flex:1 1 auto; height:2px; min-width:6px; background:var(--line); margin:0 1px; border-radius:2px; transition:background .15s ease; }
-  .wizard-nav .wizard-connector.done{ background:var(--red); }
-  .view-toggle-btn.active{ background:#fff; color:var(--red); }
+  .wizard-nav .wizard-connector.done{ background:var(--theme-primary); }
+  .view-toggle-btn.active{ background:#fff; color:var(--theme-primary); }
 
   label.field-label{ display:block; font-size:11px; font-weight:700; color:var(--ink-dim); margin-bottom:5px; letter-spacing:.5px; text-transform:uppercase;}
   input[type=text],input[type=date],input[type=number],textarea,select,.namematch-search{
@@ -228,7 +305,7 @@
     transition:border-color .15s ease, box-shadow .15s ease;
   }
   textarea{ resize:vertical; min-height:140px; font-family:var(--mono); font-size:13px; line-height:1.6; }
-  input:focus,textarea:focus,select:focus{ outline:none; border-color:var(--red-bright); box-shadow:inset 0 3px 8px rgba(58,0,0,.16), inset 0 1px 3px rgba(58,0,0,.12), 0 0 0 3px rgba(226,38,63,.15); }
+  input:focus,textarea:focus,select:focus{ outline:none; border-color:var(--theme-primary-bright); box-shadow:inset 0 3px 8px rgba(58,0,0,.16), inset 0 1px 3px rgba(58,0,0,.12), 0 0 0 3px var(--theme-focus-ring); }
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .row-inline{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
   .row-inline > div{ min-width:160px; }
@@ -240,9 +317,9 @@
   }
   .btn:active{ transform:scale(.97); }
   .btn:disabled{ cursor:not-allowed; opacity:.5; }
-  .btn-primary{ background:var(--red); color:#fff; box-shadow:0 3px 12px rgba(200,16,46,.4); }
-  .btn-primary:hover:not(:disabled){ background:var(--red-bright); box-shadow:0 4px 16px rgba(200,16,46,.5); }
-  .btn-white{ background:#fff; color:var(--red); border:1.5px solid var(--red); }
+  .btn-primary{ background:var(--theme-button-gradient); color:var(--theme-gradient-text); box-shadow:0 3px 12px var(--theme-primary-shadow); }
+  .btn-primary:hover:not(:disabled){ background:var(--theme-button-hover-gradient); box-shadow:0 4px 16px var(--theme-primary-shadow); }
+  .btn-white{ background:#fff; color:var(--theme-primary); border:1.5px solid var(--theme-primary); }
   .btn-white:hover{ background:#fff5f4; }
   .btn-ghost{ background:transparent; color:var(--ink-dim); border:1.5px solid var(--line); }
   .btn-ghost:hover:not(:disabled){ background:rgba(0,0,0,.03); border-color:var(--ink-dim); }
@@ -250,19 +327,19 @@
 
   .namematch-columns{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
   .namematch-column{ border:1px solid var(--line); border-radius:10px; background:var(--paper-2); padding:14px; min-width:0; }
-  .namematch-column h3, .namematch-links h3{ margin:0 0 12px; font-size:13px; color:var(--red-mid); }
+  .namematch-column h3, .namematch-links h3{ margin:0 0 12px; font-size:13px; color:var(--theme-primary-mid); }
   .namematch-search{ margin-bottom:10px; }
   .namematch-list{ max-height:280px; overflow-y:auto; display:grid; gap:6px; align-content:start; }
   .namematch-grade-group{ display:grid; gap:6px; }
   .namematch-grade-group + .namematch-grade-group{ margin-top:8px; }
-  .namematch-grade-group h4{ margin:0; padding:6px 0; font-size:13px; color:var(--red-mid); border-bottom:1px solid var(--line); }
+  .namematch-grade-group h4{ margin:0; padding:6px 0; font-size:13px; color:var(--theme-primary-mid); border-bottom:1px solid var(--line); }
   .namematch-row{ width:100%; display:flex; align-items:center; gap:10px; padding:11px 12px; text-align:left; font:inherit; color:var(--ink); background:var(--paper); border:2px solid transparent; border-radius:8px; cursor:pointer; }
   .averto-selected, .averto-selected:hover{ background:var(--paper-2); font-weight:700; border-color:var(--line); }
   .namematch-row:hover{ border-color:var(--line); }
   .namematch-row b, .namematch-link-name{ flex:1; min-width:0; overflow-wrap:anywhere; }
-  .namematch-selected, .namematch-selected:hover{ border-color:var(--red); background:var(--white); box-shadow:inset 4px 0 0 var(--red); }
-  .namematch-indicator{ flex-shrink:0; color:var(--red); font-weight:800; }
-  .namematch-row:focus-visible, .namematch-confirm button:focus-visible{ outline:3px solid var(--red); outline-offset:3px; }
+  .namematch-selected, .namematch-selected:hover{ border-color:var(--theme-primary); background:var(--white); box-shadow:inset 4px 0 0 var(--theme-primary); }
+  .namematch-indicator{ flex-shrink:0; color:var(--theme-primary); font-weight:800; }
+  .namematch-row:focus-visible, .namematch-confirm button:focus-visible{ outline:3px solid var(--theme-primary); outline-offset:3px; }
   .namematch-empty{ padding:12px; margin:0; color:var(--ink-dim); font-size:13px; }
   .namematch-confirm{ margin-top:16px; padding:16px; border:1px solid var(--line); border-radius:10px; background:var(--paper-2); }
   .namematch-preview{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
@@ -294,18 +371,18 @@
 
   .copybtn{
     font-family:var(--body); font-size:11px; font-weight:700; border-radius:6px;
-    padding:5px 11px; cursor:pointer; border:1.5px solid var(--red); background:#fff; color:var(--red);
+    padding:5px 11px; cursor:pointer; border:1.5px solid var(--theme-primary); background:#fff; color:var(--theme-primary);
     transition:background .15s ease, color .15s ease, transform .08s ease;
   }
-  .copybtn:hover{ background:var(--red); color:#fff; }
+  .copybtn:hover{ background:var(--theme-primary); color:#fff; }
   .copybtn.done{ background:var(--green); border-color:var(--green); color:#fff; }
   .dl-btn{
     display:flex; align-items:center; gap:8px;
-    background:#fff; border:1.5px solid var(--red); color:var(--red);
+    background:#fff; border:1.5px solid var(--theme-primary); color:var(--theme-primary);
     padding:10px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer;
     transition:background .15s ease, color .15s ease, box-shadow .15s ease;
   }
-  .dl-btn:hover{ background:var(--red); color:#fff; box-shadow:0 4px 14px rgba(200,16,46,.35); }
+  .dl-btn:hover{ background:var(--theme-button-gradient); color:var(--theme-gradient-text); box-shadow:0 4px 14px var(--theme-primary-shadow); }
   /* Bouton de fichier (ou du ZIP) bloqué tant que l'étape 6 n'est pas
      validée — reste cliquable (pour rediriger vers l'étape 6), mais
      visuellement grisé pour signaler qu'il ne faut pas encore l'utiliser. */
@@ -352,15 +429,38 @@
   .valid-row:last-child{ border-bottom:none; }
   .valid-row .flex1{ flex:1; min-width:220px; }
   .valid-section-title{
-    font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--red);
+    font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--theme-primary);
     margin:18px 0 6px; padding-top:14px; border-top:2px solid var(--line);
   }
   .valid-section-title:first-of-type{ margin-top:0; padding-top:0; border-top:none; }
 
   table.data{ width:100%; border-collapse:collapse; font-size:13px; }
-  table.data th{ text-align:left; padding:10px 8px; color:var(--ink-dim); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--red); }
+  table.data th{ text-align:left; padding:10px 8px; color:var(--ink-dim); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid var(--theme-primary); }
   table.data td{ padding:9px 8px; border-bottom:1px solid var(--line); }
   table.data tr:hover td{ background:var(--paper-2); }
+  /* (24/10, bloc 4 — refonte esthétique du tableau Détails des payes) :
+     toujours le même tableau global avec tout le monde dedans, juste plus
+     lisible — jamais de fiche/modale individuelle (point 52 du cahier des
+     charges). Lignes compactes même avec Recrutements/Formations en plus
+     (point 40) : deux petites lignes dans la cellule, pas une rangée géante. */
+  .paye-detail-search{ margin-bottom:12px; max-width:280px; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--paper); font-size:13px; }
+  .paye-detail-search:focus{ outline:2px solid var(--theme-primary); outline-offset:1px; }
+  .paye-detail-table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  table.paye-detail-table{ font-size:12.5px; }
+  table.paye-detail-table th{ white-space:nowrap; position:sticky; top:0; background:var(--paper); z-index:1; }
+  table.paye-detail-table td{ white-space:nowrap; line-height:1.35; }
+  table.paye-detail-table td:first-child{ white-space:normal; min-width:140px; font-weight:600; }
+  table.paye-detail-table tbody tr:nth-child(even) td{ background:color-mix(in srgb, var(--paper-2) 45%, transparent); }
+  table.paye-detail-table tbody tr:hover td{ background:var(--paper-2); }
+  .paye-ventil-flag{ cursor:help; color:#c87f00; font-size:11px; }
+  /* (24/10, bloc 3) Carte "Semaines passées" simple : point 28 du cahier
+     des charges — Total/Réanimations/PPA/Promotions/Avertissements visibles
+     directement, tout le reste derrière "Voir les détails". */
+  .week-history-card{ border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:var(--paper); }
+  .week-history-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:8px; }
+  .week-history-stats > div{ background:var(--paper-2); border-radius:8px; padding:6px 8px; text-align:center; }
+  .week-history-stat-label{ display:block; font-size:10px; text-transform:uppercase; letter-spacing:.3px; color:var(--ink-dim); margin-bottom:2px; }
+  .week-history-stat-value{ display:block; font-size:13px; font-weight:700; }
   .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; box-shadow:0 0 0 3px rgba(0,0,0,.04); }
   /* Mode daltonien : jamais se fier qu'à la couleur seule.
      1) toute la palette sémantique (vert/orange/rouge) est remplacée par une
@@ -425,8 +525,8 @@
   .pa-head{
     position:relative; flex-shrink:0; padding:20px 22px 16px;
     background:
-      radial-gradient(420px 160px at 12% -40%, var(--red-mid) 0%, transparent 65%),
-      linear-gradient(180deg, var(--red-deep) 0%, #200000 100%);
+      radial-gradient(420px 160px at 12% -40%, var(--theme-secondary-mid) 0%, transparent 65%),
+      linear-gradient(180deg, var(--theme-primary-deep) 0%, #200000 100%);
     color:var(--white);
   }
   .pa-head-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -469,7 +569,7 @@
   .pa-row-status{ flex-shrink:0; font-size:11px; font-weight:800; letter-spacing:.2px; white-space:nowrap; padding-top:1px; }
   .pa-empty{ text-align:center; padding:34px 10px 10px; }
   .pa-empty-icon{
-    width:44px; height:44px; border-radius:13px; background:var(--red); color:#fff; display:flex;
+    width:44px; height:44px; border-radius:13px; background:var(--theme-primary); color:#fff; display:flex;
     align-items:center; justify-content:center; font-size:20px; margin:0 auto 14px; box-shadow:var(--shadow);
   }
   .pa-empty-title{ font-family:var(--display); font-size:18px; color:var(--ink); margin-bottom:4px; }
@@ -478,7 +578,7 @@
   .pa-trigger-badge{
     position:absolute; top:-6px; right:-6px; min-width:16px; height:16px; padding:0 4px; border-radius:8px;
     background:var(--pulse); color:#042018; font-family:var(--mono); font-size:10px; font-weight:700;
-    display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 2px var(--red-deep);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 2px var(--theme-primary-deep);
   }
   body.colorblind-mode .pa-trigger-badge{ background:var(--green); color:#fff; }
   body.colorblind-mode .dot-green::after{ content:'✓'; }
@@ -512,7 +612,7 @@
   .bar-rank{ font-family:var(--display); font-size:20px; font-weight:400; width:26px; text-align:center; flex-shrink:0; }
   .bar-track{ flex:1; background:var(--paper-2); border:1px solid var(--line); border-radius:6px; height:32px; position:relative; overflow:hidden; min-width:0; }
   .bar-fill{ height:100%; border-radius:5px; display:flex; align-items:center; padding:0 12px; color:#fff; font-weight:800; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .bf-1{ background:linear-gradient(90deg,var(--red-bright),var(--red)); }
+  .bf-1{ background:linear-gradient(90deg,var(--theme-primary-bright),var(--theme-primary)); }
   .bf-2{ background:linear-gradient(90deg,#9aa5ad,#6b7580); }
   .bf-3{ background:linear-gradient(90deg,#c9752e,#a5622a); }
   .bar-prize{ font-size:12px; font-weight:700; color:var(--ink-dim); width:100px; text-align:right; flex-shrink:0; }
@@ -736,6 +836,121 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
 @media(max-width:520px){#analysisAnimationModal .aa-panel{padding:21px 13px 17px}#analysisAnimationModal .payroll-scene{height:242px}.payroll-bulletin{display:none}.payroll-window{width:88px}.payroll-window-glint{width:73px}.payroll-char{left:11%!important;transform:scale(.84);transform-origin:bottom left}.payroll-computer{left:1%;width:80px}.payroll-computer-stand{left:calc(1% + 36px)}.payroll-keyboard{left:2%;width:62px}.payroll-mug,.payroll-pen-cup{display:none}.payroll-inbox{left:34%}.payroll-pile-left{left:calc(34% + 5px)!important}.payroll-outbox{left:58%}.payroll-pile-right{left:calc(58% + 5px)!important}.payroll-pile-shadow{left:calc(58% + 2px)}.payroll-active-folder{left:49%!important}.payroll-stamp-tool{left:50%}.payroll-stamp-impact{left:calc(50% - 7px)}.payroll-guest{right:4px!important;transform:scale(.84) translateX(30px);transform-origin:bottom right}.payroll-stage-rail{right:86px;top:83px}.payroll-stage{padding:3px 5px}.payroll-stage span:last-child{display:none}.payroll-processing-light{display:none}}
 @media(prefers-reduced-motion:reduce){#analysisAnimationModal .payroll-portrait,.payroll-window-glint:after,.payroll-stage-dot,.payroll-processing-light:before{animation:none!important}.payroll-stamp-tool.stamp-hit,.payroll-stamp-impact.hit,.payroll-wall-clock:after{animation:none!important}}
 </style>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// PERSONNALISATION DE COULEUR (26/10) — thème purement visuel, propre à
+// CE site (Pillbox), jamais synchronisé avec le Roster. Stockage local
+// uniquement (localStorage), clé "pillboxThemeColor". Architecture :
+// applyThemeColor() est la seule fonction qui touche réellement le DOM ;
+// loadTheme/saveTheme/resetTheme gèrent la persistance ; les autres sont
+// des utilitaires de calcul de couleur, sans effet de bord.
+//
+// Ce système ne touche JAMAIS :
+// - les couleurs sémantiques (--danger/--green/--amber, déjà séparées de
+//   --theme-primary* lors de la migration du 26/10 — voir le CSS) ;
+// - le mode daltonien (body.colorblind-mode), qui reste une couche à part
+//   appliquée PAR-DESSUS le thème, jamais remplacée par lui ;
+// - l'animation "Analyser la semaine" (#analysisAnimationModal), qui
+//   n'utilise aucune variable de cette famille ;
+// - la génération des TXT (fonctions pures, aucune lecture de variable CSS).
+// ═══════════════════════════════════════════════════════════════════
+const PILLBOX_THEME_STORAGE_KEY = "pillboxThemeColor"; // legacy : couleur principale pour les anciennes versions
+const PILLBOX_THEME_PALETTE_KEY = "pillboxThemePaletteV2";
+const PILLBOX_THEME_DEFAULT = "#c8102e";
+const PILLBOX_THEME_SECONDARY_DEFAULT = "#7c3aed";
+const PILLBOX_THEME_PRESETS = [
+  { name: "Bleu",        hex: "#2563eb", emoji: "🔵" },
+  { name: "Rouge",       hex: "#dc2626", emoji: "🔴" },
+  { name: "Violet",      hex: "#7c3aed", emoji: "🟣" },
+  { name: "Rose",        hex: "#db2777", emoji: "🩷" },
+  { name: "Vert",        hex: "#16a34a", emoji: "🟢" },
+  { name: "Orange",      hex: "#ea580c", emoji: "🟠" },
+  { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
+  { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
+  { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
+  { name: "Holographique", hex: "#ff74d4", secondary: "#72ddf7", mode: "holographic", emoji: "🌈", swatchGradient: "linear-gradient(115deg, #ff74d4, #ffad72 18%, #ffe66d 32%, #7ef7d3 47%, #72ddf7 62%, #7c83fd 78%, #c77dff 91%, #ff74d4)" },
+  { name: "Or",            hex: "#b45309", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
+];
+function pillboxHexToRgb(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex||"").trim());
+  if(!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n>>16)&255, g: (n>>8)&255, b: n&255 };
+}
+function pillboxRgbToHex(r,g,b){
+  const c = (v)=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,"0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function pillboxRgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0, s=0; const l=(max+min)/2; const d=max-min;
+  if(d!==0){ s=l>0.5?d/(2-max-min):d/(max+min); switch(max){case r:h=((g-b)/d+(g<b?6:0));break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;} h*=60; }
+  return {h,s:s*100,l:l*100};
+}
+function pillboxHslToHex(h,s,l){
+  h=((h%360)+360)%360; s=Math.max(0,Math.min(100,s))/100; l=Math.max(0,Math.min(100,l))/100;
+  if(s===0){const v=Math.round(l*255);return pillboxRgbToHex(v,v,v);}
+  const q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;
+  const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  const hk=h/360; return pillboxRgbToHex(hue2rgb(p,q,hk+1/3)*255,hue2rgb(p,q,hk)*255,hue2rgb(p,q,hk-1/3)*255);
+}
+function pillboxGetContrastTextColor(hex){
+  const rgb=pillboxHexToRgb(hex); if(!rgb)return "#ffffff";
+  const lin=(v)=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};
+  const L=0.2126*lin(rgb.r)+0.7152*lin(rgb.g)+0.0722*lin(rgb.b);
+  return L>0.42?"#1a1310":"#ffffff";
+}
+function pillboxMixHex(a,b,ratio=.5){
+  const ca=pillboxHexToRgb(a),cb=pillboxHexToRgb(b); if(!ca||!cb)return a;
+  const t=Math.max(0,Math.min(1,Number(ratio)||0));
+  return pillboxRgbToHex(ca.r+(cb.r-ca.r)*t,ca.g+(cb.g-ca.g)*t,ca.b+(cb.b-ca.b)*t);
+}
+function pillboxGenerateThemeVariants(hex){
+  const rgb=pillboxHexToRgb(hex)||pillboxHexToRgb(PILLBOX_THEME_DEFAULT);
+  const {h,s,l}=pillboxRgbToHsl(rgb.r,rgb.g,rgb.b); const sat=Math.max(18,Math.min(96,s));
+  const deepL=Math.max(8,Math.min(18,l*0.27)),midL=Math.max(16,Math.min(34,l*0.62||20)),brightL=Math.max(l+6,Math.min(78,l+12));
+  const primaryHex=pillboxRgbToHex(rgb.r,rgb.g,rgb.b),deepHex=pillboxHslToHex(h,Math.min(100,sat+12),deepL),midHex=pillboxHslToHex(h,sat,midL),brightHex=pillboxHslToHex(h,Math.max(35,sat-8),brightL),softHex=pillboxHslToHex(h,Math.min(55,sat*0.35),95),borderHex=pillboxHslToHex(h,Math.min(65,sat*0.5),80);
+  return {primary:primaryHex,primaryDeep:deepHex,primaryMid:midHex,primaryBright:brightHex,primarySoft:softHex,primaryBorder:borderHex,primaryShadow:`rgba(${rgb.r},${rgb.g},${rgb.b},.4)`,primaryText:pillboxGetContrastTextColor(primaryHex),bgShadow1:pillboxHslToHex(h,100,6.3),bgShadow2:pillboxHslToHex(h,100,4.1),hue:h};
+}
+const PILLBOX_LOGO_REFERENCE_HUE = 350.2;
+function pillboxLogoFilterFor(hex){
+  const rgb=pillboxHexToRgb(hex); if(!rgb)return {rotate:0,saturate:100};
+  const {h,s}=pillboxRgbToHsl(rgb.r,rgb.g,rgb.b); return {rotate:Math.round(((h-PILLBOX_LOGO_REFERENCE_HUE)%360+360)%360),saturate:Math.max(15,Math.min(140,Math.round((s/85.2)*100)))};
+}
+function pillboxNormalizeThemePalette(value){
+  if(typeof value === "string") return pillboxHexToRgb(value)?{primary:value,secondary:null}:{primary:PILLBOX_THEME_DEFAULT,secondary:null};
+  const mode=value?.mode === "holographic" ? "holographic" : null;
+  const primary=pillboxHexToRgb(value?.primary)?value.primary:(mode?"#ff74d4":PILLBOX_THEME_DEFAULT),secondary=pillboxHexToRgb(value?.secondary)?value.secondary:(mode?"#72ddf7":null); return mode?{primary,secondary,mode}:{primary,secondary};
+}
+function pillboxReadStoredTheme(){
+  try{const raw=localStorage.getItem(PILLBOX_THEME_PALETTE_KEY);if(raw){const parsed=JSON.parse(raw);if(parsed&&pillboxHexToRgb(parsed.primary))return pillboxNormalizeThemePalette(parsed);}}catch(e){}
+  try{const legacy=localStorage.getItem(PILLBOX_THEME_STORAGE_KEY);if(legacy&&pillboxHexToRgb(legacy))return {primary:legacy,secondary:null};}catch(e){}
+  return {primary:PILLBOX_THEME_DEFAULT,secondary:null};
+}
+function pillboxApplyThemePalette(palette,{persist=true}={}){
+  const normalized=pillboxNormalizeThemePalette(palette),primary=pillboxGenerateThemeVariants(normalized.primary),secondary=normalized.secondary?pillboxGenerateThemeVariants(normalized.secondary):primary,holographic=normalized.mode==="holographic",dual=!!normalized.secondary||holographic;
+  const rootEl=document.documentElement,root=rootEl.style; rootEl.classList.toggle("theme-dual",dual); rootEl.classList.toggle("theme-holographic",holographic);
+  root.setProperty("--theme-primary",primary.primary); root.setProperty("--theme-primary-deep",primary.primaryDeep); root.setProperty("--theme-primary-mid",primary.primaryMid); root.setProperty("--theme-primary-bright",primary.primaryBright); root.setProperty("--theme-primary-soft",primary.primarySoft); root.setProperty("--theme-primary-border",primary.primaryBorder); root.setProperty("--theme-primary-shadow",primary.primaryShadow); root.setProperty("--theme-primary-text",primary.primaryText);
+  root.setProperty("--theme-secondary",secondary.primary); root.setProperty("--theme-secondary-mid",secondary.primaryMid); root.setProperty("--theme-secondary-bright",secondary.primaryBright); root.setProperty("--theme-accent-end",dual?secondary.primaryBright:primary.primaryBright);
+  root.setProperty("--theme-bg-shadow-1",primary.bgShadow1); root.setProperty("--theme-bg-shadow-2",primary.bgShadow2);
+  const prgb=pillboxHexToRgb(primary.primary); root.setProperty("--theme-focus-ring",`rgba(${prgb.r},${prgb.g},${prgb.b},.15)`);
+  const holoGradient=`linear-gradient(115deg, #ff74d4 0%, #ffad72 17%, #ffe66d 31%, #7ef7d3 46%, #72ddf7 61%, #7c83fd 77%, #c77dff 90%, #ff74d4 100%)`;
+  root.setProperty("--theme-button-gradient",holographic?holoGradient:(dual?`linear-gradient(100deg, ${primary.primary} 0%, ${secondary.primary} 100%)`:primary.primary));
+  root.setProperty("--theme-button-hover-gradient",holographic?holoGradient:(dual?`linear-gradient(100deg, ${primary.primaryBright} 0%, ${secondary.primaryBright} 100%)`:primary.primaryBright));
+  const mid=dual?pillboxMixHex(primary.primary,secondary.primary,.5):primary.primary; root.setProperty("--theme-gradient-text",holographic?"#07111d":(dual?pillboxGetContrastTextColor(mid):"#ffffff"));
+  root.setProperty("--theme-logo-gradient",holographic?holoGradient:(dual?`linear-gradient(135deg, ${primary.primaryBright} 0%, ${secondary.primary} 100%)`:`linear-gradient(135deg, ${primary.primaryBright}, ${primary.primary})`));
+  const logoFilter=pillboxLogoFilterFor(primary.primary); root.setProperty("--theme-logo-hue-rotate",`${logoFilter.rotate}deg`); root.setProperty("--theme-logo-saturate",`${logoFilter.saturate}%`);
+  document.querySelectorAll(".pillbox-theme-dot").forEach(el=>{el.style.background=holographic?holoGradient:(dual?`linear-gradient(135deg, ${primary.primary} 0 48%, ${secondary.primary} 52% 100%)`:primary.primary);el.style.backgroundSize=holographic?"260% 260%":"auto";el.style.animation=holographic?"pillboxHolographicShift 8s ease-in-out infinite":"none";});
+  if(persist){try{localStorage.setItem(PILLBOX_THEME_STORAGE_KEY,primary.primary);localStorage.setItem(PILLBOX_THEME_PALETTE_KEY,JSON.stringify(holographic?{primary:primary.primary,secondary:secondary.primary,mode:"holographic"}:{primary:primary.primary,secondary:dual?secondary.primary:null}));}catch(e){}}
+  return {primary,secondary:dual?secondary:null,palette:holographic?{primary:primary.primary,secondary:secondary.primary,mode:"holographic"}:{primary:primary.primary,secondary:dual?secondary.primary:null}};
+}
+function pillboxApplyThemeColor(hex,options={}){return pillboxApplyThemePalette({primary:hex,secondary:null},options);}
+function pillboxLoadTheme(){pillboxApplyThemePalette(pillboxReadStoredTheme(),{persist:false});}
+function pillboxSaveTheme(value){pillboxApplyThemePalette(value,{persist:true});}
+function pillboxResetTheme(){try{localStorage.removeItem(PILLBOX_THEME_STORAGE_KEY);localStorage.removeItem(PILLBOX_THEME_PALETTE_KEY);}catch(e){} pillboxApplyThemePalette({primary:PILLBOX_THEME_DEFAULT,secondary:null},{persist:false});}
+pillboxLoadTheme();
+</script>
 </head>
 <body>
 
@@ -770,6 +985,39 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
   <div id="pillboxAccessGateError" style="margin-top:14px;font-size:0.82rem;color:#f87171;"></div>
 </div>
 
+<!-- (26/10) Sélecteur de couleur — vraie modale du site, jamais window.prompt.
+     Aperçu en direct sans rien enregistrer tant que "Appliquer" n'est pas
+     cliqué ; fermer sans appliquer restaure la couleur précédente. -->
+<div id="pillboxThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--paper);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.35);position:relative;">
+    <button type="button" id="pillboxThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--ink-dim);padding:4px;">✕</button>
+    <div style="font-weight:800;font-size:15px;margin-bottom:2px;color:var(--ink);">🎨 Palette du site</div>
+    <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:16px;">1 couleur classique ou 2 couleurs en duo. Propre à Pillbox.</div>
+    <div style="font-weight:800;font-size:12px;color:var(--ink);margin-bottom:8px;">Couleur principale</div>
+    <div id="pillboxThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:14px;color:var(--ink);">
+      <span>Personnalisée</span>
+      <input type="color" id="pillboxThemeCustomInput" value="#c8102e" style="width:44px;height:32px;border:1px solid var(--line);border-radius:6px;cursor:pointer;padding:0;">
+    </label>
+    <button type="button" class="clear-save-btn" id="pillboxThemeAddSecondaryBtn" style="display:flex;width:100%;justify-content:center;margin-bottom:14px;color:var(--theme-primary);border-color:var(--theme-primary);">＋ Ajouter une deuxième couleur</button>
+    <div id="pillboxThemeSecondarySection" style="display:none;border-top:1px solid var(--line);padding-top:14px;margin-top:2px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:12px;color:var(--ink);">Couleur secondaire</div>
+        <button type="button" class="clear-save-btn" id="pillboxThemeRemoveSecondaryBtn" style="display:flex;color:var(--ink-dim);">✕ Supprimer</button>
+      </div>
+      <div id="pillboxThemeSecondaryPresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:18px;color:var(--ink);">
+        <span>Personnalisée</span>
+        <input type="color" id="pillboxThemeSecondaryInput" value="#7c3aed" style="width:44px;height:32px;border:1px solid var(--line);border-radius:6px;cursor:pointer;padding:0;">
+      </label>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="clear-save-btn" id="pillboxThemeResetBtn" style="display:flex;flex:0 0 auto;color:var(--ink-dim);">↺ Réinitialiser</button>
+      <button type="button" class="dl-btn" id="pillboxThemeApplyBtn" style="flex:0 0 auto;">✅ Appliquer</button>
+    </div>
+  </div>
+</div>
+
 <div id="pillboxAppContent" style="display:none;">
 <div id="autosaveErrorNotice" style="display:none;background:#7a1f1f;color:#fff;padding:6px 12px;font-size:11.5px;text-align:center;"></div>
 <div id="pillboxAuthBar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:2px 4px;margin:0 0 2px;font-size:10.5px;color:rgba(255,255,255,.55);flex-wrap:wrap;">
@@ -788,6 +1036,10 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
   <button type="button" class="clear-save-btn" id="openSessionToolsBtn" style="display:inline-flex;" title="Importer une session existante ou exporter le travail actuel">📁 Importer / Exporter</button>
   <button type="button" class="clear-save-btn" id="showWeekHistoryBtn" style="display:inline-flex;" title="Revoir les semaines déjà traitées, et récupérer l'une d'elles au cas où une semaine aurait été close par erreur">📜 Semaines passées</button>
   <!-- Importer une semaine (fichiers) retiré le 09/09 -->
+  <button type="button" class="clear-save-btn" id="pillboxThemeBtn" style="display:inline-flex;align-items:center;gap:6px;" title="Personnaliser la couleur du site (propre à Pillbox, jamais lié au Roster)">
+    <span class="pillbox-theme-dot" style="width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--theme-primary);border:1.5px solid rgba(255,255,255,.5);"></span>
+    🎨 Couleur
+  </button>
   <button type="button" class="clear-save-btn" id="colorblindToggleBtn" style="display:inline-flex;" title="Remplace le rouge/vert/orange par une palette bleu/orange/vermillon sûre pour le daltonisme, et ajoute des symboles (! ? ✓) partout où la couleur seule comptait">👁️ Mode daltonien</button>
   <button type="button" class="clear-save-btn" id="showUpSimBtn" style="display:none !important;" title="Simulation uniquement : colle le Tableau Complet (semaine déjà clôturée) + les réanimations de la semaine en cours pour repérer à l'avance qui serait éligible à un UP. Ne modifie jamais la vraie semaine en cours de traitement.">🚀 Simulateur d'UP</button>
   <span class="pa-trigger-wrap" id="showOwnerModifBtnWrap" style="display:none;">
@@ -801,7 +1053,7 @@ body.roster-anims-off .payroll-arm{animation:none!important;}
 </div>
 <header class="hero">
   <div class="hero-top">
-    <img id="logoImg" alt="Pillbox">
+    <span class="pillbox-logo-wrap" aria-hidden="true"><img id="logoImg" alt=""></span>
     <div>
       <h1>PILLBOX — TERMINAL PAYES EMS</h1>
       <p>Outil de calcul hebdomadaire EMS — connexion Discord requise. Les données cloud passent par Netlify/Firebase et les captures OCR peuvent être envoyées à Gemini. Relis toujours les points marqués ⚠ avant d'envoyer.</p>
@@ -1561,9 +1813,26 @@ const NEXT_SINGLE = {A:"INF", INF:"M", MF:"RF", MP:"RP", MLP:"RL", RF:"MC", RP:"
 // silencieusement sur ces valeurs.
 let REA_RATE = 14000;
 let PPA_WEEKLY_CAP = 10000000;
+// (24/10, bloc 4 — cahier des charges) Tarifs centralisés Recrutements /
+// Formations — réglés dans Roster → Réglages de paie, une seule valeur
+// chacun (pas de tarif spécifique par type de formation). Mêmes valeurs
+// par défaut que les montants déjà utilisés ailleurs dans Pillbox, pour
+// qu'activer cette fonctionnalité sans rien régler ne change AUCUNE paie.
+let RECRUITMENT_PRICE = 500000;
+let FORMATION_PRICE = 70000;
 const BONUS_BY_RANK_CONFIG = {1:3000000, 2:2000000, 3:1000000};
 let payRulesReady = false;
 let payRulesLoadError = "Chargement des règles de paie en cours…";
+// (26/10, audit confirmé) Les tarifs doivent être figés au lancement d'une
+// analyse — avant, le rafraîchissement automatique toutes les 25 s
+// (pillboxStartPresence) appliquait directement les nouvelles valeurs aux
+// variables globales (REA_RATE, FIXED_PAY, RECRUITMENT_PRICE, etc.) MÊME
+// pendant qu'une analyse était déjà affichée à l'écran : les chiffres
+// pouvaient changer sous les yeux de l'utilisateur sans qu'il clique quoi
+// que ce soit. pendingPayRulesConfig garde la dernière config connue sans
+// jamais l'appliquer toute seule ; seul runAnalysis() l'applique, au tout
+// début de chaque NOUVELLE analyse — jamais en cours de route.
+let pendingPayRulesConfig = null;
 function updatePayRulesStatusUi(){
   const banner = document.getElementById("payRulesStatusBanner");
   const btn = document.getElementById("analyzeBtn");
@@ -1604,27 +1873,48 @@ function applyFetchedPayRules(config){
   if(Array.isArray(config.extraQProposalGrades)) EXTRA_Q_PROPOSAL_GRADES = config.extraQProposalGrades;
   if(typeof config.extraQProposalThreshold === "number") EXTRA_Q_PROPOSAL_THRESHOLD = config.extraQProposalThreshold;
   if(typeof config.qaCumulThreshold === "number") QA_CUMUL_THRESHOLD = config.qaCumulThreshold;
+  if(typeof config.recruitmentPrice === "number") RECRUITMENT_PRICE = config.recruitmentPrice;
+  if(typeof config.formationPrice === "number") FORMATION_PRICE = config.formationPrice;
 }
 async function fetchPayRulesConfig(){
   // Cet appel dépend d'une session Discord : ne pas le lancer avant le retour OAuth.
   if(!pillboxSessionToken) return;
-  payRulesReady = false;
-  payRulesLoadError = "Chargement des règles de paie en cours…";
-  updatePayRulesStatusUi();
+  // (26/10) Une analyse déjà affichée ne doit JAMAIS voir payRulesReady
+  // repasser à false ni son message changer pendant un simple
+  // rafraîchissement de fond — seul le lancement d'une nouvelle analyse
+  // doit pouvoir bloquer/débloquer le bouton sur la base des dernières
+  // règles connues.
+  const analysisActive = !!state.parsed;
+  if(!analysisActive){
+    payRulesReady = false;
+    payRulesLoadError = "Chargement des règles de paie en cours…";
+    updatePayRulesStatusUi();
+  }
   try{
     const data = await fetchViaPillboxProxy();
     if(data?.readStatus?.payRules === "error" || !data?.payRules){
       throw new Error("Impossible de vérifier les règles de paie actuelles — analyse bloquée.");
     }
-    applyFetchedPayRules(data.payRules);
+    pendingPayRulesConfig = data.payRules;
+    if(!analysisActive){
+      // Aucune analyse en cours : on peut appliquer tout de suite, c'est
+      // exactement comme si une nouvelle analyse allait démarrer avec ces
+      // valeurs (comportement inchangé pour le cas simple au chargement).
+      applyFetchedPayRules(pendingPayRulesConfig);
+    }
     payRulesReady = true;
     payRulesLoadError = null;
   }catch(err){
-    payRulesReady = false;
-    payRulesLoadError = err?.message || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.";
+    if(!analysisActive){
+      payRulesReady = false;
+      payRulesLoadError = err?.message || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.";
+    }
+    // Analyse déjà affichée : on NE TOUCHE PAS à payRulesReady — elle garde
+    // l'état qu'elle avait au lancement de CETTE analyse. L'échec est
+    // simplement journalisé ; la prochaine analyse redemandera les règles.
     console.error("Chargement des réglages de paie impossible :", err);
   }
-  updatePayRulesStatusUi();
+  if(!analysisActive) updatePayRulesStatusUi();
   render();
 }
 
@@ -1835,7 +2125,7 @@ function parseTableauNamesOnly(text){
     const tokens = chunk.split("\t").map(t=>t.trim());
     if(tokens.length < 6) return;
     const [, employeRaw, id] = tokens.slice(0,4);
-    const cleanName = (employeRaw||"").replace(/^\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
+    const cleanName = (employeRaw||"").replace(/^\.*\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
     if(id && cleanName) map[id.trim()] = cleanName;
   });
   return map;
@@ -1937,16 +2227,17 @@ function parseTableau(text, weekStart){
       // nom doit rester reconnaissable pour la reconnaissance des réas,
       // sinon ses réanimations tombent en "anomalie" alors que ce n'est
       // pas une erreur, juste quelqu'un actuellement en WDV.
-      const wdvName = (employeRaw||"").replace(/^\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
+      const wdvName = (employeRaw||"").replace(/^\.*\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
       if(wdvName) wdvNames.push(wdvName);
       return;
     }
     if(grade==="SENSEI") grade="DG"; // "Sensei" = surnom de Papi Alucar, pas un grade réel : toujours = Directeur Général
+    if(grade==="DIR") grade="D"; // "DIR" = surnom/étiquette vue pour Tio War, pas un grade réel : toujours = Directeur
     if(!GRADE_ORDER.includes(grade)){
       anomalies.push({type:`grade inconnu "${gradeRaw}"`, raw: employeRaw});
     }
-    const cleanName = (employeRaw||"").replace(/^\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
-    const bracket = ((employeRaw||"").match(/^\[([^\]]*)\]/)||[])[1] || "";
+    const cleanName = (employeRaw||"").replace(/^\.*\[[^\]]*\]\s*/,"").replace(/\s*🐧|\s*🐦|\s*✅/g,"").trim();
+    const bracket = ((employeRaw||"").match(/^\.*\[([^\]]*)\]/)||[])[1] || "";
     const bracketUpper = bracket.toUpperCase().replace(/^EX-?/,"").split("/")[0];
     if(bracketUpper && GRADE_ORDER.includes(bracketUpper) && bracketUpper!==grade){
       anomalies.push({type:`étiquette "[${bracket}]" ≠ grade "${grade}"`, raw: cleanName});
@@ -2060,18 +2351,26 @@ function levenshtein(a, b){
 // différentes par erreur — mieux vaut signaler "sans correspondance" que
 // de deviner faux sur une fiche de paie.
 function findClosestName(target, knownEntries){
-  let best = null, bestDist = Infinity;
+  // (24/10, audit) Détecte aussi les EX ÆQUO : avant, si deux personnes
+  // différentes étaient à la même distance du nom collé, seule la
+  // première rencontrée gagnait en silence — risque réel d'attribuer des
+  // réanimations à la mauvaise personne. Si plusieurs ENTRÉES DIFFÉRENTES
+  // partagent la meilleure distance, on ne devine plus : on remonte un
+  // résultat ambigu plutôt qu'un choix silencieux.
+  let bestDist = Infinity, bestNames = new Set();
   knownEntries.forEach(entry=>{
     (entry.aliases||[]).forEach(alias=>{
       const dist = levenshtein(target, alias);
-      if(dist < bestDist){ bestDist = dist; best = entry; }
+      if(dist < bestDist){ bestDist = dist; bestNames = new Set([entry.name]); }
+      else if(dist === bestDist){ bestNames.add(entry.name); }
     });
   });
   // Seuil proportionnel : plus le nom est long, plus une petite erreur OCR
   // est acceptable. On reste strict pour les noms courts.
   const maxAllowed = target.length <= 5 ? 1 : Math.min(4, Math.max(2, Math.floor(target.length/5)));
-  return (best && bestDist > 0 && bestDist <= maxAllowed)
-    ? { name: best.name, distance: bestDist } : null;
+  if(bestDist === 0 || bestDist > maxAllowed || bestNames.size === 0) return null;
+  if(bestNames.size > 1) return { ambiguous: true, distance: bestDist, candidates: [...bestNames] };
+  return { name: [...bestNames][0], distance: bestDist };
 }
 
 function findInvertedName(target, knownEntries){
@@ -3011,7 +3310,7 @@ function renderAvertoStep(){
     formHtml = `
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;background:var(--paper);border-radius:8px;padding:11px 12px;margin-bottom:2px;">
-          <span style="color:var(--red);font-size:15px;">○</span>
+          <span style="color:var(--theme-primary);font-size:15px;">○</span>
           <b style="flex:1;">${esc(selectedRow.name)}</b>
           <span class="badge" style="background:var(--paper-2);color:var(--ink);border:1px solid var(--line);">${esc(selectedRow.grade)}</span>
         </div>
@@ -3828,12 +4127,16 @@ function buildDetailPayesText(ctx){
     out += "Aucun employé avec des réanimations cette semaine.\n";
     return out;
   }
+  // (24/10, bloc 4, points 47-49) Même fonction centrale buildPayBreakdown
+  // que le tableau — jamais une seconde logique de ventilation dupliquée
+  // ici. Format compact "—" pour les valeurs nulles, pas de phrase longue.
   rows.forEach(e=>{
     const grade = e.licencie ? e.grade : (e.promoted? e.targetGrade : e.grade);
     const fixedAmount = FIXED_PAY[e.grade] || 0;
-    const heures = e.payeTableau - fixedAmount;
+    const heuresOriginal = e.payeTableau - fixedAmount;
     const deductionApplied = e.payeTableau - (e.paye - e.reaCount*REA_RATE);
     const fixeVersee = fixedAmount - deductionApplied;
+    const breakdown = buildPayBreakdown(e, heuresOriginal);
     const reaAmount = e.reaCount * REA_RATE;
     const ppaAmount = e.benevole ? 0 : ppaFor(e.name, state.ppaList, e.id);
     const primeOptAmount = e.benevole ? 0 : ppaFor(e.name, state.primeOptionnelleList, e.id);
@@ -3841,15 +4144,24 @@ function buildDetailPayesText(ctx){
     const total = e.licencie ? (e.paye + ppaAmount + primeOptAmount + bonus) : finalPaye(e);
     const fixeNote = (!e.exempt && !e.quotaMet && fixeVersee<=0) ? " (✕ quota non atteint)"
       : (!e.exempt && !e.quotaMet && fixeVersee>0) ? " (⚠ déduction évitée — paye négative)" : "";
-    out += `${e.name} (${GRADE_LABEL[grade]})${e.licencie? " — LICENCIÉ":""}\n`;
-    out += `Heures       : ${Math.round(heures).toLocaleString("fr-FR")} $\n`;
-    out += `Paye fixe    : ${Math.round(fixeVersee).toLocaleString("fr-FR")} $${fixeNote}\n`;
-    out += `Réanimations : ${e.reaCount} × ${REA_RATE.toLocaleString("fr-FR")} = ${Math.round(reaAmount).toLocaleString("fr-FR")} $\n`;
-    out += `PPA          : ${ppaAmount? Math.round(ppaAmount).toLocaleString("fr-FR")+" $" : "—"}\n`;
-    out += `Prime opt.   : ${primeOptAmount? Math.round(primeOptAmount).toLocaleString("fr-FR")+" $" : "—"}\n`;
-    out += `Top 3        : ${bonus? Math.round(bonus).toLocaleString("fr-FR")+" $" : "—"}\n`;
-    out += `TOTAL        : ${Math.round(total).toLocaleString("fr-FR")} $\n`;
-    out += `────────────────────────────────────────\n`;
+    const heuresNote = breakdown.unverifiable ? " (⚠ activité non vérifiable)" : (breakdown.warning ? " (⚠ ventilation ignorée)" : "");
+    out += `══════════════════════════════════════\n`;
+    out += `DÉTAIL DE PAYE — ${e.name.toUpperCase()}${e.licencie? " — LICENCIÉ":""}\n`;
+    out += `Semaine : ${fmtDate(weekStart)} → ${fmtDate(weekEnd)}\n`;
+    out += `Grade   : ${grade}\n`;
+    out += `══════════════════════════════════════\n\n`;
+    out += `Salaire fixe      : ${Math.round(fixedAmount).toLocaleString("fr-FR")} $\n`;
+    out += `Heures            : ${Math.round(breakdown.heures).toLocaleString("fr-FR")} $${heuresNote}\n`;
+    out += `Réanimations      : ${e.reaCount} × ${REA_RATE.toLocaleString("fr-FR")} $ = ${Math.round(reaAmount).toLocaleString("fr-FR")} $\n`;
+    out += `Recrutements      : ${breakdown.recrutements? `${breakdown.recrutements.count} × ${RECRUITMENT_PRICE.toLocaleString("fr-FR")} $ = ${Math.round(breakdown.recrutements.montant).toLocaleString("fr-FR")} $` : "—"}\n`;
+    out += `Formations        : ${breakdown.formations? `${breakdown.formations.count} × ${FORMATION_PRICE.toLocaleString("fr-FR")} $ = ${Math.round(breakdown.formations.montant).toLocaleString("fr-FR")} $` : "—"}\n`;
+    out += `PPA               : ${ppaAmount? Math.round(ppaAmount).toLocaleString("fr-FR")+" $" : "—"}\n`;
+    out += `Prime optionnelle : ${primeOptAmount? Math.round(primeOptAmount).toLocaleString("fr-FR")+" $" : "—"}\n`;
+    out += `Top 3             : ${bonus? Math.round(bonus).toLocaleString("fr-FR")+" $" : "—"}\n`;
+    out += `Déductions        : ${deductionApplied>0.5? "−"+Math.round(deductionApplied).toLocaleString("fr-FR")+" $"+fixeNote : "—"}\n`;
+    out += `\n──────────────────────────────────────\n`;
+    out += `TOTAL             : ${Math.round(total).toLocaleString("fr-FR")} $\n`;
+    out += `══════════════════════════════════════\n\n`;
   });
   out += `\n════════════════════════════════════════\n⚠️  Fichier à usage INTERNE uniquement.\n    Ne pas copier-coller sur Discord — utilise-le pour répondre à quelqu'un qui demande le détail de sa paye.\n════════════════════════════════════════\n`;
   return out;
@@ -3869,17 +4181,24 @@ function buildPayeDetailStep(ctx){
   Chaque colonne correspond à une partie du calcul de la paye finale : les Heures (paye de base liée au temps en jeu), la Paye fixe du grade, le montant des Réanimations (${REA_RATE.toLocaleString("fr-FR")} $ chacune), la PPA si présente, et la prime Top 3. Le total additionne tout.
   <span class="tuto-example">Utilise la barre de recherche 🔍 pour retrouver directement quelqu'un si tu veux vérifier ou lui expliquer sa paye, plutôt que de chercher dans toute la liste à l'œil.
 💻 Astuce PC : pas besoin d'appuyer sur "Entrée" après avoir tapé un nom — la liste se filtre automatiquement à chaque lettre tapée. Tu peux aussi faire "Ctrl+F" (recherche du navigateur) n'importe où sur la page pour retrouver un mot précis, si jamais.</span></div>`;
-  html += `<input type="text" id="payeDetailSearch" placeholder="🔍 Rechercher un nom…" style="margin-bottom:12px;max-width:280px">`;
-  html += `<div style="overflow-x:auto"><table class="data mono" id="payeDetailTable"><thead><tr>
-    <th>Nom</th><th>Grade</th><th>Heures</th><th>Paye fixe</th><th>Réa</th><th>PPA</th><th>Prime opt.</th><th>Top 3</th><th>Total</th>
+  html += `<input type="text" id="payeDetailSearch" placeholder="🔍 Rechercher un nom…" class="paye-detail-search">`;
+  // (24/10, bloc 4) Ordre demandé : Salaire fixe, Heures, Réanimations,
+  // Recrutements, Formations, PPA, Prime optionnelle, Top 3, Déductions,
+  // Total. Recrutements/Formations : "—" pour tout le monde sauf MF/RF
+  // concernés cette semaine (buildPayBreakdown gère ça tout seul).
+  html += `<div class="paye-detail-table-wrap"><table class="data mono paye-detail-table" id="payeDetailTable"><thead><tr>
+    <th>Nom</th><th>Grade</th><th>Salaire fixe</th><th>Heures</th><th>Réanimations</th><th>Recrutements</th><th>Formations</th><th>PPA</th><th>Prime opt.</th><th>Top 3</th><th>Déductions</th><th>Total</th>
   </tr></thead><tbody>`;
+  let anyVentilationWarning = false;
   rows.forEach(e=>{
     const grade = e.licencie ? e.grade : (e.promoted? e.targetGrade : e.grade);
     const fixedAmount = FIXED_PAY[e.grade] || 0;
-    const heures = e.payeTableau - fixedAmount;
+    const heuresOriginal = e.payeTableau - fixedAmount;
     // Déduction réellement appliquée (tient compte du cas "paye négative → déduction évitée")
     const deductionApplied = e.payeTableau - (e.paye - e.reaCount*REA_RATE);
     const fixeVersee = fixedAmount - deductionApplied;
+    const breakdown = buildPayBreakdown(e, heuresOriginal);
+    if(breakdown.warning) anyVentilationWarning = true;
     const reaAmount = e.reaCount * REA_RATE;
     const ppaAmount = e.benevole ? 0 : ppaFor(e.name, state.ppaList, e.id);
     const primeOptAmount = e.benevole ? 0 : ppaFor(e.name, state.primeOptionnelleList, e.id);
@@ -3888,18 +4207,22 @@ function buildPayeDetailStep(ctx){
     html += `<tr data-name="${esc(e.name.toLowerCase())}">
       <td>${esc(e.name)}${e.licencie? ' <span class="badge b-red" style="padding:2px 7px;font-size:10.5px">LICENCIÉ</span>':''}</td>
       <td>${esc(grade)}</td>
-      <td>${Math.round(heures).toLocaleString("fr-FR")} $</td>
-      <td>${Math.round(fixeVersee).toLocaleString("fr-FR")} $${(!e.exempt && !e.quotaMet && fixeVersee<=0)? ' <span class="badge b-red" style="padding:2px 8px;font-size:10.5px;margin-left:6px">✕ quota non atteint</span>':''}${(!e.exempt && !e.quotaMet && fixeVersee>0)? ' <span class="badge b-amber" style="padding:2px 8px;font-size:10.5px;margin-left:6px">⚠ déduction évitée (paye négative)</span>':''}</td>
+      <td>${Math.round(fixedAmount).toLocaleString("fr-FR")} $</td>
+      <td>${Math.round(breakdown.heures).toLocaleString("fr-FR")} $${breakdown.unverifiable?' <span class="paye-ventil-flag" title="Activité non vérifiable">⚠</span>':''}${(!breakdown.unverifiable && breakdown.warning)?` <span class="paye-ventil-flag" title="${esc(breakdown.warning)}">⚠</span>`:''}</td>
       <td>${e.reaCount} × ${REA_RATE.toLocaleString("fr-FR")} = ${Math.round(reaAmount).toLocaleString("fr-FR")} $</td>
+      <td>${fmtVentilationCell(breakdown.recrutements, RECRUITMENT_PRICE)}</td>
+      <td>${fmtVentilationCell(breakdown.formations, FORMATION_PRICE)}</td>
       <td>${ppaAmount? Math.round(ppaAmount).toLocaleString("fr-FR")+" $" : "—"}</td>
       <td>${primeOptAmount? Math.round(primeOptAmount).toLocaleString("fr-FR")+" $" : "—"}</td>
       <td>${bonus? Math.round(bonus).toLocaleString("fr-FR")+" $" : "—"}</td>
+      <td>${deductionApplied>0.5? "−"+Math.round(deductionApplied).toLocaleString("fr-FR")+" $" : "—"}${(!e.exempt && !e.quotaMet && fixeVersee<=0)? ' <span class="badge b-red" style="padding:2px 8px;font-size:10.5px;margin-left:6px">✕ quota non atteint</span>':''}${(!e.exempt && !e.quotaMet && fixeVersee>0)? ' <span class="badge b-amber" style="padding:2px 8px;font-size:10.5px;margin-left:6px">⚠ déduction évitée (paye négative)</span>':''}</td>
       <td><b>${Math.round(total).toLocaleString("fr-FR")} $</b></td>
     </tr>`;
   });
   html += `</tbody></table></div>`;
   html += `<div class="empty-note" id="payeDetailNoMatch" style="display:none;margin-top:10px;">Aucun employé ne correspond à cette recherche.</div>`;
-  html += `<div class="hint">Heures = paye du tableau − paye fixe du grade (le tableau inclut toujours les deux). Paye fixe versée seulement si quota atteint ou grade exempté. Réa = nombre de réanimations × ${REA_RATE.toLocaleString("fr-FR")} $. Les employés à 0 réanimation n'apparaissent pas ici (comme dans le fichier Payes).</div>`;
+  if(anyVentilationWarning) html += `<div class="hint" style="color:#c87f00;margin-top:8px;">⚠ Au moins une ventilation Recrutements/Formations n'a pas pu être appliquée (survole le ⚠ à côté des Heures de la personne concernée pour le détail) — les Heures et le Total affichés restent corrects.</div>`;
+  html += `<div class="hint">Heures = paye du tableau − paye fixe du grade, moins les Recrutements/Formations ventilés pour les MF/RF (le total final n'en est jamais modifié). Paye fixe versée seulement si quota atteint ou grade exempté. Réa = nombre de réanimations × ${REA_RATE.toLocaleString("fr-FR")} $. Les employés à 0 réanimation n'apparaissent pas ici (comme dans le fichier Payes).</div>`;
   html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <button class="dl-btn" data-action="downloadPayeDetail">🧾 Télécharger le détail (texte)</button>
     <span class="hint" style="margin:0;">Pratique si quelqu'un demande à voir le détail du calcul de sa paye — ce fichier n'est pas dans le ZIP, à donner individuellement.</span>
@@ -4124,6 +4447,70 @@ function activiteVerification(row){
   return { state:data ? "found" : "absent", data:data || {} };
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// buildPayBreakdown (24/10, bloc 4 — cahier des charges) — SOURCE
+// CENTRALE UNIQUE de la ventilation Heures/Recrutements/Formations.
+// Alimente le tableau Détails des payes, le TXT individuel, et plus
+// tard l'historique/détail de semaine depuis les Logs (point 49) — ne
+// JAMAIS dupliquer cette logique ailleurs.
+//
+// Règles (points 37-44 du cahier des charges) :
+// - uniquement les grades MF/RF (pôle Formateur) — jamais les
+//   Psychologues (MP/RP), dont rien n'est modifié (point 42) ;
+// - un seul tarif Formation (pas de tarif par type Opération/Pilote/
+//   Co-Pilote/MUP) ;
+// - Heures affichées = Heures originales − Recrutements − Formations,
+//   le TOTAL final n'est JAMAIS modifié par cette ventilation (point 39) ;
+// - panne de lecture activité -> aucune ventilation, Heures conservées
+//   telles quelles, signalé discrètement (point 43) ;
+// - ventilation qui dépasserait les Heures -> aucune valeur négative,
+//   aucune ventilation, Heures et total intacts, avertissement (point 44).
+//
+// Retourne toujours la même forme :
+//   { heures, recrutements:{count,montant}|null, formations:{count,montant}|null,
+//     unverifiable:bool, warning:string|null }
+// `recrutements`/`formations` à null = rien à ventiler (pas éligible,
+// compteur à 0, ou ventilation refusée) -> affichage "—" partout.
+function buildPayBreakdown(row, heuresOriginal){
+  const grade = String(row.grade||"").toUpperCase();
+  const isFormateurPole = grade === "MF" || grade === "RF";
+  const base = { heures: heuresOriginal, recrutements: null, formations: null, unverifiable:false, warning:null };
+  if(!isFormateurPole) return base;
+
+  const verif = activiteVerification(row);
+  if(verif.state === "unverifiable"){
+    return { ...base, unverifiable:true, warning:"Ventilation non effectuée : activité Formateur non vérifiable." };
+  }
+  const recrutementsCount = Math.max(0, Math.round(Number(verif.data && verif.data.recrutements) || 0));
+  const formationsCount = Math.max(0, Math.round(Number(verif.data && verif.data.formations) || 0));
+  if(recrutementsCount===0 && formationsCount===0) return base;
+
+  const recrutementsMontant = recrutementsCount * RECRUITMENT_PRICE;
+  const formationsMontant = formationsCount * FORMATION_PRICE;
+  const totalVentile = recrutementsMontant + formationsMontant;
+  if(totalVentile > heuresOriginal + 0.01){
+    return { ...base, warning:`Ventilation ignorée (${Math.round(totalVentile).toLocaleString("fr-FR")} $ calculé dépasse les Heures disponibles, ${Math.round(heuresOriginal).toLocaleString("fr-FR")} $).` };
+  }
+  return {
+    heures: heuresOriginal - totalVentile,
+    recrutements: { count: recrutementsCount, montant: recrutementsMontant },
+    formations: { count: formationsCount, montant: formationsMontant },
+    unverifiable: false, warning: null,
+  };
+}
+// Présentation compacte "3 × 500k / 1,5M$" demandée (point 40) — jamais
+// juste le montant seul, toujours quantité × tarif visible.
+function fmtCompactMoney(n){
+  const abs = Math.abs(n);
+  if(abs >= 1000000) return `${(n/1000000).toLocaleString("fr-FR",{maximumFractionDigits:2})}M$`;
+  if(abs >= 1000) return `${Math.round(n/1000).toLocaleString("fr-FR")}k$`;
+  return `${Math.round(n).toLocaleString("fr-FR")}$`;
+}
+function fmtVentilationCell(part, rate){
+  if(!part) return "—";
+  return `${part.count} × ${fmtCompactMoney(rate)}<br><b>${fmtCompactMoney(part.montant)}</b>`;
+}
+
 // Regroupe les signalements bruts par personne (par ID en priorité, sinon
 // par nom), les met en correspondance avec le tableau actuel, et filtre
 // ceux qui ne doivent plus être proposés. Cette fonction est PURE : elle
@@ -4212,6 +4599,21 @@ function buildContext(){
   const payeZeroBugList = actifs.filter(e=>e.payeTableauWasZeroBug);
   const duplicateIdAnomalies = (state.parsed?.anomalies || []).filter(a=>/ID dossier .*risque de paye en double/i.test(a?.type || ""));
   const hasBlockingDuplicateId = duplicateIdAnomalies.length > 0;
+  // (24/10, audit) Un grade mal tapé (ex. "INFR" au lieu de "INF") était
+  // bien signalé en anomalie, mais la ligne continuait quand même dans
+  // tout le calcul — FIXED_PAY[grade] est alors undefined, et finalPaye()
+  // peut silencieusement transformer un NaN en 0 $. Désormais bloquant,
+  // exactement comme un ID dossier dupliqué, au lieu d'un simple
+  // avertissement visuel qu'on peut rater.
+  const unknownGradeAnomalies = (state.parsed?.anomalies || []).filter(a=>/^grade inconnu /i.test(a?.type || ""));
+  const hasBlockingUnknownGrade = unknownGradeAnomalies.length > 0;
+  // (24/10, audit) Deux valeurs différentes de réanimations pour la même
+  // personne (collage accidentel en double) : avant, seulement signalé en
+  // anomalie, mais la 2e valeur écrasait quand même automatiquement la
+  // 1ère et partait directement dans le calcul de paye/Top 3. Désormais
+  // bloquant, le temps de vérifier manuellement laquelle est la bonne.
+  const contradictoryReaAnomalies = (state.parsed?.anomalies || []).filter(a=>/^nom en double dans les réanimations/i.test(a?.type || ""));
+  const hasBlockingContradictoryRea = contradictoryReaAnomalies.length > 0;
   const criticalCloudReadErrors = [];
   if(state.signalementsLoadError) criticalCloudReadErrors.push(`Signalements : ${state.signalementsLoadError}`);
   else if(pillboxSessionToken && !state.signalementsLoaded) criticalCloudReadErrors.push("Signalements : chargement non terminé.");
@@ -4349,7 +4751,7 @@ function buildContext(){
     unansweredALicence.length>0 || unansweredInfLicence.length>0 || unansweredExtraQLicence.length>0 ||
     unansweredSignalementGroups.length>0 || unansweredAbsenceGroups.length>0 ||
     unansweredStgAbsenceGroups.length>0 || unansweredLongAbsenceGroups.length>0;
-  return {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, activeForTableau, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, bonusOf, totalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, criticalCloudReadErrors, hasCriticalCloudReadError};
+  return {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, activeForTableau, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, bonusOf, totalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, unknownGradeAnomalies, hasBlockingUnknownGrade, contradictoryReaAnomalies, hasBlockingContradictoryRea, criticalCloudReadErrors, hasCriticalCloudReadError};
 }
 
 
@@ -4379,7 +4781,7 @@ function render(){
   if(!state.parsed){ results.innerHTML = ""; applyWizardMode(); return; }
 
   const ctx = buildContext();
-  const {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, criticalCloudReadErrors, hasCriticalCloudReadError} = ctx;
+  const {employees, weekStart, weekEnd, licencies, actifs, pendingQ, pendingUp, pendingNearMiss, payeZeroBugList, unansweredQ, unansweredUp, unansweredNearMiss, unansweredStgLicence, unansweredALicence, unansweredInfLicence, unansweredExtraQLicence, negatifs, autoPromotions, manualPromotions, forcedPromotions, stgBlockedList, upBlockedList, pendingStgLicenceList, stgJustLicencedList, pendingALicenceList, aJustLicencedList, pendingInfLicenceList, infJustLicencedList, pendingExtraQLicenceList, extraQJustLicencedList, hgRetrogradeList, unansweredHgRetrograde, mcAddList, unansweredMcAdd, pendingSignalementGroups, unansweredSignalementGroups, pendingAbsenceGroups, unansweredAbsenceGroups, pendingStgAbsenceGroups, unansweredStgAbsenceGroups, pendingLongAbsenceGroups, unansweredLongAbsenceGroups, departs, podiumTiers, hasTieInPodium, recordNum, newRecord, finalPaye, totalPaye, hasPending, hasUnresolvedDecisions, duplicateIdAnomalies, hasBlockingDuplicateId, unknownGradeAnomalies, hasBlockingUnknownGrade, contradictoryReaAnomalies, hasBlockingContradictoryRea, criticalCloudReadErrors, hasCriticalCloudReadError} = ctx;
   const fileRange = weekRangeTag(weekStart, weekEnd);
 
   let html = "";
@@ -4946,7 +5348,7 @@ function render(){
   } else {
     emsSortGradeV3(state.ppaList).forEach(p=>{
       const done = state.copiedId===`ppa-${p.id}`;
-      html += `<div class="ppa-line"><span class="dot" style="background:var(--red)"></span>
+      html += `<div class="ppa-line"><span class="dot" style="background:var(--theme-primary)"></span>
         <span class="flex1"><b>${esc(p.name)}</b> — ${(parseFloat(p.amount)||0).toLocaleString("fr-FR")} $ ${p.reason? `(${esc(p.reason)})`:""}</span>
         <button class="copybtn ${done?'done':''}" data-action="copyPpa" data-id="${p.id}">${done? "✓ copié":"📋 copier"}</button>
         <button class="copybtn" style="border-color:var(--danger);color:var(--danger)" data-action="removePpa" data-id="${p.id}">retirer</button>
@@ -5029,7 +5431,7 @@ function render(){
   <span class="tuto-example">Le plus simple : clique le gros bouton ZIP une fois, ouvre le dossier Téléchargements, et copie-colle chaque fichier texte au bon endroit sur Discord un par un. Ou utilise directement les boutons "📋 copier" si tu as déjà les bons salons Discord ouverts dans d'autres onglets.
 💻 Astuce PC : le dossier Téléchargements s'ouvre avec la touche Windows + E (ou l'icône dossier dans la barre des tâches), puis clique sur "Téléchargements" à gauche. Pour ouvrir un fichier .txt, double-clique dessus. Pour aller vite entre plusieurs onglets Discord, "Ctrl+Tab" passe à l'onglet suivant, "Ctrl+Shift+Tab" au précédent.</span></div>`;
   html += `<div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
-    <button class="dl-btn${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasCriticalCloudReadError)?' dl-btn-disabled':''}" data-action="${hasUnresolvedDecisions?'jumpToPending':(hasBlockingDuplicateId?'jumpToCriticalDuplicate':(hasCriticalCloudReadError?'jumpToCloudReadError':'downloadAll'))}" style="font-weight:700"${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasCriticalCloudReadError)?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":"Réessaie le chargement des données cloud")}"`:''}>📦 Télécharger PAIE EMS (.ZIP)</button>
+    <button class="dl-btn${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasBlockingUnknownGrade||hasBlockingContradictoryRea||hasCriticalCloudReadError)?' dl-btn-disabled':''}" data-action="${hasUnresolvedDecisions?'jumpToPending':(hasBlockingDuplicateId?'jumpToCriticalDuplicate':(hasBlockingUnknownGrade?'jumpToCriticalUnknownGrade':(hasBlockingContradictoryRea?'jumpToCriticalContradictoryRea':(hasCriticalCloudReadError?'jumpToCloudReadError':'downloadAll'))))}" style="font-weight:700"${(hasUnresolvedDecisions||hasBlockingDuplicateId||hasBlockingUnknownGrade||hasBlockingContradictoryRea||hasCriticalCloudReadError)?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":(hasBlockingUnknownGrade?"Corrige le grade inconnu":(hasBlockingContradictoryRea?"Corrige les réanimations contradictoires":"Réessaie le chargement des données cloud")))}"`:''}>📦 Télécharger PAIE EMS (.ZIP)</button>
   </div>`;
   // Tant que les VRAIES décisions cliquables ne sont pas toutes répondues
   // ou qu'un ID dossier est dupliqué, le ZIP ET les fichiers individuels
@@ -5067,17 +5469,31 @@ function render(){
     </div>`;
   }
   if(hasCriticalCloudReadError){
-    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--red);">
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--danger);">
       <div><div style="font-weight:800;margin-bottom:2px;">⛔ Données cloud non vérifiables — fichiers bloqués</div>
       <div style="font-size:12px;">${esc(criticalCloudReadErrors.join(" · "))}. Une panne ne peut pas être assimilée à « aucune décision ».</div></div>
-      <button type="button" class="dl-btn" data-action="jumpToCloudReadError" style="background:var(--red);border-color:var(--red);color:#fff;flex:0 0 auto;">↻ Réessayer</button>
+      <button type="button" class="dl-btn" data-action="jumpToCloudReadError" style="background:var(--danger);border-color:var(--danger);color:#fff;flex:0 0 auto;">↻ Réessayer</button>
     </div>`;
   }
   if(hasBlockingDuplicateId){
-    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--red);">
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--danger);">
       <div><div style="font-weight:800;margin-bottom:2px;">⛔ ID dossier dupliqué — fichiers de paie bloqués</div>
       <div style="font-size:12px;">${esc(duplicateIdAnomalies.map(a=>a.type).join(" · "))}. Corrige le tableau EMS avant tout téléchargement ou clôture.</div></div>
-      <button type="button" class="dl-btn" data-action="jumpToCriticalDuplicate" style="background:var(--red);border-color:var(--red);color:#fff;flex:0 0 auto;">↑ Voir l'anomalie</button>
+      <button type="button" class="dl-btn" data-action="jumpToCriticalDuplicate" style="background:var(--danger);border-color:var(--danger);color:#fff;flex:0 0 auto;">↑ Voir l'anomalie</button>
+    </div>`;
+  }
+  if(hasBlockingUnknownGrade){
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--danger);">
+      <div><div style="font-weight:800;margin-bottom:2px;">⛔ Grade inconnu — fichiers de paie bloqués</div>
+      <div style="font-size:12px;">${esc(unknownGradeAnomalies.map(a=>a.type).join(" · "))}. Un grade mal tapé peut fausser le calcul (jusqu'à 0 $) — corrige le tableau EMS avant tout téléchargement ou clôture.</div></div>
+      <button type="button" class="dl-btn" data-action="jumpToCriticalUnknownGrade" style="background:var(--danger);border-color:var(--danger);color:#fff;flex:0 0 auto;">↑ Voir l'anomalie</button>
+    </div>`;
+  }
+  if(hasBlockingContradictoryRea){
+    html += `<div class="warn-box" style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;border-color:var(--danger);">
+      <div><div style="font-weight:800;margin-bottom:2px;">⛔ Réanimations contradictoires — fichiers de paie bloqués</div>
+      <div style="font-size:12px;">${esc(contradictoryReaAnomalies.map(a=>a.raw).join(" · "))}. Vérifie manuellement la bonne valeur avant tout téléchargement ou clôture.</div></div>
+      <button type="button" class="dl-btn" data-action="jumpToCriticalContradictoryRea" style="background:var(--danger);border-color:var(--danger);color:#fff;flex:0 0 auto;">↑ Voir l'anomalie</button>
     </div>`;
   }
   if(payeZeroBugList.length){
@@ -5088,9 +5504,9 @@ function render(){
   }
   html += `<div style="display:flex;gap:10px;flex-wrap:wrap">`;
   files.forEach((f,i)=>{
-    const blocked = hasUnresolvedDecisions || hasBlockingDuplicateId || hasCriticalCloudReadError;
-    const blockedAction = hasUnresolvedDecisions ? "jumpToPending" : (hasBlockingDuplicateId ? "jumpToCriticalDuplicate" : (hasCriticalCloudReadError ? "jumpToCloudReadError" : "download"));
-    html += `<button class="dl-btn${blocked?' dl-btn-disabled':''}" data-action="${blockedAction}" data-file="${i}"${blocked?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":"Réessaie le chargement des données cloud")}"`:''}>${f.label}</button>`;
+    const blocked = hasUnresolvedDecisions || hasBlockingDuplicateId || hasBlockingUnknownGrade || hasBlockingContradictoryRea || hasCriticalCloudReadError;
+    const blockedAction = hasUnresolvedDecisions ? "jumpToPending" : (hasBlockingDuplicateId ? "jumpToCriticalDuplicate" : (hasBlockingUnknownGrade ? "jumpToCriticalUnknownGrade" : (hasBlockingContradictoryRea ? "jumpToCriticalContradictoryRea" : (hasCriticalCloudReadError ? "jumpToCloudReadError" : "download"))));
+    html += `<button class="dl-btn${blocked?' dl-btn-disabled':''}" data-action="${blockedAction}" data-file="${i}"${blocked?` title="${hasUnresolvedDecisions?"Termine d'abord l'étape 5":(hasBlockingDuplicateId?"Corrige l'ID dossier dupliqué":(hasBlockingUnknownGrade?"Corrige le grade inconnu":(hasBlockingContradictoryRea?"Corrige les réanimations contradictoires":"Réessaie le chargement des données cloud")))}"`:''}>${f.label}</button>`;
   });
   html += `</div>`;
 
@@ -5520,6 +5936,20 @@ function jumpToCriticalDuplicate(){
   else alert("⛔ Un ID dossier est dupliqué dans le tableau EMS. Corrige le tableau puis relance l'analyse.");
 }
 
+function jumpToCriticalUnknownGrade(){
+  const nodes = Array.from(document.querySelectorAll('.anomaly-item, .warn-box, [class*="anomal"]'));
+  const target = nodes.find(el=>/^grade inconnu |grade inconnu/i.test(el.textContent||""));
+  if(target){ target.scrollIntoView({behavior:"smooth", block:"center"}); target.classList.add("attention-flash"); setTimeout(()=>target.classList.remove("attention-flash"),1600); }
+  else alert("⛔ Un grade non reconnu est présent dans le tableau EMS. Corrige le tableau puis relance l'analyse.");
+}
+
+function jumpToCriticalContradictoryRea(){
+  const nodes = Array.from(document.querySelectorAll('.anomaly-item, .warn-box, [class*="anomal"]'));
+  const target = nodes.find(el=>/nom en double dans les réanimations/i.test(el.textContent||""));
+  if(target){ target.scrollIntoView({behavior:"smooth", block:"center"}); target.classList.add("attention-flash"); setTimeout(()=>target.classList.remove("attention-flash"),1600); }
+  else alert("⛔ Deux valeurs différentes de réanimations existent pour la même personne. Corrige le classement puis relance l'analyse.");
+}
+
 function jumpToPendingStep(){
   const step6 = Array.from(document.querySelectorAll('.step')).find(s => s.querySelector('h2')?.textContent.includes("Points à valider"));
   const firstUnanswered = step6?.querySelector('.valid-row .dot-amber')?.closest('.valid-row');
@@ -5886,15 +6316,20 @@ async function fetchViaPillboxProxy(liveWeekKey, wantLiveSessions){
   return data; // inclut aussi animationExcludedIds / animExcludedSelf / styles OWNER
 }
 
-async function pillboxProxyPost(action, payload){
+async function pillboxProxyPost(action, payload, signal){
   if(!pillboxSessionToken) throw new Error("Session Discord absente ou expirée.");
   const res = await fetch(PILLBOX_PROXY_URL, {
     method:"POST",
     headers:{"Content-Type":"application/json","X-Pillbox-Session":pillboxSessionToken},
     body:JSON.stringify({action,...(payload||{})}),
+    ...(signal ? {signal} : {}),
   });
   const data = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  if(!res.ok){
+    const err = new Error(data.error || `${res.status} ${res.statusText}`);
+    err.status = res.status; // (23/10, 12.4) permet au repli « ancien serveur » de reconnaître un 400 précis
+    throw err;
+  }
   return data;
 }
 let pillboxAnimEnabled = true;
@@ -6015,7 +6450,10 @@ function pickBalancedPillboxColleague(excludeId){
   if(!queue.length){queue=ids.slice();for(let i=queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[queue[i],queue[j]]=[queue[j],queue[i]];}}
   const chosen=queue.shift();try{localStorage.setItem(key,JSON.stringify(queue));}catch(e){}return chosen;
 }
-const CHARACTER_PORTRAIT_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232a3650'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%238a97ad'/%3E%3Cpath d='M6 38c0-9.5 7-14.5 14-14.5s14 5 14 14.5' fill='%238a97ad'/%3E%3C/svg%3E";
+// (23/10, 12.4) Silhouette SANS fond : l'ancienne version avait un carré plein
+// (rect bleu-gris) qui, affiché à 100×100 px dans la scène d'analyse, cachait
+// l'écran du bureau pour toute personne absente des 9 personnages.
+const CHARACTER_PORTRAIT_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='13' r='7.5' fill='%239aa8bd' stroke='%23e3eaf4' stroke-opacity='.45' stroke-width='.8'/%3E%3Cpath d='M4 40c0-11 7-17 16-17s16 6 16 17z' fill='%239aa8bd' stroke='%23e3eaf4' stroke-opacity='.45' stroke-width='.8'/%3E%3C/svg%3E";
 function applyCharacterPortrait(imgEl, discordId, portraitStyle){
   if(!imgEl) return;
   const key = canonicalCharacterId(discordId);
@@ -6045,13 +6483,54 @@ function rosterAliasesForRow(row){
 // une semaine passée. En cloud plutôt que localStorage : accessible même
 // si quelqu'un d'autre reprend la paie sur un autre appareil.
 
-async function fetchCurrentWeekHistoryEntry(weekKey){
+async function fetchCurrentWeekHistoryEntry(weekKey, signal){
   // Chemin ultra-léger : une seule entrée Firebase au lieu du proxy GET
-  // complet. Utilisé uniquement au clic « Analyser la semaine » afin que
-  // l'animation démarre sans attendre le chargement du Roster/activité/etc.
-  const data = await pillboxProxyPost("getWeekHistoryEntry", {weekKey});
+  // complet. Utilisé uniquement au clic « Analyser la semaine ».
+  const data = await pillboxProxyPost("getWeekHistoryEntry", {weekKey}, signal);
   return data?.entry || null;
 }
+
+// (23/10, 12.4) Vérification « cette semaine a-t-elle déjà été traitée ? » :
+//  - ne rejette JAMAIS : renvoie {already, error} ;
+//  - délai maximum (un serveur qui ne répond pas = blocage clair, jamais silencieux) ;
+//  - repli sur l'ancien chemin complet UNIQUEMENT si le serveur répond exactement
+//    400 « Action POST inconnue » (Roster pas encore redéployé). Toute autre
+//    erreur (5xx, réseau, délai dépassé) reste bloquante (fail-closed).
+const WEEK_CHECK_TIMEOUT_MS = 10000;
+function weekCheckWithTimeout(promise, ms){
+  let timer;
+  const timeout = new Promise((_, reject)=>{ timer = setTimeout(()=>reject(new Error("Délai dépassé pendant la vérification de l'historique.")), ms); });
+  return Promise.race([promise, timeout]).finally(()=>clearTimeout(timer));
+}
+async function checkWeekAlreadyProcessed(key){
+  const ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const abortTimer = ctrl ? setTimeout(()=>ctrl.abort(), WEEK_CHECK_TIMEOUT_MS) : null;
+  try{
+    const entry = await fetchCurrentWeekHistoryEntry(key, ctrl ? ctrl.signal : undefined);
+    return { already: entry || null, error: null };
+  }catch(err){
+    if(err && err.status === 400 && /Action POST inconnue/i.test(String(err.message || ""))){
+      try{
+        const history = await weekCheckWithTimeout(fetchWeekHistory(), WEEK_CHECK_TIMEOUT_MS);
+        if(history === null) return { already: null, error: new Error("Historique des semaines illisible (repli ancien serveur).") };
+        return { already: history[key] || null, error: null };
+      }catch(err2){
+        return { already: null, error: err2 };
+      }
+    }
+    return { already: null, error: err };
+  }finally{
+    if(abortTimer) clearTimeout(abortTimer);
+  }
+}
+function weekAlreadyProcessedMessage(already){
+  const when = new Date(already.processedAt).toLocaleString("fr-FR");
+  return `⚠️ Cette semaine a déjà été traitée le ${when}.\n\n` +
+    `À l'époque : ${already.summary.promotions} promotion(s), ${already.summary.licenciements} licenciement(s), ` +
+    `total payes ${Math.round(already.summary.totalPaye).toLocaleString("fr-FR")} $.\n\n` +
+    `Continuer quand même ?`;
+}
+const WEEK_CHECK_BLOCK_MESSAGE = "⚠️ Impossible de vérifier l'historique des semaines. Analyse bloquée pour éviter de retraiter une semaine déjà clôturée.";
 
 async function fetchWeekHistory(){
   try{
@@ -6183,6 +6662,33 @@ async function fetchDiscordIdsListSilent(attempt = 1){
     try{ localStorage.setItem(KEY, on ? '1' : '0'); }catch(e){}
   });
 })();
+
+// (26/10) Sélecteur de couleur — aperçu en direct (jamais enregistré tant
+// que "Appliquer" n'est pas cliqué), fermeture sans appliquer = retour à
+// la couleur précédente. Le mode daltonien ci-dessus reste une couche à
+// part, appliquée PAR-DESSUS quelle que soit la couleur du thème — ce
+// bloc ne touche jamais --green/--amber/--danger.
+(function initPillboxThemePicker(){
+  const modal=document.getElementById('pillboxThemeModal'),openBtn=document.getElementById('pillboxThemeBtn'),presetsBox=document.getElementById('pillboxThemePresets'),secondaryPresetsBox=document.getElementById('pillboxThemeSecondaryPresets'),customInput=document.getElementById('pillboxThemeCustomInput'),secondaryInput=document.getElementById('pillboxThemeSecondaryInput'),secondarySection=document.getElementById('pillboxThemeSecondarySection'),addSecondaryBtn=document.getElementById('pillboxThemeAddSecondaryBtn'),removeSecondaryBtn=document.getElementById('pillboxThemeRemoveSecondaryBtn'),applyBtn=document.getElementById('pillboxThemeApplyBtn'),resetBtn=document.getElementById('pillboxThemeResetBtn');
+  if(!modal||!openBtn)return;
+  let paletteBeforeOpen={primary:PILLBOX_THEME_DEFAULT,secondary:null},pendingPalette={primary:PILLBOX_THEME_DEFAULT,secondary:null};
+  const presetMarkup=(klass)=>PILLBOX_THEME_PRESETS.map(p=>`<button type="button" class="clear-save-btn ${klass}" data-hex="${p.hex}" data-secondary="${p.secondary||''}" data-mode="${p.mode||''}" title="${p.name}${p.mode==='holographic'?' — vrai dégradé holographique animé':''}" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;color:var(--ink-dim);"><span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient||p.hex};border:1.5px solid rgba(0,0,0,.15);"></span>${p.emoji}</button>`).join("");
+  presetsBox.innerHTML=presetMarkup('pillbox-theme-preset'); secondaryPresetsBox.innerHTML=presetMarkup('pillbox-theme-secondary-preset');
+  function updatePresetSelection(box,selector,hex,mode){box.querySelectorAll(selector).forEach(b=>{const active=b.dataset.mode?(mode===b.dataset.mode):!!hex&&!mode&&b.dataset.hex.toLowerCase()===hex.toLowerCase();b.style.outline=active?'2px solid var(--ink)':'none';b.style.outlineOffset=active?'2px':'0';b.querySelector('.pillbox-theme-check')?.remove();if(active&&document.body.classList.contains('colorblind-mode')){const check=document.createElement('span');check.className='pillbox-theme-check';check.textContent='✓';check.style.cssText='position:absolute;font-weight:900;color:var(--ink);';b.appendChild(check);}});}
+  function renderPending(){pendingPalette=pillboxNormalizeThemePalette(pendingPalette);customInput.value=pendingPalette.primary;const dual=!!pendingPalette.secondary;secondarySection.style.display=dual?'block':'none';addSecondaryBtn.style.display=dual?'none':'flex';if(dual)secondaryInput.value=pendingPalette.secondary;updatePresetSelection(presetsBox,'.pillbox-theme-preset',pendingPalette.primary,pendingPalette.mode);updatePresetSelection(secondaryPresetsBox,'.pillbox-theme-secondary-preset',pendingPalette.secondary,null);pillboxApplyThemePalette(pendingPalette,{persist:false});}
+  openBtn.addEventListener('click',()=>{paletteBeforeOpen=pillboxReadStoredTheme();pendingPalette={...paletteBeforeOpen};renderPending();modal.style.display='flex';});
+  function closeWithoutApplying(){pillboxApplyThemePalette(paletteBeforeOpen,{persist:false});modal.style.display='none';}
+  let pillboxThemeMousedownOnBackdrop=false;modal.addEventListener('mousedown',e=>{pillboxThemeMousedownOnBackdrop=e.target===modal;});modal.addEventListener('click',e=>{if(e.target===modal&&pillboxThemeMousedownOnBackdrop)closeWithoutApplying();pillboxThemeMousedownOnBackdrop=false;});
+  document.getElementById('pillboxThemeCloseBtn')?.addEventListener('click',closeWithoutApplying);
+  const choosePreset=(b,target)=>{if(b.dataset.mode==='holographic'){pendingPalette={primary:b.dataset.hex||'#ff74d4',secondary:b.dataset.secondary||'#72ddf7',mode:'holographic'};}else{pendingPalette.mode=null;if(target==='secondary')pendingPalette.secondary=b.dataset.hex;else pendingPalette.primary=b.dataset.hex;}renderPending();};
+  presetsBox.addEventListener('click',e=>{const b=e.target.closest('.pillbox-theme-preset');if(b)choosePreset(b,'primary');});
+  secondaryPresetsBox.addEventListener('click',e=>{const b=e.target.closest('.pillbox-theme-secondary-preset');if(b)choosePreset(b,'secondary');});
+  customInput.addEventListener('input',()=>{pendingPalette.primary=customInput.value;pendingPalette.mode=null;renderPending();}); secondaryInput.addEventListener('input',()=>{pendingPalette.secondary=secondaryInput.value;pendingPalette.mode=null;renderPending();});
+  addSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=PILLBOX_THEME_SECONDARY_DEFAULT;pendingPalette.mode=null;renderPending();}); removeSecondaryBtn.addEventListener('click',()=>{pendingPalette.secondary=null;pendingPalette.mode=null;renderPending();});
+  applyBtn.addEventListener('click',()=>{pillboxSaveTheme(pendingPalette);modal.style.display='none';}); resetBtn.addEventListener('click',()=>{pillboxResetTheme();modal.style.display='none';});
+})();
+
+;
 
 // (Mode tuto retiré le 09/09 — les boîtes .tuto-box restent dans le
 // code mais ne s'affichent plus jamais, cachées par défaut via CSS,
@@ -6387,7 +6893,7 @@ function setSessionToolsStatus(message, isError=false){
   const el = document.getElementById('sessionToolsStatus');
   if(!el) return;
   el.textContent = message || '';
-  el.style.color = isError ? 'var(--red, #c62828)' : 'var(--ink-dim)';
+  el.style.color = isError ? 'var(--danger, #c62828)' : 'var(--ink-dim)';
 }
 
 function isRecognizedSessionFile(data){
@@ -6605,10 +7111,10 @@ async function renderDashboardPanel(){
       const drop = Number(syncMeta.dropPercent)||0;
       const dangerousDrop = previousCount>0 && drop>50;
       html += `<div style="margin:0 0 10px;padding:10px 11px;border-radius:10px;border:1px solid ${dangerousDrop?'rgba(248,113,113,.55)':'rgba(52,211,153,.28)'};background:${dangerousDrop?'rgba(127,29,29,.18)':'rgba(16,185,129,.07)'};">
-        <div style="font-size:11px;font-weight:900;letter-spacing:.05em;color:${dangerousDrop?'var(--red)':'var(--green)'};margin-bottom:4px;">${dangerousDrop?'⚠ SYNCHRONISATION ROSTER À VÉRIFIER':'✓ DERNIÈRE SYNCHRONISATION REÇUE'}</div>
+        <div style="font-size:11px;font-weight:900;letter-spacing:.05em;color:${dangerousDrop?'var(--danger)':'var(--green)'};margin-bottom:4px;">${dangerousDrop?'⚠ SYNCHRONISATION ROSTER À VÉRIFIER':'✓ DERNIÈRE SYNCHRONISATION REÇUE'}</div>
         <div style="font-size:13px;"><b>${esc(syncWhen)}</b> — <b>${syncCount}</b> employé(s) reçu(s).</div>
-        ${previousCount!==null?`<div style="font-size:12px;color:var(--ink-dim);margin-top:3px;">Synchronisation précédente : ${previousCount} employé(s)${drop>0?` — baisse de <b style="color:${dangerousDrop?'var(--red)':'var(--amber)'};">${drop}%</b>`:''}.</div>`:''}
-        ${dangerousDrop?`<div style="font-size:12px;color:var(--red);font-weight:800;margin-top:6px;">La quantité reçue a chuté de plus de 50 %. Vérifie le Roster avant de préparer les paies.</div>`:''}
+        ${previousCount!==null?`<div style="font-size:12px;color:var(--ink-dim);margin-top:3px;">Synchronisation précédente : ${previousCount} employé(s)${drop>0?` — baisse de <b style="color:${dangerousDrop?'var(--danger)':'var(--amber)'};">${drop}%</b>`:''}.</div>`:''}
+        ${dangerousDrop?`<div style="font-size:12px;color:var(--danger);font-weight:800;margin-top:6px;">La quantité reçue a chuté de plus de 50 %. Vérifie le Roster avant de préparer les paies.</div>`:''}
       </div>`;
     } else {
       html += `<div style="margin:0 0 10px;padding:9px 11px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(148,163,184,.05);font-size:12px;color:var(--ink-dim);">Aucune synchronisation complète Roster → Pillbox enregistrée depuis l'ajout de ce suivi.</div>`;
@@ -8054,6 +8560,135 @@ function buildWeekHistoryChanges(ctx){
   return {promotions, retrogradations, licenciements, promotedDetails, retrogradedDetails, licenciedDetails};
 }
 
+// (24/10, bloc 3 — cahier des charges, point 22) Tout ce qui manquait au
+// résumé archivé pour que "Voir les détails" d'une semaine passée soit
+// vraiment complet. Construit UNIQUEMENT à partir de ce que ctx/state
+// contiennent déjà à la clôture — rien n'est recalculé différemment,
+// rien n'est dupliqué depuis une autre logique.
+function buildWeekHistoryDetail(ctx){
+  const totalReanimations = ctx.actifs.reduce((n,e)=>n+(e.reaCount||0), 0);
+
+  const ppaList = (state.ppaList||[]).map(p=>({name:p.name, montant:Number(p.amount)||0})).filter(p=>p.montant);
+  const ppaTotal = ppaList.reduce((n,p)=>n+p.montant, 0);
+  const primeOptList = (state.primeOptionnelleList||[]).map(p=>({name:p.name, montant:Number(p.amount)||0})).filter(p=>p.montant);
+
+  const top3 = (ctx.podiumTiers||[]).map(tier=>({
+    rang: tier.rank, reanimations: tier.reaCount,
+    personnes: tier.people.map(e=>e.name),
+    bonus: BONUS_BY_RANK_CONFIG[tier.rank] || 0,
+  }));
+
+  // Promotions refusées (point 25) — décidées "Non" cette semaine, pas
+  // juste en attente (une semaine clôturée ne doit plus rien avoir en
+  // attente, voir le verrou de clôture).
+  const promotionsRefusees = (ctx.pendingUp||[])
+    .filter(e=>state.overrides[e.key]?.upDecision===false)
+    .map(e=>({name:e.name, grade:GRADE_LABEL[e.grade]||e.grade, cibleGrade:GRADE_LABEL[e.targetGrade]||e.targetGrade||'?'}));
+
+  // Avertissements / signalements (point 24, une seule section) — tous
+  // ceux pour lesquels une décision a bien été prise cette semaine.
+  const avertissementsSignalements = (ctx.pendingSignalementGroups||[])
+    .filter(g=>g.decision!==undefined)
+    .map(g=>({name:(g.person&&g.person.name)||'?', grade:(g.person&&g.person.grade)||'', decision: g.decision, categories: g.categories||[]}));
+
+  // Quotas non atteints cette semaine (point 22 "quotas") — pour mémoire,
+  // indépendamment de la déduction réellement appliquée (qui peut avoir
+  // été évitée si la paye serait devenue négative, déjà tracée ailleurs).
+  const quotasNonAtteints = ctx.actifs
+    .filter(e=>!e.exempt && !e.quotaMet && !e.benevole)
+    .map(e=>({name:e.name, grade:e.grade, reaCount:e.reaCount}));
+
+  // Absences ayant eu un impact (point 22) — décisions prises cette
+  // semaine sur des groupes d'absences (répétées, STG, longues).
+  const absencesAvecImpact = (ctx.pendingAbsenceGroups||[])
+    .filter(g=>g.decision!==undefined)
+    .map(g=>({name:(g.person&&g.person.name)||'?', grade:(g.person&&g.person.grade)||'', absenceCount:g.absenceCount||0, decision:g.decision}));
+
+  // Correspondances manuelles (noms rapprochés automatiquement lors du
+  // collage des réanimations) — déjà calculées comme anomalies, jamais
+  // recalculées une seconde fois ici.
+  const anomalies = (state.parsed?.anomalies || []);
+  const correspondancesManuelles = anomalies
+    .filter(a=>/^correspondance approximative appliquée/i.test(a?.type||''))
+    .map(a=>a.raw);
+  const anomaliesUtiles = anomalies
+    .filter(a=>!/^correspondance approximative appliquée/i.test(a?.type||''))
+    .map(a=>({type:a.type, detail:a.raw||''}));
+
+  return {
+    totalReanimations, ppaList, ppaTotal, primeOptList, top3,
+    promotionsRefusees, avertissementsSignalements, quotasNonAtteints,
+    absencesAvecImpact, correspondancesManuelles, anomaliesUtiles,
+  };
+}
+
+// (24/10, suite bloc 3 — demandé) Pour une ANCIENNE semaine archivée AVANT
+// ce chantier, entry.summary n'a aucun des nouveaux champs. Plutôt que de
+// réécrire l'archive (pas de "gros backfill Firebase", point 29) ou de
+// deviner, on reconstruit À L'AFFICHAGE SEULEMENT, à partir de
+// sessionSnapshot — jamais rien envoyé à Firebase. On distingue ce qui est
+// CERTAIN (tableau/réa/décisions archivés tels quels) de ce qui DÉPEND des
+// tarifs de paie : pour une vieille semaine sans tarifs archivés
+// (payRulesUsed absent), ces valeurs sont recalculées avec les réglages
+// ACTUELS et clairement signalées comme telles (point 30 : jamais un
+// recalcul silencieux présenté comme le résultat d'origine).
+function reconstructWeekDetailFromSnapshot(entry){
+  const snap = entry.sessionSnapshot;
+  if(!snap || !snap.tableauText) return null;
+  // Sauvegarde de TOUT ce qu'on va modifier temporairement, pour tout
+  // restaurer ensuite sans le moindre effet de bord sur le travail en cours.
+  const backup = {
+    parsed: state.parsed, overrides: state.overrides, ppaList: state.ppaList,
+    primeOptionnelleList: state.primeOptionnelleList,
+    weekStartInput: document.getElementById('weekStartInput').value,
+  };
+  try{
+    if(snap.weekStartInput) document.getElementById('weekStartInput').value = snap.weekStartInput;
+    const weekStart = getWeekStart();
+    const {rows, anomalies} = parseTableau(snap.tableauText, weekStart);
+    // Reconstruction volontairement simplifiée : rapprochement par nom
+    // normalisé exact (sans la correspondance approximative élaborée de
+    // l'analyse réelle) — suffisant pour un affichage de secours sur une
+    // ancienne semaine, jamais utilisé pour calculer une vraie paie.
+    const reaParsed = looksLikeReaNameFormat(snap.reaText||"") ? parseReanimationsByName(snap.reaText||"") : null;
+    const reaMap = reaParsed ? reaParsed.map : parseReanimations(snap.reaText||"");
+    state.parsed = {rows, anomalies, reaMap, reaByName: !!reaParsed};
+    state.overrides = (snap.state && snap.state.overrides) || {};
+    state.ppaList = (snap.state && snap.state.ppaList) || [];
+    state.primeOptionnelleList = (snap.state && snap.state.primeOptionnelleList) || [];
+
+    const ctx = buildContext();
+    const detail = buildWeekHistoryDetail(ctx);
+    const changes = buildWeekHistoryChanges(ctx);
+    const hadArchivedRates = !!(entry.summary && entry.summary.payRulesUsed);
+    return {
+      reconstructed: true,
+      ratesAreCertain: hadArchivedRates,
+      totalReanimations: detail.totalReanimations,
+      ppaList: detail.ppaList, ppaTotal: detail.ppaTotal,
+      top3: detail.top3, // dépend des tarifs si !hadArchivedRates
+      promotionsRefusees: detail.promotionsRefusees,
+      quotasNonAtteints: detail.quotasNonAtteints, // dépend des tarifs si !hadArchivedRates
+      correspondancesManuelles: detail.correspondancesManuelles,
+      anomaliesUtiles: detail.anomaliesUtiles,
+      // Non reconstituables avec certitude : les signalements/absences EN
+      // ATTENTE de cette époque ne sont plus connus (seules les décisions
+      // déjà prises à ce moment compteraient, et elles ne sont pas
+      // archivées à part — jamais deviné).
+      avertissementsSignalements: null,
+      absencesAvecImpact: null,
+      promotedDetails: changes.promotedDetails, retrogradedDetails: changes.retrogradedDetails, licenciedDetails: changes.licenciedDetails,
+      promotions: changes.promotions.length, retrogradations: changes.retrogradations.length, licenciements: changes.licenciements.length,
+    };
+  }catch(err){
+    console.error("Reconstruction d'une ancienne semaine impossible:", err);
+    return null;
+  }finally{
+    Object.assign(state, backup);
+    document.getElementById('weekStartInput').value = backup.weekStartInput;
+  }
+}
+
 async function renderWeekHistoryPanel(){
   const list = document.getElementById('weekHistoryList');
   list.innerHTML = "Chargement…";
@@ -8069,7 +8704,12 @@ async function renderWeekHistoryPanel(){
   }
   list.innerHTML = weeks.map(([key, entry])=>{
     const when = new Date(entry.processedAt).toLocaleString("fr-FR");
-    const s = entry.summary || {};
+    // (24/10, suite bloc 3) Archive déjà enrichie -> telle quelle. Sinon,
+    // si sessionSnapshot existe, reconstruction à l'affichage uniquement
+    // (jamais réécrite dans Firebase) ; sinon "—" partout (point 30).
+    const hasEnrichedSummary = entry.summary && entry.summary.totalReanimations !== undefined;
+    const reconstructed = (!hasEnrichedSummary) ? reconstructWeekDetailFromSnapshot(entry) : null;
+    const s = { ...(entry.summary||{}), ...(reconstructed||{}) };
     const isImportedOnly = !!(entry.sessionSnapshot && entry.sessionSnapshot.imported);
     const promoDetails = (s.promotedDetails && s.promotedDetails.length) ? s.promotedDetails : (s.promotedNames||[]).map(n=>({name:n}));
     const retroDetails = (s.retrogradedDetails && s.retrogradedDetails.length) ? s.retrogradedDetails : [];
@@ -8083,30 +8723,80 @@ async function renderWeekHistoryPanel(){
     const licLines = licDetails.length
       ? licDetails.map(l=> l.raison ? `• ${esc(l.name)} — <span style="color:var(--ink-dim);">${esc(l.raison)}</span>` : `• ${esc(l.name)}`).join("<br>")
       : "—";
-    return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+    // (24/10, bloc 3) Champs enrichis, point 22-25 — absents sur les
+    // semaines archivées AVANT ce chantier (compat : "—"/0 proprement,
+    // jamais une erreur d'affichage sur de l'ancien historique).
+    const promoRefLines = (s.promotionsRefusees||[]).length
+      ? s.promotionsRefusees.map(p=>`• ${esc(p.name)} (${esc(p.grade)} → ${esc(p.cibleGrade)})`).join("<br>") : "—";
+    const avertLines = s.avertissementsSignalements===null
+      ? '<span style="color:var(--ink-dim);">Non disponible pour cette ancienne semaine (décisions d\'origine non archivées à part)</span>'
+      : (s.avertissementsSignalements||[]).length
+      ? s.avertissementsSignalements.map(a=>`• ${esc(a.name)}${a.grade?` (${esc(a.grade)})`:''} — ${a.decision? '<span style="color:#c8102e;">rétrogradé</span>' : '<span style="color:var(--ink-dim);">pas cette semaine</span>'}${a.categories&&a.categories.length?` — ${esc(a.categories.join(', '))}`:''}`).join("<br>") : "—";
+    const quotaLines = (s.quotasNonAtteints||[]).length
+      ? s.quotasNonAtteints.map(q=>`• ${esc(q.name)} (${esc(q.grade)}) — ${q.reaCount} réa`).join("<br>") : "—";
+    const absenceLines = s.absencesAvecImpact===null
+      ? '<span style="color:var(--ink-dim);">Non disponible pour cette ancienne semaine (décisions d\'origine non archivées à part)</span>'
+      : (s.absencesAvecImpact||[]).length
+      ? s.absencesAvecImpact.map(a=>`• ${esc(a.name)}${a.grade?` (${esc(a.grade)})`:''} — ${a.decision? '<span style="color:#c8102e;">rétrogradé</span>' : '<span style="color:var(--ink-dim);">pas cette semaine</span>'} (${a.absenceCount} absence(s))`).join("<br>") : "—";
+    const ppaLines = (s.ppaList||[]).length
+      ? s.ppaList.map(p=>`• ${esc(p.name)} — ${Math.round(p.montant).toLocaleString("fr-FR")} $`).join("<br>") : "—";
+    const top3Lines = (s.top3||[]).length
+      ? s.top3.map(t=>`• Rang ${t.rang} (${t.reanimations} réa) — ${esc(t.personnes.join(', '))} — ${Math.round(t.bonus).toLocaleString("fr-FR")} $ chacun`).join("<br>") : "—";
+    const correspLines = (s.correspondancesManuelles||[]).length ? s.correspondancesManuelles.map(c=>`• ${esc(c)}`).join("<br>") : "—";
+    const anomLines = (s.anomaliesUtiles||[]).length ? s.anomaliesUtiles.map(a=>`• ${esc(a.type)}${a.detail?` — ${esc(a.detail)}`:''}`).join("<br>") : "—";
+    const reopenEvents = Array.isArray(entry.reopenHistory) ? entry.reopenHistory : (entry.reopened ? [{byName:entry.reopenedByName, byLevel:entry.reopenedByLevel, at:entry.reopenedAt}] : []);
+    const closureEvents = Array.isArray(entry.closureHistory) ? entry.closureHistory : [{at:entry.processedAt, byName:s.paieEffectueePar||null}];
+    const chronoLines = [...closureEvents.map(c=>({t:c.at, label:`Clôturée${c.byName?` par ${esc(c.byName)}`:''}`})), ...reopenEvents.map(r=>({t:r.at, label:`Réouverte par ${esc(r.byName||'?')} (${esc(r.byLevel||'?')})`}))]
+      .sort((a,b)=>a.t-b.t).map(e=>`• ${new Date(e.t).toLocaleString("fr-FR")} — ${e.label}`).join("<br>") || "—";
+
+    // Carte simple (point 28) : Total / Réanimations / PPA / Promotions / Avertissements, puis [Voir les détails].
+    return `<div class="week-history-card">
       <div style="font-weight:700;">Semaine du ${esc(key)}${entry.reopened ? ` <span style="font-size:10.5px;font-weight:400;color:#b4740e;">(réouverte)</span>` : ""}</div>
-      <div style="font-size:12.5px;color:var(--ink-dim);margin:4px 0 8px;">
-        Close le ${esc(when)} — total payes ${Math.round(s.totalPaye||0).toLocaleString("fr-FR")} $${isImportedOnly ? " — <i>importée depuis des fichiers</i>" : ""}
-        ${s.paieEffectueePar ? `<div style="font-size:10.5px;color:var(--ink-dim);opacity:.75;margin-top:2px;">Effectuée par · ${esc(s.paieEffectueePar)}</div>` : ""}
-        ${entry.reopened ? `<div style="font-size:10.5px;color:#b4740e;opacity:.85;margin-top:2px;">Réouverte par · ${esc(entry.reopenedByName||"?")} · ${esc(entry.reopenedByLevel||"?")}</div>` : ""}
+      <div style="font-size:11px;color:var(--ink-dim);margin:2px 0 8px;">Close le ${esc(when)}${isImportedOnly ? " — <i>importée depuis des fichiers</i>" : ""}</div>
+      ${reconstructed ? `<div style="font-size:11px;background:var(--paper-2);border-radius:6px;padding:5px 8px;margin-bottom:8px;">🔄 Détails reconstruits à l’affichage depuis le tableau archivé de cette semaine (rien n’est réécrit dans l’historique).${!reconstructed.ratesAreCertain ? " Le Top 3 et les quotas sont recalculés avec les <b>tarifs actuels</b> (les tarifs d’origine de cette semaine ne sont pas connus) — peuvent différer de ce qui a réellement été payé." : ""}</div>` : ""}
+      <div class="week-history-stats">
+        <div><span class="week-history-stat-label">Total</span><span class="week-history-stat-value">${Math.round(s.totalPaye||0).toLocaleString("fr-FR")} $</span></div>
+        <div><span class="week-history-stat-label">Réanimations</span><span class="week-history-stat-value">${s.totalReanimations!=null? s.totalReanimations : "—"}</span></div>
+        <div><span class="week-history-stat-label">PPA</span><span class="week-history-stat-value">${s.ppaTotal? Math.round(s.ppaTotal).toLocaleString("fr-FR")+" $" : "—"}</span></div>
+        <div><span class="week-history-stat-label">Promotions</span><span class="week-history-stat-value">${s.promotions||0}</span></div>
+        <div><span class="week-history-stat-label">Avertissements</span><span class="week-history-stat-value">${(s.avertissementsSignalements||[]).length || "—"}</span></div>
       </div>
-      <button type="button" class="btn" style="font-size:11px;padding:4px 10px;margin-bottom:6px;" data-reopen-week="${esc(key)}">↺ Réouvrir cette semaine</button>
+      <button type="button" class="btn" style="font-size:11px;padding:4px 10px;margin:8px 0 6px;" data-reopen-week="${esc(key)}">↺ Réouvrir cette semaine</button>
       <details style="font-size:12.5px;">
-        <summary style="cursor:pointer;font-weight:600;color:var(--ink);">⬆️ ${s.promotions||0} promotion(s) — 👋 ${s.licenciements||0} licenciement(s)${(s.retrogradations||0)>0?` — ⬇️ ${s.retrogradations} rétrogradation(s)`:''} <span style="font-weight:400;color:var(--ink-dim);">(voir le détail)</span></summary>
+        <summary style="cursor:pointer;font-weight:600;color:var(--ink);">Voir les détails</summary>
         <div style="line-height:1.7;background:var(--paper-2);border-radius:6px;padding:8px 10px;margin-top:6px;">
-          <div style="font-weight:700;margin-bottom:2px;">⬆️ Promotions / UP</div>
+          <div style="font-weight:700;margin-bottom:2px;">⬆️ Promotions / UP acceptées</div>
           <div style="margin-bottom:8px;">${promoLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">✕ Promotions refusées</div>
+          <div style="margin-bottom:8px;">${promoRefLines}</div>
           ${retroDetails.length ? `<div style="font-weight:700;margin-bottom:2px;">⬇️ Rétrogradations</div><div style="margin-bottom:8px;">${retroLines}</div>` : ''}
           <div style="font-weight:700;margin-bottom:2px;">👋 Licenciements / départs</div>
-          <div>${licLines}</div>
+          <div style="margin-bottom:8px;">${licLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">⚠️ Avertissements / Signalements</div>
+          <div style="margin-bottom:8px;">${avertLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">📋 PPA (total ${s.ppaTotal? Math.round(s.ppaTotal).toLocaleString("fr-FR")+" $" : "—"})</div>
+          <div style="margin-bottom:8px;">${ppaLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">🏆 Top 3</div>
+          <div style="margin-bottom:8px;">${top3Lines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">📊 Quotas non atteints</div>
+          <div style="margin-bottom:8px;">${quotaLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">📅 Absences ayant eu un impact</div>
+          <div style="margin-bottom:8px;">${absenceLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">🔤 Correspondances manuelles (réanimations)</div>
+          <div style="margin-bottom:8px;">${correspLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">🔎 Anomalies utiles</div>
+          <div style="margin-bottom:8px;">${anomLines}</div>
+          <div style="font-weight:700;margin-bottom:2px;">🕒 Chronologie clôture / réouverture</div>
+          <div>${chronoLines}</div>
         </div>
       </details>
       <div style="margin-top:8px;">
-        <button type="button" class="btn" style="font-size:12px;padding:5px 12px;${isImportedOnly?'opacity:.4;cursor:not-allowed;':''}" data-recover-week="${esc(key)}" ${isImportedOnly?'disabled title="Cette semaine a été importée depuis des fichiers — pas de tableau/réas d\'origine à récupérer"':''}>↩ Récupérer cette semaine</button>
+        <button type="button" class="btn" style="font-size:12px;padding:5px 12px;${isImportedOnly?'opacity:.4;cursor:not-allowed;':''}" data-recover-week="${esc(key)}" ${isImportedOnly?'disabled title="Cette semaine a été importée depuis des fichiers — pas de session complète à récupérer."':''}>↩️ Récupérer dans les champs de travail</button>
         <button type="button" class="btn" style="font-size:12px;padding:5px 12px;background:var(--danger,#c8102e);border-color:var(--danger,#c8102e);color:#fff;" data-delete-week="${esc(key)}">🗑 Supprimer</button>
       </div>
     </div>`;
   }).join("");
+
 
   list.querySelectorAll('[data-reopen-week]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ pillboxReopenWeek(btn.dataset.reopenWeek); });
@@ -8179,6 +8869,13 @@ document.getElementById('showWeekHistoryBtn').addEventListener('click', ()=>{
 
 function runAnalysis(resetOverrides){
   if(!payRulesReady) throw new Error(payRulesLoadError || "Impossible de vérifier les règles de paie actuelles — analyse bloquée.");
+  // (26/10) Figé ICI, au tout début de CHAQUE nouvelle analyse : applique la
+  // dernière config de paie connue (celle du dernier fetch réussi, initial
+  // ou de fond) une seule fois, puis plus aucun rafraîchissement de fond ne
+  // viendra la modifier tant que cette analyse reste affichée — une
+  // nouvelle analyse (reclic sur "Analyser") la réappliquera à nouveau à ce
+  // moment-là, avec les valeurs les plus fraîches alors disponibles.
+  if(pendingPayRulesConfig) applyFetchedPayRules(pendingPayRulesConfig);
   const weekStart = getWeekStart();
   const {rows, anomalies, wdvNames} = parseTableau(document.getElementById('tableauText').value, weekStart);
   const reaTextRaw = document.getElementById('reaText').value;
@@ -8244,7 +8941,13 @@ function runAnalysis(resetOverrides){
         return;
       }
       const closest = findClosestName(n, knownEntries);
-      if(closest){
+      if(closest && closest.ambiguous){
+        // (24/10, audit) Ex æquo entre plusieurs personnes différentes :
+        // on n'attribue à AUCUNE des deux plutôt que de deviner — mieux
+        // vaut une correspondance manquante (visible, corrigible à la
+        // main) qu'une réanimation attribuée à la mauvaise personne.
+        anomalies.push({type:"correspondance ambiguë — réanimations NON attribuées, à corriger à la main", raw:`"${reaRawNames[n] || n}" pourrait être : ${closest.candidates.join(" OU ")}`});
+      } else if(closest){
         reaMap[closest.name] = reaMap[n];
         fuzzyMatched[n] = closest.name;
         anomalies.push({type:"correspondance approximative appliquée (à vérifier)", raw:`"${reaRawNames[n] || n}" → "${closest.name}"`});
@@ -8398,13 +9101,13 @@ function pushLiveUpSessionSoon(){
 // puis un autre EMS vient récupérer physiquement la pile. Aucun faux résultat
 // métier n'est inventé : le visuel reste neutre ("TRAITÉ") et le calcul
 // réel est lancé avant l'affichage final de réussite.
-function showAnalysisAnimation(runRealAnalysis){
+function showAnalysisAnimation(runRealAnalysis, gate, earlyStop){
   const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   if(!pillboxAnimEnabled || pillboxAnimExcludedSelf || reduced){
     if(!pillboxAnimEnabled || pillboxAnimExcludedSelf){
       const reason = !pillboxAnimEnabled ? "désactivées dans le Roster" : "ton personnage est exclu des animations";
       console.info(`[Animations Pillbox] scène ignorée : ${reason}.`);
-      try{ runRealAnalysis(); return Promise.resolve(null); }catch(err){ return Promise.resolve(err); }
+      try{ runRealAnalysis(); return Promise.resolve({error:null, aborted:false}); }catch(err){ return Promise.resolve({error:err, aborted:false}); }
     }
     // Si Windows demande moins de mouvement, on garde la scène et les personnages
     // mais les animations CSS sont neutralisées par la media query existante.
@@ -8434,10 +9137,16 @@ function showAnalysisAnimation(runRealAnalysis){
   activeFolder.style.transition='none';activeFolder.style.opacity='0';activeFolder.style.transform='translate(0,0)';stampMark.style.opacity='0';if(glow){glow.style.opacity='0';glow.style.transition='opacity .25s ease,transform .4s ease';}
   modal.style.display='flex';document.getElementById('skipAnalysisAnimation').focus({preventScroll:true});
   return new Promise(resolve=>{
-    let settled=false,analysisRan=false,analysisError=null;const timers=[];
-    const runNow=()=>{if(analysisRan)return;analysisRan=true;if(scene)scene.dataset.phase='compute';try{runRealAnalysis();modal.classList.add('aa-complete');if(scene)scene.dataset.phase='done';title.textContent='Analyse terminée';subtitle.textContent='Le calcul réel est terminé.';if(badge)badge.textContent='✓ Résultats calculés';}catch(err){analysisError=err;modal.classList.add('aa-error');if(scene)scene.dataset.phase='error';title.textContent='Erreur pendant l’analyse';subtitle.textContent='Le calcul réel n’a pas pu se terminer.';if(badge)badge.textContent='✕ Analyse interrompue';}};
-    const finish=()=>{if(settled)return;settled=true;runNow();timers.forEach(clearTimeout);document.removeEventListener('keydown',onKey);document.getElementById('skipAnalysisAnimation').removeEventListener('click',finish);modal.style.display='none';btn.disabled=wasDisabled;resolve(analysisError)};
+    let settled=false,analysisRan=false,analysisError=null,runPromise=null,aborted=false;const timers=[];
+    const runNow=()=>{if(runPromise)return runPromise;analysisRan=true;runPromise=(async()=>{if(scene)scene.dataset.phase='compute';
+      /* (23/10, 12.4) Porte de vérification : l'analyse réelle ne part JAMAIS avant la réponse de « semaine déjà traitée ? » */
+      if(gate){let verdict;try{verdict=await gate();}catch(gateErr){console.error('[Analyse] vérification de semaine en échec :',gateErr);verdict={abort:true};}if(verdict&&verdict.abort){aborted=true;return;}}
+      try{runRealAnalysis();modal.classList.add('aa-complete');if(scene)scene.dataset.phase='done';title.textContent='Analyse terminée';subtitle.textContent='Le calcul réel est terminé.';if(badge)badge.textContent='✓ Résultats calculés';}catch(err){analysisError=err;modal.classList.add('aa-error');if(scene)scene.dataset.phase='error';title.textContent='Erreur pendant l’analyse';subtitle.textContent='Le calcul réel n’a pas pu se terminer.';if(badge)badge.textContent='✕ Analyse interrompue';}
+    })();return runPromise;};
+    const finish=async()=>{if(settled)return;settled=true;timers.forEach(clearTimeout);document.removeEventListener('keydown',onKey);document.getElementById('skipAnalysisAnimation').removeEventListener('click',finish);try{await runNow();}finally{modal.style.display='none';btn.disabled=wasDisabled;resolve({error:analysisError,aborted});}};
     const onKey=e=>{if(e.key==='Escape'){e.preventDefault();finish()}};document.addEventListener('keydown',onKey);document.getElementById('skipAnalysisAnimation').addEventListener('click',finish);
+    /* (23/10, 12.4) earlyStop : si la vérification de semaine échoue tout de suite, on arrête la scène aussitôt (alerte immédiate) au lieu de la laisser finir. */
+    if(earlyStop){earlyStop.then(stop=>{if(stop)finish();},()=>{});}
     [420,1600,2780].forEach((delay,i)=>{
       timers.push(setTimeout(()=>{if(scene)scene.dataset.phase='stamp';if(payrollChar)payrollChar.classList.add('is-stamping');if(leftFolders[i])leftFolders[i].style.opacity='0';activeFolder.style.transition='none';activeFolder.style.opacity='1';activeFolder.style.transform='translate(-82px,0) scale(.92)';stampMark.textContent='TRAITÉ';stampMark.style.color='#178a4c';stampMark.style.opacity='0';stampMark.style.transform='rotate(-7deg) scale(.7)';if(stampTool){stampTool.classList.remove('stamp-hit');void stampTool.offsetWidth;stampTool.classList.add('stamp-hit')}if(stampImpact){stampImpact.classList.remove('hit');void stampImpact.offsetWidth;setTimeout(()=>stampImpact.classList.add('hit'),170)}requestAnimationFrame(()=>{activeFolder.style.transition='transform .28s ease';activeFolder.style.transform='translate(0,0) scale(1)';setTimeout(()=>{stampMark.style.transition='opacity .1s ease,transform .16s cubic-bezier(.2,1.6,.4,1)';stampMark.style.opacity='1';stampMark.style.transform='rotate(-7deg) scale(1.06)';setTimeout(()=>{if(payrollChar)payrollChar.classList.remove('is-stamping');if(stampTool)stampTool.classList.remove('stamp-hit');if(stampImpact)stampImpact.classList.remove('hit')},310)},250)})},delay));
       timers.push(setTimeout(()=>{activeFolder.style.transition='transform .38s cubic-bezier(.4,0,.2,1),opacity .3s';activeFolder.style.transform='translate(78px,4px) scale(.92)';activeFolder.style.opacity='0';const tab=document.createElement('div');tab.className='payroll-folder';tab.style.position='relative';tab.style.marginBottom='2px';const dot=document.createElement('div');dot.className='payroll-folder-tab';dot.style.background='#178a4c';tab.appendChild(dot);pileRight.appendChild(tab);stampMark.style.opacity='0'},delay+720));
@@ -8462,32 +9171,54 @@ document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
   }
   const weekStart = getWeekStart(), weekEnd = getWeekEnd();
   const key = weekHistoryKey(weekStart, weekEnd);
+  const resetOverrides = !state.preserveRestoredOverrides;
+  const animationActive = pillboxAnimEnabled && !pillboxAnimExcludedSelf;
+
+  if(animationActive){
+    // (23/10, 12.4) La scène démarre IMMÉDIATEMENT ; la vérification « semaine déjà
+    // traitée ? » part dans le même tick, en parallèle. L'analyse réelle n'est
+    // lancée qu'après sa réponse (porte « gate » de showAnalysisAnimation) :
+    // erreur ou délai dépassé = blocage + alerte, déjà traitée = même confirmation
+    // qu'avant (Annuler = rien n'est analysé), sinon analyse exécutée UNE seule fois.
+    const check = checkWeekAlreadyProcessed(key);
+    let checkDone = false;
+    check.then(()=>{ checkDone = true; });
+    const gate = async ()=>{
+      if(!checkDone){
+        const st = document.getElementById('analysisAnimationSubtitle');
+        if(st) st.textContent = 'Vérification de la semaine…';
+      }
+      const res = await check;
+      if(res.error){
+        console.error("Erreur vérification historique:", res.error);
+        alert(WEEK_CHECK_BLOCK_MESSAGE);
+        return { abort:true };
+      }
+      if(res.already && !confirm(weekAlreadyProcessedMessage(res.already))) return { abort:true };
+      return { abort:false };
+    };
+    const outcome = await showAnalysisAnimation(()=>runAnalysis(resetOverrides), gate, check.then(res=>!!res.error));
+    if(outcome.aborted) return;
+    if(outcome.error){ console.error('Erreur analyse hebdomadaire:', outcome.error); alert(`✕ L'analyse a échoué : ${outcome.error.message||outcome.error}`); return; }
+    state.preserveRestoredOverrides = false;
+    return;
+  }
+
+  // Animations désactivées ou personnage exclu : comportement séquentiel d'origine
+  // (on vérifie d'abord, puis l'analyse réelle part tout de suite).
   const analyzeBtn = document.getElementById('analyzeBtn');
   const analyzeBtnText = analyzeBtn?.innerHTML;
   if(analyzeBtn){ analyzeBtn.disabled = true; analyzeBtn.innerHTML = "⏳ Vérification rapide…"; }
-  let already = null;
-  try{
-    already = await fetchCurrentWeekHistoryEntry(key);
-  }catch(err){
-    console.error("Erreur vérification rapide historique:", err);
-    alert("⚠️ Impossible de vérifier l'historique des semaines. Analyse bloquée pour éviter de retraiter une semaine déjà clôturée.");
-    if(analyzeBtn){ analyzeBtn.innerHTML = analyzeBtnText; analyzeBtn.disabled = false; }
+  const res = await checkWeekAlreadyProcessed(key);
+  if(analyzeBtn){ analyzeBtn.innerHTML = analyzeBtnText; analyzeBtn.disabled = false; }
+  if(res.error){
+    console.error("Erreur vérification historique:", res.error);
+    alert(WEEK_CHECK_BLOCK_MESSAGE);
     return;
   }
-  if(analyzeBtn){ analyzeBtn.innerHTML = analyzeBtnText; analyzeBtn.disabled = false; }
-  if(already){
-    const when = new Date(already.processedAt).toLocaleString("fr-FR");
-    const proceed = confirm(
-      `⚠️ Cette semaine a déjà été traitée le ${when}.\n\n` +
-      `À l'époque : ${already.summary.promotions} promotion(s), ${already.summary.licenciements} licenciement(s), ` +
-      `total payes ${Math.round(already.summary.totalPaye).toLocaleString("fr-FR")} $.\n\n` +
-      `Continuer quand même ?`
-    );
-    if(!proceed) return;
-  }
-  const resetOverrides = !state.preserveRestoredOverrides;
-  const analysisError = await showAnalysisAnimation(()=>runAnalysis(resetOverrides));
-  if(analysisError){ console.error('Erreur analyse hebdomadaire:', analysisError); alert(`✕ L'analyse a échoué : ${analysisError.message||analysisError}`); return; }
+  if(res.already && !confirm(weekAlreadyProcessedMessage(res.already))) return;
+  const outcome = await showAnalysisAnimation(()=>runAnalysis(resetOverrides));
+  if(outcome.error){ console.error('Erreur analyse hebdomadaire:', outcome.error); alert(`✕ L'analyse a échoué : ${outcome.error.message||outcome.error}`); return; }
   state.preserveRestoredOverrides = false;
 });
 
@@ -8575,6 +9306,8 @@ document.getElementById('results').addEventListener('click', (e)=>{
   else if(action==="jumpToPending"){ jumpToPendingStep(); }
   else if(action==="downloadPayeDetail"){ const f = window.__payeDetailFile; if(f) downloadText(f.name, f.build()); }
   else if(action==="jumpToCriticalDuplicate"){ jumpToCriticalDuplicate(); }
+  else if(action==="jumpToCriticalUnknownGrade"){ jumpToCriticalUnknownGrade(); }
+  else if(action==="jumpToCriticalContradictoryRea"){ jumpToCriticalContradictoryRea(); }
   else if(action==="jumpToCloudReadError"){ retryCriticalCloudReads(); }
   else if(action==="downloadAll"){
     const zipName = window.__zipFilename || "paie ems.zip";
@@ -8605,12 +9338,42 @@ document.getElementById('results').addEventListener('click', (e)=>{
         jumpToCriticalDuplicate();
         return;
       }
+      if(ctx.hasBlockingUnknownGrade){
+        alert("⛔ Impossible de terminer la semaine : un grade non reconnu est présent dans le tableau EMS (risque de paye fausse). Corrige-le puis relance l'analyse.");
+        jumpToCriticalUnknownGrade();
+        return;
+      }
+      if(ctx.hasBlockingContradictoryRea){
+        alert("⛔ Impossible de terminer la semaine : deux valeurs différentes de réanimations existent pour la même personne. Vérifie laquelle est la bonne puis relance l'analyse.");
+        jumpToCriticalContradictoryRea();
+        return;
+      }
       if(ctx.hasCriticalCloudReadError){
         alert(`⛔ Impossible de terminer la semaine : certaines données cloud ne sont pas vérifiables.\n\n${ctx.criticalCloudReadErrors.map(x=>"• "+x).join("\n")}\n\nRéessaie avant de clôturer.`);
         retryCriticalCloudReads();
         return;
       }
       const key = weekHistoryKey(ctx.weekStart, ctx.weekEnd);
+      // (demandé — "si une semaine réouverte est encore chargée, terminer
+      // referme celui-là au lieu de la nouvelle") Réouvrir une ancienne
+      // semaine (Semaines passées → Récupérer) recharge SA date dans le
+      // formulaire — si on oublie de la remettre à jour avant de cliquer
+      // "Terminé", on re-clôture discrètement l'ancienne au lieu de
+      // traiter la nouvelle. Avertissement explicite plutôt qu'un blocage
+      // silencieux, pour laisser la main si c'est vraiment voulu (rattraper
+      // une vieille semaine, par exemple).
+      try{
+        const history = await fetchWeekHistory();
+        const mostRecentKey = Object.keys(history||{}).sort().pop();
+        if(mostRecentKey && key < mostRecentKey){
+          const confirmOld = confirm(
+            `⚠️ La semaine du ${key} que tu es sur le point de terminer est PLUS ANCIENNE que la dernière semaine déjà clôturée (${mostRecentKey}).\n\n` +
+            `Si tu voulais traiter une semaine plus récente, vérifie la date de début en haut du formulaire avant de continuer — sinon c'est cette ancienne semaine du ${key} qui sera (re)clôturée.\n\n` +
+            `Continuer quand même avec la semaine du ${key} ?`
+          );
+          if(!confirmOld) return;
+        }
+      }catch(e){ /* vérification best-effort — ne bloque jamais la clôture si l'historique est indisponible */ }
       const fileRange = weekRangeTag(ctx.weekStart, ctx.weekEnd);
       const historyChanges = buildWeekHistoryChanges(ctx);
       const promotionsCount = historyChanges.promotions.length;
@@ -8631,6 +9394,7 @@ document.getElementById('results').addEventListener('click', (e)=>{
         // pour inclure aussi les UP manuels (forcedPromotions) et les
         // licenciements/départs manuels (ctx.departs).
         const {promotedDetails, retrogradedDetails, licenciedDetails} = historyChanges;
+        const weekDetail = buildWeekHistoryDetail(ctx);
         // "Paie effectuée par" (demandé le 09/09) — récupéré côté
         // serveur (jamais depuis une variable du navigateur), pour ne
         // jamais pouvoir être falsifié. N'empêche jamais la clôture de
@@ -8648,6 +9412,20 @@ document.getElementById('results').addEventListener('click', (e)=>{
             retrogradedDetails,
             licenciedDetails,
             paieEffectueePar,
+            // (24/10, bloc 3, points 22-25) Détail complet archivé avec la
+            // semaine — jamais une 2e copie du tableau, juste les résultats
+            // déjà calculés (réanimations, PPA, Top 3, promotions refusées,
+            // avertissements/signalements, quotas, absences, correspondances
+            // manuelles, anomalies utiles).
+            ...weekDetail,
+            // (24/10, bloc 4, point 46) Tarifs RÉELLEMENT utilisés pour CETTE
+            // semaine, archivés avec elle — une modification des réglages
+            // après coup ne doit jamais changer silencieusement ce qu'une
+            // ancienne semaine affiche en la rouvrant (point 30, bloc 3).
+            payRulesUsed: {
+              reaRate: REA_RATE, fixedSalaryByGrade: {...FIXED_PAY}, bonusByRank: {...BONUS_BY_RANK_CONFIG},
+              ppaWeeklyCap: PPA_WEEKLY_CAP, recruitmentPrice: RECRUITMENT_PRICE, formationPrice: FORMATION_PRICE,
+            },
           },
           sessionSnapshot: collectSaveData(),
         });
