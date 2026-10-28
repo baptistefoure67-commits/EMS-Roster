@@ -1,0 +1,23 @@
+EFFETS COULEURS — ROSTER EMS — 28/10/2026
+
+Ajouts :
+- Aurore 🌌 : vert/cyan/bleu/violet/rose, animé lentement.
+- Coucher de soleil 🌅 : jaune/orange/rose/violet, animé lentement.
+- Glace ❄️ : blanc/cyan/bleu/lavande, statique et lumineux.
+- Plasma ⚡ : cyan/bleu/violet/rose, animé lentement.
+- Chrome 🪩 : argent/gris/blanc, métallique statique.
+- Émeraude 💚 : vert profond/menthe/cyan, animé lentement.
+
+Conservés :
+- Holographique 🌈
+- Or métallique ✨
+- Couleurs classiques
+
+Tous les effets sont combinables en principal/secondaire.
+La palette est séparée visuellement entre Couleurs classiques et Effets spéciaux.
+Les animations respectent prefers-reduced-motion.
+Les couleurs fonctionnelles (succès, danger, avertissement, grades) restent indépendantes.
+
+Tests :
+- Syntaxe JavaScript des scripts HTML : OK.
+- 45/45 fichiers de tests Node existants : OK.
