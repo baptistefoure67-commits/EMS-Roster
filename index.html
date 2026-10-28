@@ -66,12 +66,23 @@
     display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px;
     margin-bottom:22px; padding-bottom:18px; border-bottom:1px solid var(--border-soft);
   }
+  .roster-brand{display:flex; align-items:center; gap:12px; min-width:0;}
+  .roster-brand-copy{min-width:0;}
+  .roster-logo{
+    width:64px; height:64px; flex:0 0 64px; object-fit:contain; display:block;
+    mix-blend-mode:screen; user-select:none; pointer-events:none;
+    filter:drop-shadow(0 0 10px color-mix(in srgb, var(--theme-primary-bright) 28%, transparent));
+  }
   header.top h1{
     margin:0; font-size:1.65rem; letter-spacing:0.01em; font-weight:700;
     background:linear-gradient(90deg, #fff, var(--theme-primary-bright) 80%);
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   header.top .sub{color:var(--text-dim); font-size:0.86rem; margin-top:4px;}
+  @media (max-width:640px){
+    .roster-brand{gap:10px;}
+    .roster-logo{width:54px;height:54px;flex-basis:54px;}
+  }
   .stats{display:flex; gap:18px; font-size:0.78rem; color:var(--text-dim);}
   .stats b{color:var(--text); font-size:1rem; display:block; font-weight:700;}
 
@@ -1495,9 +1506,12 @@ rosterLoadTheme();
 <div class="wrap">
 
   <header class="top">
-    <div>
-      <h1>Roster EMS</h1>
-      <div class="sub">Employés · ID Discord · grades — LS City Roleplay</div>
+    <div class="roster-brand">
+      <img class="roster-logo" src="assets/roster-logo.png" alt="Logo Roster EMS">
+      <div class="roster-brand-copy">
+        <h1>Roster EMS</h1>
+        <div class="sub">Employés · ID Discord · grades — LS City Roleplay</div>
+      </div>
     </div>
     <button type="button" class="btn-ghost" id="rosterThemeBtn" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;" title="Personnaliser la couleur du site (propre au Roster, jamais lié à Pillbox)">
       <span class="roster-theme-dot" style="width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--theme-primary);border:1.5px solid var(--border);"></span>
