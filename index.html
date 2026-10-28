@@ -1122,6 +1122,12 @@ const ROSTER_THEME_PRESETS = [
   { name: "Jaune / Or",  hex: "#ca8a04", emoji: "🟡" },
   { name: "Cyan",        hex: "#0891b2", emoji: "🔷" },
   { name: "Gris / Noir", hex: "#4b5563", emoji: "⚫" },
+  // (demandé — "couleurs spéciales") Même principe que côté Pillbox : la
+  // pastille a un effet brillant, la couleur réellement appliquée reste
+  // fixe (une vraie animation arc-en-ciel continue n'est pas compatible
+  // avec ce système de thème, qui dérive tout d'UNE couleur fixe).
+  { name: "Holographique", hex: "#d946ef", emoji: "🌈", swatchGradient: "conic-gradient(from 180deg, #ff5f6d, #ffc371, #47e3b3, #35a7ff, #c86ef0, #ff5f6d)" },
+  { name: "Or",            hex: "#b45309", emoji: "✨", swatchGradient: "linear-gradient(135deg, #fffbe6, #d4af37 35%, #996515 65%, #fff4c2)" },
 ];
 
 function rosterHexToRgb(hex){
@@ -1507,7 +1513,8 @@ rosterLoadTheme();
        Aperçu en direct sans rien enregistrer tant que "Appliquer" n'est pas
        cliqué ; fermer sans appliquer restaure la couleur précédente. -->
   <div id="rosterThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:320px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.45);">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:320px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
+      <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Couleur du site</div>
       <div style="font-size:11.5px;color:var(--text-dim);margin-bottom:14px;">Propre au Roster — n'affecte jamais Pillbox.</div>
       <div id="rosterThemePresets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;"></div>
@@ -2075,9 +2082,9 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   let pendingHex = ROSTER_THEME_DEFAULT;
 
   presetsBox.innerHTML = ROSTER_THEME_PRESETS.map(p=>`
-    <button type="button" class="btn-ghost roster-theme-preset" data-hex="${p.hex}" title="${p.name}"
+    <button type="button" class="btn-ghost roster-theme-preset" data-hex="${p.hex}" title="${p.name}${p.swatchGradient?' (couleur appliquée : vif, pas animé)':''}"
       style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:10.5px;position:relative;">
-      <span style="width:22px;height:22px;border-radius:50%;background:${p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
+      <span style="width:22px;height:22px;border-radius:50%;background:${p.swatchGradient || p.hex};border:1.5px solid rgba(255,255,255,.2);"></span>
       ${p.emoji}
     </button>`).join("");
 
@@ -2102,7 +2109,18 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
     rosterApplyThemeColor(colorBeforeOpen, { persist:false }); // annule l'aperçu
     modal.style.display = 'none';
   }
-  modal.addEventListener('click', (e)=>{ if(e.target === modal) closeWithoutApplying(); });
+  // (signalé — fermeture accidentelle de la modale) Même correctif que
+  // côté Pillbox : il faut qu'un VRAI clic démarre ET se termine sur le
+  // fond lui-même pour fermer — un évènement isolé/synthétique causé par
+  // le sélecteur <input type="color"> natif ne suffit plus.
+  let rosterThemeMousedownOnBackdrop = false;
+  modal.addEventListener('mousedown', (e)=>{ rosterThemeMousedownOnBackdrop = (e.target === modal); });
+  modal.addEventListener('click', (e)=>{
+    if(e.target === modal && rosterThemeMousedownOnBackdrop) closeWithoutApplying();
+    rosterThemeMousedownOnBackdrop = false;
+  });
+  const closeBtn = document.getElementById('rosterThemeCloseBtn');
+  if(closeBtn) closeBtn.addEventListener('click', closeWithoutApplying);
 
   presetsBox.addEventListener('click', (e)=>{
     const b = e.target.closest('.roster-theme-preset');
