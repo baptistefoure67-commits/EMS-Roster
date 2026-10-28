@@ -53,11 +53,11 @@ const t = (name, cond, extra='') => { if(cond){results.push('✅ '+name);} else 
   t('Le bouton ✕ ferme bien la modale', r3 === 'none', r3);
 
   await page.evaluate(() => document.getElementById('pillboxThemeBtn').click());
-  const r4 = await page.evaluate(() => !!document.querySelector('.pillbox-theme-preset[data-hex="#d946ef"]'));
+  const r4 = await page.evaluate(() => !!document.querySelector('.pillbox-theme-preset[data-effect="holographic"]'));
   t('Le preset "Holographique" existe', r4);
-  await page.evaluate(() => document.querySelector('.pillbox-theme-preset[data-hex="#d946ef"]').click());
+  await page.evaluate(() => document.querySelector('.pillbox-theme-preset[data-effect="holographic"]').click());
   const r5 = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-primary').trim());
-  t('Cliquer "Holographique" applique une vraie couleur fixe (#d946ef)', r5 === '#d946ef', r5);
+  t('Cliquer "Holographique" applique bien sa couleur de base (#ff74d4) — désormais un mode animé, plus une simple couleur fixe', r5 === '#ff74d4', r5);
 
   console.log(results.join('\n'));
   console.log(`\n${results.length-failed}/${results.length} réussis, erreurs JS: ${errors.length}`);
