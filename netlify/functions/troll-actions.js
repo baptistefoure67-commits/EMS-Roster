@@ -52,7 +52,13 @@ const KICKS_URL_BY_SCOPE = { roster: `${BASE}/rosterForcedLogouts`, pillbox: `${
 // ouverture de Pillbox précisément.
 async function backfireOnOwnerTarget(session, authorDiscordId){
   const { FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_WEB_API_KEY } = process.env;
-  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(authorDiscordId), claims: { level: "D" } });
+  // (audit global avant clôture, trouvé par relecture systématique) Sans
+  // server:true, ce jeton ne satisfaisait pas la règle Firebase de
+  // rosterForcedLogouts/pillboxForcedLogouts (qui exige server:true, pas
+  // juste un niveau) — la déconnexion forcée de la "blague retournée"
+  // échouait silencieusement (capturée par le .catch plus bas), sans
+  // jamais se déclencher pour de vrai.
+  const customToken = createFirebaseCustomToken({ clientEmail: FIREBASE_CLIENT_EMAIL, privateKey: FIREBASE_PRIVATE_KEY, uid: String(authorDiscordId), claims: { level: "D", server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_WEB_API_KEY}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: customToken, returnSecureToken: true }),
   });
