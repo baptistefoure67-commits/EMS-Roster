@@ -3303,8 +3303,12 @@ async function loadSignalementPending(){
     if(!entries.length){ list.textContent = "Aucun signalement en attente."; return; }
     list.innerHTML = entries.map(([key,e])=>{
       const cats = (e.category||"").split(",").map(c=>SIGNALEMENT_CATEGORY_LABEL[c]||c).join(" · ");
+      const automaticBadge = e.source === "automatic_payroll_check"
+        ? `<span style="display:inline-block;font-size:0.72rem;font-weight:800;color:var(--cyan);background:rgba(56,189,248,.12);border-radius:5px;padding:1px 6px;margin-left:6px;">🤖 Signalement automatique</span>`
+        : "";
       return `<div style="font-size:0.82rem;padding:6px 0;border-bottom:1px solid var(--border-soft);">
         <b>${esc(e.personName)}</b>${e.personGrade?` (${esc(SIGNALEMENT_GRADE_LABEL[e.personGrade]||e.personGrade)})`:""}
+        ${automaticBadge}
         <span style="display:inline-block;font-size:0.72rem;font-weight:700;color:var(--amber);background:rgba(251,191,36,.12);border-radius:5px;padding:1px 6px;margin-left:6px;">${esc(cats)}</span>
         ${isAdmin?`<button type="button" class="admin-del-btn btn-danger btn-small" data-key="${esc(key)}" style="float:right;">🗑</button>`:""}
         <div style="margin-top:2px;">${esc((e.reason||"").slice(0,140))}${(e.reason||"").length>140?"…":""}</div>
