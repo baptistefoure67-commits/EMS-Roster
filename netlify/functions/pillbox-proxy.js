@@ -44,6 +44,138 @@ const FORMATION_OPERATION_URL = "https://paie-terminal-pillbox-default-rtdb.euro
 const WEEK_HISTORY_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistory";
 const WEEK_HISTORY_ARCHIVE_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/pillboxWeekHistoryArchive";
 const SIGNALEMENTS_BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
+const AUTO_SIGNALEMENT_SOURCE = "automatic_payroll_check";
+const AUTO_SIGNALEMENT_REASON = "Signalement automatique pour discuter avec cette personne.";
+const AUTO_SIGNALEMENT_ELIGIBLE_GRADES = ["MF","MP","MLP","RF","RP","RL","MC","ADD"];
+// État technique rangé sous l'archive Pillbox déjà server-only : on évite
+// volontairement rosterLogsHiddenTrace, car get-logs.js purge cette branche
+// selon createdAt et pourrait donc supprimer le compteur en ouvrant les logs.
+const AUTO_SIGNALEMENT_STATE_BASE = `${WEEK_HISTORY_ARCHIVE_BASE}/__automaticPayrollSignalement`;
+
+function stripPrivateSignalementFields(signalements, isOwner){
+  if(isOwner || !signalements || typeof signalements !== "object") return signalements || {};
+  const clean = {};
+  for(const [key,value] of Object.entries(signalements)){
+    if(!value || typeof value !== "object"){ clean[key]=value; continue; }
+    const { selectionMethod, selectedBy, ...publicValue } = value;
+    clean[key] = publicValue;
+  }
+  return clean;
+}
+
+function automaticSignalementEmployeeKey(e){
+  if(e && e.id !== undefined && e.id !== null && String(e.id).trim()) return `roster:${String(e.id).trim()}`;
+  if(e && e.idUnique !== undefined && e.idUnique !== null && String(e.idUnique).trim()) return `unique:${String(e.idUnique).trim()}`;
+  if(e && e.discordId && String(e.discordId).trim()) return `discord:${String(e.discordId).trim()}`;
+  return `name:${String(e?.name||"").trim().toLowerCase()}`;
+}
+
+function automaticSignalementEligibleEmployees(roster){
+  const employees = roster && Array.isArray(roster.employees) ? roster.employees : [];
+  return employees
+    .filter(e=>e && !e.licencie && AUTO_SIGNALEMENT_ELIGIBLE_GRADES.includes(String(e.grade||"").trim().toUpperCase()) && String(e.name||"").trim())
+    .map(e=>({
+      employeeKey: automaticSignalementEmployeeKey(e),
+      personName: String(e.name).trim().slice(0,100),
+      // Le module Signalement du Roster utilise déjà idUnique comme personId
+      // quand il existe. On garde exactement cette convention, avec l'id
+      // interne seulement en secours pour les anciennes fiches sans idUnique.
+      personId: String(e.idUnique ?? e.id ?? "").trim().slice(0,29),
+      personGrade: String(e.grade||"").trim().toUpperCase(),
+    }));
+}
+
+function randomAutomaticSignalementInterval(rng=Math.random){
+  return 1 + Math.floor(Math.max(0, Math.min(0.999999999, Number(rng()) || 0)) * 3);
+}
+
+function chooseWeightedAutomaticSignalementEmployee(eligible, recentEmployeeKeys, rng=Math.random){
+  if(!Array.isArray(eligible) || !eligible.length) return null;
+  const recent = Array.isArray(recentEmployeeKeys) ? recentEmployeeKeys : [];
+  const weighted = eligible.map(e=>{
+    const pos = recent.indexOf(e.employeeKey);
+    // Le dernier tiré reste possible (poids jamais nul), mais devient
+    // nettement moins probable. Les deux précédents sont aussi pénalisés
+    // légèrement : on évite les répétitions sans fabriquer une rotation fixe.
+    const weight = pos === 0 ? 0.15 : (pos > 0 && pos < 3 ? 0.45 : 1);
+    return {e, weight};
+  });
+  const total = weighted.reduce((n,x)=>n+x.weight,0);
+  let cursor = Math.max(0, Math.min(0.999999999, Number(rng()) || 0)) * total;
+  for(const item of weighted){
+    if(cursor < item.weight) return item.e;
+    cursor -= item.weight;
+  }
+  return weighted[weighted.length-1].e;
+}
+
+function automaticSignalementStateUrl(sandbox, idToken){
+  const scope = sandbox ? "test" : "production";
+  return `${AUTO_SIGNALEMENT_STATE_BASE}/${scope}/state.json?auth=${idToken}`;
+}
+
+function normalizeAutomaticSignalementState(state, rng=Math.random){
+  const obj = state && typeof state === "object" ? {...state} : {};
+  const next = Number(obj.nextAutomaticReportIn);
+  obj.version = 1;
+  obj.nextAutomaticReportIn = Number.isInteger(next) && next >= 1 && next <= 3 ? next : randomAutomaticSignalementInterval(rng);
+  obj.recentRandomEmployeeKeys = Array.isArray(obj.recentRandomEmployeeKeys) ? obj.recentRandomEmployeeKeys.slice(0,5) : [];
+  obj.weeks = obj.weeks && typeof obj.weeks === "object" ? {...obj.weeks} : {};
+  return obj;
+}
+
+async function readAutomaticSignalementState(stateUrl){
+  const res = await fetch(stateUrl,{headers:{"X-Firebase-ETag":"true"}});
+  if(!res.ok) throw new Error(`Lecture état signalement automatique impossible (${res.status}).`);
+  return { state: await res.json(), etag: res.headers.get("etag") };
+}
+
+async function putAutomaticSignalementState(stateUrl, state, etag){
+  const headers = {"Content-Type":"application/json"};
+  if(etag) headers["if-match"] = etag;
+  const res = await fetch(stateUrl,{method:"PUT",headers,body:JSON.stringify(state)});
+  return res;
+}
+
+async function ensureAutomaticSignalementState(stateUrl, rng=Math.random){
+  for(let attempt=0; attempt<5; attempt++){
+    const read = await readAutomaticSignalementState(stateUrl);
+    if(read.state){
+      return {state:normalizeAutomaticSignalementState(read.state,rng),etag:read.etag};
+    }
+    // Initialisation persistante UNE seule fois. Un F5 ne rappelle pas le
+    // hasard : le prochain intervalle est ensuite relu depuis Firebase.
+    const initial = normalizeAutomaticSignalementState(null,rng);
+    initial.initializedAt = Date.now();
+    initial.updatedAt = initial.initializedAt;
+    const put = await putAutomaticSignalementState(stateUrl, initial, read.etag);
+    if(put.status !== 412) {
+      if(!put.ok) throw new Error(`Initialisation état signalement automatique impossible (${put.status}).`);
+      return {state:initial,etag:put.headers.get("etag") || null};
+    }
+  }
+  throw new Error("État signalement automatique modifié simultanément — réessaie.");
+}
+
+function pruneAutomaticSignalementWeeks(weeks){
+  const entries = Object.entries(weeks||{}).sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+  return Object.fromEntries(entries.slice(0,80));
+}
+
+function ownerSelectionForbidden(session, selectionMethod){
+  return selectionMethod === "owner_selected" && session?.level !== "OWNER";
+}
+
+function automaticSignalementPublicResult(week){
+  if(!week || week.status === "skipped") return {created:false, status:week?.status||"skipped"};
+  return {
+    created: week.status === "created" || week.status === "claimed",
+    status: week.status,
+    signalementKey: week.signalementKey || null,
+    personName: week.personName || null,
+    personGrade: week.personGrade || null,
+  };
+}
 
 // Valeurs par défaut partagées avec pay-rules-actions.js — source unique.
 const DEFAULT_PAY_RULES = cloneDefaultPayRules();
@@ -121,6 +253,184 @@ exports.handler = async function (event) {
     if (event.httpMethod === "POST") {
       let body = {};
       try { body = JSON.parse(event.body || "{}"); } catch (e) {}
+      if (body.action === "previewAutomaticPayrollSignalement") {
+        const weekKey = String(body.weekKey || "");
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) return json(400,{error:"Clé de semaine invalide."},corsHeaders);
+        const stateUrl = automaticSignalementStateUrl(body.sandbox === true, idToken);
+        const ensured = await ensureAutomaticSignalementState(stateUrl);
+        const existingWeek = ensured.state.weeks?.[weekKey];
+        if(existingWeek){
+          return json(200,{
+            ok:true, alreadyProcessed:true, dueThisWeek:false,
+            canChooseManually: session.level === "OWNER",
+            eligibleEmployees: [],
+            result: automaticSignalementPublicResult(existingWeek),
+          },corsHeaders);
+        }
+        const dueThisWeek = Number(ensured.state.nextAutomaticReportIn) <= 1;
+        let eligibleEmployees = [];
+        if(dueThisWeek && session.level === "OWNER"){
+          // Même relais, même source de vérité : la liste est relue MAINTENANT
+          // depuis rosterEmsData ; aucune copie d'employés n'est créée dans Pillbox.
+          const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+          if(!rosterRes.ok) return json(502,{error:`Roster indisponible (${rosterRes.status}).`},corsHeaders);
+          eligibleEmployees = automaticSignalementEligibleEmployees(await rosterRes.json()).map(e=>({
+            employeeKey:e.employeeKey, name:e.personName, grade:e.personGrade,
+          }));
+        }
+        return json(200,{
+          ok:true, alreadyProcessed:false, dueThisWeek,
+          canChooseManually: session.level === "OWNER",
+          eligibleEmployees,
+          nextAutomaticReportIn: ensured.state.nextAutomaticReportIn,
+        },corsHeaders);
+      }
+
+      if (body.action === "finalizeAutomaticPayrollSignalement") {
+        const weekKey = String(body.weekKey || "");
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) return json(400,{error:"Clé de semaine invalide."},corsHeaders);
+        const selectionMethod = body.selectionMethod === "owner_selected" ? "owner_selected" : "random";
+        // Contrôle de sécurité RÉEL côté serveur : même une requête bricolée
+        // à la main est refusée si le jeton signé n'est pas exactement OWNER.
+        if(ownerSelectionForbidden(session, selectionMethod)){
+          return json(403,{error:"Le choix manuel d'une personne est strictement réservé à l'Owner."},corsHeaders);
+        }
+        const selectedEmployeeKey = selectionMethod === "owner_selected" ? String(body.selectedEmployeeKey||"") : "";
+        if(selectionMethod === "owner_selected" && !selectedEmployeeKey){
+          return json(400,{error:"Personne à vérifier manquante."},corsHeaders);
+        }
+
+        const sandbox = body.sandbox === true;
+        const stateUrl = automaticSignalementStateUrl(sandbox, idToken);
+        let claimedWeek = null;
+
+        for(let attempt=0; attempt<6; attempt++){
+          const read = await readAutomaticSignalementState(stateUrl);
+          let state = normalizeAutomaticSignalementState(read.state);
+          if(!read.state){
+            // Même règle que la prévisualisation : si aucun état n'existe
+            // encore, le premier intervalle est tiré puis persisté par CAS.
+            state.initializedAt = Date.now();
+          }
+
+          const already = state.weeks?.[weekKey];
+          if(already){
+            claimedWeek = already;
+            break;
+          }
+
+          const remaining = Number(state.nextAutomaticReportIn);
+          if(remaining > 1){
+            state.nextAutomaticReportIn = remaining - 1;
+            state.weeks[weekKey] = {
+              status:"skipped", processedAt:Date.now(),
+              nextAutomaticReportIn:state.nextAutomaticReportIn,
+            };
+            state.weeks = pruneAutomaticSignalementWeeks(state.weeks);
+            state.updatedAt = Date.now();
+            const put = await putAutomaticSignalementState(stateUrl,state,read.etag);
+            if(put.status === 412) continue;
+            if(!put.ok) return json(502,{error:`Mise à jour du compteur impossible (${put.status}).`},corsHeaders);
+            return json(200,{ok:true,created:false,nextAutomaticReportIn:state.nextAutomaticReportIn},corsHeaders);
+          }
+
+          const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+          if(!rosterRes.ok) return json(502,{error:`Roster indisponible (${rosterRes.status}).`},corsHeaders);
+          const eligible = automaticSignalementEligibleEmployees(await rosterRes.json());
+          if(!eligible.length) return json(409,{error:"Aucun employé actif éligible (MF à ADD) dans le Roster actuel."},corsHeaders);
+
+          let person;
+          if(selectionMethod === "owner_selected"){
+            person = eligible.find(e=>e.employeeKey === selectedEmployeeKey);
+            if(!person){
+              return json(409,{error:"La personne choisie n'est plus présente, active ou éligible dans le Roster actuel."},corsHeaders);
+            }
+          }else{
+            person = chooseWeightedAutomaticSignalementEmployee(eligible,state.recentRandomEmployeeKeys);
+          }
+          if(!person) return json(409,{error:"Impossible de tirer une personne éligible."},corsHeaders);
+
+          const signalementKey = `automatic-payroll-${weekKey}`;
+          const createdAt = Date.now();
+          const nextInterval = randomAutomaticSignalementInterval();
+          const week = {
+            status:"claimed", signalementKey,
+            personName:person.personName, personId:person.personId, personGrade:person.personGrade,
+            employeeKey:person.employeeKey,
+            source:AUTO_SIGNALEMENT_SOURCE,
+            selectionMethod,
+            createdAt,
+            nextAutomaticReportIn:nextInterval,
+          };
+          if(selectionMethod === "owner_selected") week.selectedBy = String(session.discordId);
+
+          state.nextAutomaticReportIn = nextInterval;
+          if(selectionMethod === "random"){
+            state.recentRandomEmployeeKeys = [person.employeeKey, ...(state.recentRandomEmployeeKeys||[]).filter(k=>k!==person.employeeKey)].slice(0,5);
+          }
+          state.weeks[weekKey] = week;
+          state.weeks = pruneAutomaticSignalementWeeks(state.weeks);
+          state.updatedAt = createdAt;
+
+          const put = await putAutomaticSignalementState(stateUrl,state,read.etag);
+          if(put.status === 412) continue;
+          if(!put.ok) return json(502,{error:`Réservation du signalement impossible (${put.status}).`},corsHeaders);
+          claimedWeek = week;
+          break;
+        }
+
+        if(!claimedWeek) return json(409,{error:"Conflit de clôture simultanée — réessaie."},corsHeaders);
+        if(claimedWeek.status === "skipped"){
+          return json(200,{ok:true,...automaticSignalementPublicResult(claimedWeek)},corsHeaders);
+        }
+
+        // Une réservation "claimed" est volontairement réparable : si Netlify
+        // tombe entre le compteur et l'écriture officielle, la relance reprend
+        // LA MÊME personne et LA MÊME clé au lieu de refaire un tirage.
+        const targetRoot = sandbox ? "signalements_test" : "signalements";
+        const signalementEntry = {
+          personName: claimedWeek.personName,
+          personId: claimedWeek.personId || null,
+          personGrade: claimedWeek.personGrade,
+          category: "autre",
+          reason: AUTO_SIGNALEMENT_REASON,
+          createdAt: claimedWeek.createdAt || Date.now(),
+          source: AUTO_SIGNALEMENT_SOURCE,
+          selectionMethod: claimedWeek.selectionMethod || "random",
+        };
+        if(claimedWeek.selectionMethod === "owner_selected" && claimedWeek.selectedBy) signalementEntry.selectedBy = claimedWeek.selectedBy;
+
+        const signalementUrl = `${SIGNALEMENTS_BASE}/${targetRoot}/${claimedWeek.signalementKey}.json?auth=${idToken}`;
+        const signalementRes = await fetch(signalementUrl,{
+          method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(signalementEntry)
+        });
+        if(!signalementRes.ok){
+          const tx=await signalementRes.text().catch(()=>"");
+          return json(502,{error:`Création du signalement automatique impossible (${signalementRes.status}) : ${tx.slice(0,140)}`},corsHeaders);
+        }
+
+        const stateWeekUrl = stateUrl.replace("/state.json",`/state/weeks/${weekKey}.json`);
+        const completeWeek = {...claimedWeek,status:"created",completedAt:Date.now()};
+        const completeRes = await fetch(stateWeekUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(completeWeek)});
+        if(!completeRes.ok){
+          return json(502,{error:`Signalement créé, mais finalisation de sa trace technique impossible (${completeRes.status}). Réessaie : aucune duplication ne sera créée.`},corsHeaders);
+        }
+        await logAction({
+          action:"signalement_automatique_paye",
+          authorDiscordId:session.discordId, authorName:session.name, authorLevel:session.level,
+          targetDiscordId:claimedWeek.personId || null, targetName:claimedWeek.personName,
+          details:`Vérification automatique — semaine ${weekKey}`, weekKey, idToken,
+        }).catch(()=>{});
+        return json(200,{ok:true,created:true,signalementKey:claimedWeek.signalementKey,personName:claimedWeek.personName,personGrade:claimedWeek.personGrade},corsHeaders);
+      }
+
+      if (body.action === "getAutomaticPayrollSignalementDebug") {
+        if(session.level !== "OWNER") return json(403,{error:"Informations techniques réservées à l'Owner."},corsHeaders);
+        const stateUrl = automaticSignalementStateUrl(body.sandbox === true, idToken);
+        const ensured = await ensureAutomaticSignalementState(stateUrl);
+        return json(200,{ok:true,state:ensured.state},corsHeaders);
+      }
+
       if (body.action === "getWeekHistoryEntry") {
         // Vérification légère utilisée juste avant « Analyser la semaine ».
         // L'ancien chemin faisait un GET complet du proxy (Roster, activité,
@@ -210,7 +520,8 @@ exports.handler = async function (event) {
           const tx = await readRes.text().catch(()=>"");
           return json(502,{error:`Lecture des signalements impossible (${readRes.status}) : ${tx.slice(0,160)}`},corsHeaders);
         }
-        return json(200,{ok:true,signalements:(await readRes.json())||{}},corsHeaders);
+        const rawSignalements = (await readRes.json()) || {};
+        return json(200,{ok:true,signalements:stripPrivateSignalementFields(rawSignalements, session.level === "OWNER")},corsHeaders);
       }
       if (body.action === "finalizeSignalements") {
         const permCtx = requestPermCtx;
@@ -413,8 +724,8 @@ exports.handler = async function (event) {
     const formationOperation = formationOperationRead.data;
     // "absent" = lecture Firebase réussie mais chemin vide ; "error" = lecture impossible.
     const weekHistory = weekHistoryRead.state === "error" ? null : (weekHistoryRead.data || {});
-    const signalements = signalementsRead.state === "error" ? null : (signalementsRead.data || {});
-    const signalementsTest = signalementsTestRead.state === "error" ? null : (signalementsTestRead.data || {});
+    const signalements = signalementsRead.state === "error" ? null : stripPrivateSignalementFields(signalementsRead.data || {}, session.level === "OWNER");
+    const signalementsTest = signalementsTestRead.state === "error" ? null : stripPrivateSignalementFields(signalementsTestRead.data || {}, session.level === "OWNER");
     let absences = absencesRead.state === "error" ? null : absencesRead.data;
     if(absences && absencesRead.state !== "error") absences = await pruneExpiredAbsences(absences, idToken);
     const alertDecisions = alertDecisionsRead.state === "error" ? null : (alertDecisionsRead.data || {});
@@ -526,6 +837,19 @@ exports.handler = async function (event) {
     return json(500, { error: `Erreur inattendue : ${err.message}` }, corsHeaders);
   }
 };
+
+
+exports._test = {
+  stripPrivateSignalementFields,
+  automaticSignalementEligibleEmployees,
+  chooseWeightedAutomaticSignalementEmployee,
+  randomAutomaticSignalementInterval,
+  normalizeAutomaticSignalementState,
+  ownerSelectionForbidden,
+  ensureAutomaticSignalementState,
+  automaticSignalementStateUrl,
+};
+
 
 async function readJsonState(url, options){
   try{
