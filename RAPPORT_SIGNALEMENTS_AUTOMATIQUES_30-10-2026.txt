@@ -1,0 +1,205 @@
+RAPPORT — SIGNALEMENTS AUTOMATIQUES LIÉS AUX PAYES
+Date : 30/10/2026
+Projets : Roster EMS + Pillbox Terminal Paie
+
+============================================================
+1. PLAN APPLIQUÉ
+============================================================
+
+Roster / backend partagé :
+- netlify/functions/signalement-actions.js
+  * Filtrage serveur de selectionMethod / selectedBy pour tous les non-OWNER.
+  * Le champ source reste visible pour permettre le badge automatique.
+- netlify/functions/pillbox-proxy.js
+  * État persistant du compteur côté serveur.
+  * Prévisualisation du déclenchement à la clôture de semaine.
+  * Contrôle serveur strict du choix manuel OWNER.
+  * Lecture de rosterEmsData comme source de vérité pour l'éligibilité.
+  * Tirage pondéré anti-répétition.
+  * Création du signalement officiel dans signalements / signalements_test.
+  * Idempotence par semaine et reprise après erreur sans doublon.
+  * Filtrage des champs privés aussi dans les lectures Pillbox.
+- index.html / app.js / all-scripts.js
+  * Badge visible « 🤖 Signalement automatique » quand source=automatic_payroll_check.
+  * Aucun affichage de selectionMethod / selectedBy.
+- tests/automatic-payroll-signalement.test.js
+  * 5 tests ciblés exécutables avec Node.
+
+Pillbox :
+- index.html
+  * Au clic « ✅ J'ai terminé cette semaine », lecture serveur du compteur.
+  * Si le signalement est dû et si la session est OWNER : petite fenêtre
+    « Tirage automatique » / « Choisir une personne ».
+  * La liste manuelle contient uniquement les personnes éligibles renvoyées
+    par le serveur au moment réel de la clôture.
+  * Pour toute autre session, aucun choix manuel n'est affiché.
+  * Création / décrément / réarmement côté serveur avant de passer à la semaine suivante.
+  * Affichage standard « 🤖 Vérification automatique — Nom — Grade ».
+  * Historique : indication « 🤖 Vérification automatique » sans fuite du mode de sélection.
+
+============================================================
+2. RÈGLES MÉTIER IMPLÉMENTÉES
+============================================================
+
+Grades éligibles :
+MF, MP, MLP, RF, RP, RL, MC, ADD
+
+Grades exclus :
+STG, A, INF, M, CD, D, DG, OWNER
+
+Une seule personne par événement.
+
+Mode normal : tirage aléatoire parmi les employés :
+- présents dans rosterEmsData ;
+- non licenciés ;
+- ayant actuellement un grade éligible.
+
+Mode manuel :
+- uniquement si session.level === "OWNER" côté serveur ;
+- ADD/CD/D/DG sont refusés même avec une requête bricolée ;
+- la cible est revérifiée côté serveur au moment final avant création.
+
+Signalement officiel créé :
+- category: "autre"
+- reason: "Signalement automatique pour discuter avec cette personne."
+- source: "automatic_payroll_check"
+- selectionMethod: "random" ou "owner_selected" (privé)
+- selectedBy: ID Discord OWNER uniquement si owner_selected (privé)
+
+Aucun nouveau workflow de sanction n'a été ajouté.
+Le signalement reste un signalement officiel normal et continue d'être traité
+avec le système existant de Pillbox/Roster.
+
+============================================================
+3. COMPTEUR PERSISTANT
+============================================================
+
+Après une création, le serveur tire nextAutomaticReportIn entre 1 et 3.
+À chaque nouvelle clôture de semaine :
+- si > 1 : décrémentation et aucun signalement ;
+- si = 1 : création puis réarmement aléatoire 1..3.
+
+L'état est enregistré sous :
+pillboxWeekHistoryArchive/__automaticPayrollSignalement/<production|test>/state
+
+Ce chemin réutilise une branche Firebase déjà réservée aux fonctions serveur.
+Aucune modification des règles Firebase n'a été nécessaire.
+
+Chaque semaine est mémorisée pour rendre l'opération idempotente :
+- un double clic ;
+- une relance après panne ;
+- une re-clôture de la même semaine
+ne créent pas un deuxième signalement.
+
+Le signalement utilise une clé stable :
+automatic-payroll-YYYY-MM-DD
+
+============================================================
+4. ANTI-RÉPÉTITION
+============================================================
+
+Le dernier tiré reste possible, mais son poids est fortement réduit :
+- dernier tiré : poids 0,15
+- 2 précédents : poids 0,45
+- autres : poids 1
+
+Donc :
+- aucune rotation fixe ;
+- vrai hasard conservé ;
+- répétition immédiate fortement réduite mais jamais impossible.
+
+============================================================
+5. CONFIDENTIALITÉ DU MODE DE SÉLECTION
+============================================================
+
+selectionMethod / selectedBy sont filtrés pour les non-OWNER dans :
+- signalement-actions.js -> action listSignalements
+- pillbox-proxy.js -> POST listSignalements
+- pillbox-proxy.js -> réponse GET générale des signalements
+
+Le Roster et Pillbox n'affichent jamais ces champs dans l'interface normale,
+y compris pour OWNER.
+
+OWNER peut récupérer l'état technique via l'action serveur interne :
+getAutomaticPayrollSignalementDebug
+
+Aucun log normal ne précise « choisi par l'Owner ».
+
+============================================================
+6. TESTS RÉELLEMENT EXÉCUTÉS
+============================================================
+
+Tests ciblés : 5/5 réussis.
+
+1) Persistance après « rechargement » :
+- état Firebase simulé vide ;
+- premier appel initialise le compteur à 3 ;
+- second appel avec un RNG différent relit toujours 3 ;
+- une seule écriture d'initialisation.
+Résultat : OK.
+
+2) Grades / tirage :
+- MF, MP, MLP, RF, RP, RL, MC, ADD acceptés ;
+- M, CD et licencié exclus.
+Résultat : OK.
+
+3) Requête bricolée owner_selected :
+- ADD -> 403
+- CD -> 403
+- D -> 403
+- DG -> 403
+Résultat : OK, via le handler réel pillbox-proxy.js avec jetons de session signés.
+
+4) Fuite listSignalements :
+- appel réel du handler signalement-actions.js avec session MC ;
+- source reste présente ;
+- selectionMethod absent ;
+- selectedBy absent.
+Résultat : OK.
+
+5) Création complète automatique :
+- compteur dû ;
+- roster actuel relu ;
+- personne précédente défavorisée ;
+- une personne MF sélectionnée ;
+- category="autre" ;
+- source correcte ;
+- reason neutre correcte ;
+- état semaine finalisé « created ».
+Résultat : OK.
+
+Syntaxe :
+- node --check signalement-actions.js : OK
+- node --check pillbox-proxy.js : OK
+- extraction + node --check du JavaScript inline Roster : OK
+- extraction + node --check du JavaScript inline Pillbox : OK
+
+Suite existante :
+- 55 fichiers de tests présents.
+- 54/54 tests passent en excluant security-hardening.test.js.
+- security-hardening.test.js : 24/25 passent, 1 échec PRÉEXISTANT.
+  L'échec exige que all-scripts.js soit absent, alors que le ZIP source fourni
+  contient déjà all-scripts.js. Le même test échoue exactement de la même façon
+  sur le ZIP original non modifié.
+
+============================================================
+7. BUG / RISQUE TROUVÉ EN COURS DE ROUTE
+============================================================
+
+Lors du premier design, rosterLogsHiddenTrace semblait être un bon emplacement
+server-only pour le compteur. Audit du code : get-logs.js purge automatiquement
+les entrées de cette branche selon createdAt. Un état technique placé dedans
+aurait donc pu être supprimé en consultant les logs OWNER.
+
+Correction AVANT livraison : état déplacé sous
+pillboxWeekHistoryArchive/__automaticPayrollSignalement, qui est server-only et
+n'est pas soumis à cette purge.
+
+============================================================
+8. FIREBASE RULES
+============================================================
+
+AUCUNE modification.
+Le checksum du fichier de règles du projet modifié est strictement identique à
+celui du ZIP source.
+
