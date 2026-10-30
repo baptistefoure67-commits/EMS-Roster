@@ -23,6 +23,18 @@ const SIGNALEMENTS_URL = `${BASE}/signalements.json`;
 const SIGNALEMENTS_TEST_URL = `${BASE}/signalements_test.json`;
 const VALID_CATEGORIES = ["inactivite","quantite_travail","qualite_travail","comportement","disponibilite","autre"];
 
+
+function stripPrivateSignalementFields(signalements, isOwner) {
+  if (isOwner || !signalements || typeof signalements !== "object") return signalements || {};
+  const clean = {};
+  for (const [key, value] of Object.entries(signalements)) {
+    if (!value || typeof value !== "object") { clean[key] = value; continue; }
+    const { selectionMethod, selectedBy, ...publicValue } = value;
+    clean[key] = publicValue;
+  }
+  return clean;
+}
+
 async function getFirebaseIdToken(discordId, level, clientEmail, privateKey, webApiKey){
   const customToken = createFirebaseCustomToken({ clientEmail, privateKey, uid: discordId, claims: { level, server: true } });
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${webApiKey}`, {
@@ -57,7 +69,10 @@ exports.handler = async function (event) {
       if (!(await canFor(session, "propose_signalement", idToken))) return json(403,{error:"Permission de consultation des signalements refusée."});
       const r=await fetch(authedUrl(signalementsTargetUrl));
       if(!r.ok) return json(502,{error:`Lecture signalements impossible (${r.status}).`});
-      return json(200,{ok:true,signalements:(await r.json())||{}});
+      const rawSignalements = (await r.json()) || {};
+      // selectionMethod/selectedBy sont une trace technique OWNER uniquement :
+      // jamais les laisser sortir dans la réponse réseau d’un MC/ADD/CD/D/DG.
+      return json(200,{ok:true,signalements:stripPrivateSignalementFields(rawSignalements, session.level === "OWNER")});
     }
 
     if (action === "deleteSignalementOfficial") {
@@ -230,6 +245,8 @@ exports.handler = async function (event) {
     return json(500, { error: `Erreur inattendue : ${err.message}` });
   }
 };
+
+exports._test = { stripPrivateSignalementFields };
 
 function json(statusCode, obj) {
   return { statusCode, headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) };
