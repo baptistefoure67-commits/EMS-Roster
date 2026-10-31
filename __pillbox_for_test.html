@@ -4976,7 +4976,6 @@ function computeSignalementGroups(actifs){
     // groupe, sans doublon.
     g.categories = [...new Set(g.entries.flatMap(e=>(e.category||"").split(",").map(c=>SIGNALEMENT_CATEGORY_LABEL[c]||c)))];
     g.reasons = g.entries.map(e=>e.reason).filter(Boolean);
-    g.isAutomatic = g.entries.some(e=>e.source === "automatic_payroll_check");
     g.options = signalementRetrogradeOptions(g.person.grade);
     g.decision = sessionDecision;
     result.push(g);
@@ -5281,10 +5280,7 @@ function render(){
         const cur = state.overrides[g.key]?.signalementTarget || g.options[0];
         const reasonTxt = g.reasons.slice(0,3).map(r=>r.length>160?r.slice(0,160)+"…":r).join(" / ");
         const decided = g.decision;
-        const signalementTitle = g.isAutomatic
-          ? `🤖 Vérification automatique — <b>${esc(e.name)}</b> — ${esc(GRADE_LABEL[e.grade]||e.grade)}`
-          : `Un point a été remonté concernant <b>${esc(e.name)}</b> (${esc(GRADE_LABEL[e.grade])}) : <b>${esc(g.categories.join(", "))}</b> — à réévaluer, éventuellement rétrograder ?`;
-        html += `<div class="valid-row"><span class="dot ${decided===undefined?'dot-amber':'dot-green'}"></span><span class="flex1">${signalementTitle}<br><span style="display:inline-block;margin-top:3px;color:var(--ink-dim);font-size:12px;">"${esc(reasonTxt)}"</span>${decided==="true"?`<br><span style="color:var(--green);font-weight:700;">↳ ✓ Rétrogradation appliquée cette semaine.</span>`:decided==="fire"?`<br><span style="color:var(--danger);font-weight:700;">↳ 🔥 Licenciement appliqué cette semaine.</span>`:decided==="false"?`<br><span style="color:var(--ink-dim);font-weight:700;">↳ Reposera la question dans ${SIGNALEMENT_DEFER_DAYS} jours si rien ne change.</span>`:''}</span>
+        html += `<div class="valid-row"><span class="dot ${decided===undefined?'dot-amber':'dot-green'}"></span><span class="flex1">Un point a été remonté concernant <b>${esc(e.name)}</b> (${esc(GRADE_LABEL[e.grade])}) : <b>${esc(g.categories.join(", "))}</b> — à réévaluer, éventuellement rétrograder ?<br><span style="display:inline-block;margin-top:3px;color:var(--ink-dim);font-size:12px;">"${esc(reasonTxt)}"</span>${decided==="true"?`<br><span style="color:var(--green);font-weight:700;">↳ ✓ Rétrogradation appliquée cette semaine.</span>`:decided==="fire"?`<br><span style="color:var(--danger);font-weight:700;">↳ 🔥 Licenciement appliqué cette semaine.</span>`:decided==="false"?`<br><span style="color:var(--ink-dim);font-weight:700;">↳ Reposera la question dans ${SIGNALEMENT_DEFER_DAYS} jours si rien ne change.</span>`:''}</span>
           <select data-action="signalementTarget" data-key="${esc(g.key)}">
             ${g.options.map(t=>`<option value="${t}" ${cur===t?'selected':''}>${esc(GRADE_LABEL[t])}</option>`).join("")}
           </select>
@@ -6732,30 +6728,6 @@ async function pillboxProxyPost(action, payload, signal){
   return data;
 }
 
-async function processAutomaticPayrollSignalementAfterAnalysis(weekKey){
-  // Le choix manuel n'existe plus dans Pillbox : il se fait uniquement via
-  // le vrai module Signalements du Roster. À chaque clic "Analyser la semaine",
-  // le serveur fait avancer le compteur 1→3 de façon idempotente par semaine.
-  // Si la semaine est due, il prend d'abord un signalement manuel du Roster ;
-  // seulement s'il n'y en a pas, il tire UNE personne aléatoirement.
-  const result = await pillboxProxyPost("processAutomaticPayrollSignalementOnAnalysis", {
-    weekKey,
-    sandbox: signalementSandboxMode(),
-  });
-
-  // Recharge tout de suite la liste officielle : le signalement manuel déjà
-  // existant ou le nouveau 🤖 doit apparaître dans les "Postes à réévaluer"
-  // de CETTE analyse, sans attendre un rafraîchissement de page.
-  await fetchSignalements();
-
-  if(result?.usedExistingManual && result.personName){
-    pillboxNotice(`📋 Signalement du Roster retenu pour cette semaine : ${result.personName}${result.personGrade?` — ${result.personGrade}`:""}.`);
-  }else if(result?.created && result.personName){
-    pillboxNotice(`🤖 Signalement automatique créé : ${result.personName}${result.personGrade?` — ${result.personGrade}`:""}.`);
-  }
-  return result;
-}
-
 let pillboxAnimEnabled = true;
 let pillboxAnimLocked = false;
 let pillboxAnimExcludedSelf = false;
@@ -7569,10 +7541,7 @@ async function renderDashboardPanel(){
   } else {
     html += signalements.map(s=>{
       const cats = (s.category||"").split(",").map(c=>SIGNALEMENT_CATEGORY_LABEL[c]||c).join(", ");
-      const label = s.source === "automatic_payroll_check"
-        ? `🤖 Vérification automatique — <b>${esc(s.personName)}</b> — ${esc(s.personGrade||"")}`
-        : `<b>${esc(s.personName)}</b> — ${esc(cats)}`;
-      return `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--line);">${label} <span style="color:var(--ink-dim);">(${timeAgoFr(s.createdAt||Date.now())})</span></div>`;
+      return `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--line);"><b>${esc(s.personName)}</b> — ${esc(cats)} <span style="color:var(--ink-dim);">(${timeAgoFr(s.createdAt||Date.now())})</span></div>`;
     }).join("");
   }
   html += `</div>`;
@@ -9021,7 +8990,7 @@ function buildWeekHistoryDetail(ctx){
   // ceux pour lesquels une décision a bien été prise cette semaine.
   const avertissementsSignalements = (ctx.pendingSignalementGroups||[])
     .filter(g=>g.decision!==undefined)
-    .map(g=>({name:(g.person&&g.person.name)||'?', grade:(g.person&&g.person.grade)||'', decision: g.decision, categories: g.categories||[], automatic:!!g.isAutomatic}));
+    .map(g=>({name:(g.person&&g.person.name)||'?', grade:(g.person&&g.person.grade)||'', decision: g.decision, categories: g.categories||[]}));
 
   // Quotas non atteints cette semaine (point 22 "quotas") — pour mémoire,
   // indépendamment de la déduction réellement appliquée (qui peut avoir
@@ -9163,7 +9132,7 @@ async function renderWeekHistoryPanel(){
     const avertLines = s.avertissementsSignalements===null
       ? '<span style="color:var(--ink-dim);">Non disponible pour cette ancienne semaine (décisions d\'origine non archivées à part)</span>'
       : (s.avertissementsSignalements||[]).length
-      ? s.avertissementsSignalements.map(a=>`• ${a.automatic?'🤖 Vérification automatique — ':''}${esc(a.name)}${a.grade?` (${esc(a.grade)})`:''} — ${a.decision? '<span style="color:#c8102e;">rétrogradé</span>' : '<span style="color:var(--ink-dim);">pas cette semaine</span>'}${a.categories&&a.categories.length?` — ${esc(a.categories.join(', '))}`:''}`).join("<br>") : "—";
+      ? s.avertissementsSignalements.map(a=>`• ${esc(a.name)}${a.grade?` (${esc(a.grade)})`:''} — ${a.decision? '<span style="color:#c8102e;">rétrogradé</span>' : '<span style="color:var(--ink-dim);">pas cette semaine</span>'}${a.categories&&a.categories.length?` — ${esc(a.categories.join(', '))}`:''}`).join("<br>") : "—";
     const quotaLines = (s.quotasNonAtteints||[]).length
       ? s.quotasNonAtteints.map(q=>`• ${esc(q.name)} (${esc(q.grade)}) — ${q.reaCount} réa`).join("<br>") : "—";
     const absenceLines = s.absencesAvecImpact===null
@@ -9632,12 +9601,6 @@ document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
     const outcome = await showAnalysisAnimation(()=>runAnalysis(resetOverrides), gate, check.then(res=>!!res.error));
     if(outcome.aborted) return;
     if(outcome.error){ console.error('Erreur analyse hebdomadaire:', outcome.error); alert(`✕ L'analyse a échoué : ${outcome.error.message||outcome.error}`); return; }
-    try{
-      await processAutomaticPayrollSignalementAfterAnalysis(key);
-    }catch(err){
-      console.error("Erreur signalement hebdomadaire après analyse:", err);
-      alert(`⚠️ L'analyse est terminée, mais le signalement de la semaine n'a pas pu être vérifié/créé (${err.message}). Tu peux recliquer sur « Analyser la semaine » : l'opération est idempotente.`);
-    }
     state.preserveRestoredOverrides = false;
     return;
   }
@@ -9657,12 +9620,6 @@ document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
   if(res.already && !confirm(weekAlreadyProcessedMessage(res.already))) return;
   const outcome = await showAnalysisAnimation(()=>runAnalysis(resetOverrides));
   if(outcome.error){ console.error('Erreur analyse hebdomadaire:', outcome.error); alert(`✕ L'analyse a échoué : ${outcome.error.message||outcome.error}`); return; }
-  try{
-    await processAutomaticPayrollSignalementAfterAnalysis(key);
-  }catch(err){
-    console.error("Erreur signalement hebdomadaire après analyse:", err);
-    alert(`⚠️ L'analyse est terminée, mais le signalement de la semaine n'a pas pu être vérifié/créé (${err.message}). Tu peux recliquer sur « Analyser la semaine » : l'opération est idempotente.`);
-  }
   state.preserveRestoredOverrides = false;
 });
 
