@@ -85,6 +85,48 @@ function automaticSignalementEligibleEmployees(roster){
     }));
 }
 
+function normalizeSignalementName(value){
+  return String(value||"").trim().toLowerCase();
+}
+
+// Quand une semaine "due" arrive, un signalement officiel déjà créé dans le
+// Roster passe AVANT le hasard. On ne le copie pas et on ne le transforme pas :
+// Pillbox utilisera simplement le vrai signalement existant. Une même clé
+// manuelle n'est consommée qu'une fois par ce mécanisme, sinon un signalement
+// différé pourrait bloquer tous les futurs tirages automatiques.
+function findExistingManualSignalementForPayroll(signalements, eligible, usedManualKeys, now=Date.now()){
+  const used = new Set(Array.isArray(usedManualKeys) ? usedManualKeys : []);
+  const byId = new Map();
+  const byName = new Map();
+  for(const person of eligible||[]){
+    if(person.personId) byId.set(String(person.personId), person);
+    byName.set(normalizeSignalementName(person.personName), person);
+  }
+  const candidates = Object.entries(signalements||{})
+    .filter(([key,s])=>{
+      if(!s || typeof s !== "object" || used.has(key)) return false;
+      // "auto:true" correspond déjà aux autres automatisations du Roster
+      // (activité, etc.) : elles ne doivent jamais être prises pour le
+      // signalement MANUEL que l'utilisateur dit avoir créé lui-même.
+      if(s.source === AUTO_SIGNALEMENT_SOURCE || s.auto === true) return false;
+      if(Number(s.deferredUntil) > now) return false;
+      const person = (s.personId && byId.get(String(s.personId))) || byName.get(normalizeSignalementName(s.personName));
+      return !!person;
+    })
+    .map(([key,s])=>({
+      key,
+      signalement:s,
+      person:(s.personId && byId.get(String(s.personId))) || byName.get(normalizeSignalementName(s.personName)),
+    }))
+    .sort((a,b)=>Number(b.signalement.createdAt||0)-Number(a.signalement.createdAt||0));
+  const chosen = candidates[0] || null;
+  if(!chosen) return null;
+  chosen.relatedKeys = candidates
+    .filter(c=>c.person.employeeKey === chosen.person.employeeKey)
+    .map(c=>c.key);
+  return chosen;
+}
+
 function randomAutomaticSignalementInterval(rng=Math.random){
   return 1 + Math.floor(Math.max(0, Math.min(0.999999999, Number(rng()) || 0)) * 3);
 }
@@ -120,6 +162,7 @@ function normalizeAutomaticSignalementState(state, rng=Math.random){
   obj.version = 1;
   obj.nextAutomaticReportIn = Number.isInteger(next) && next >= 1 && next <= 3 ? next : randomAutomaticSignalementInterval(rng);
   obj.recentRandomEmployeeKeys = Array.isArray(obj.recentRandomEmployeeKeys) ? obj.recentRandomEmployeeKeys.slice(0,5) : [];
+  obj.usedManualSignalementKeys = Array.isArray(obj.usedManualSignalementKeys) ? obj.usedManualSignalementKeys.slice(0,120) : [];
   obj.weeks = obj.weeks && typeof obj.weeks === "object" ? {...obj.weeks} : {};
   return obj;
 }
@@ -162,14 +205,19 @@ function pruneAutomaticSignalementWeeks(weeks){
   return Object.fromEntries(entries.slice(0,80));
 }
 
-function ownerSelectionForbidden(session, selectionMethod){
-  return selectionMethod === "owner_selected" && session?.level !== "OWNER";
-}
-
 function automaticSignalementPublicResult(week){
-  if(!week || week.status === "skipped") return {created:false, status:week?.status||"skipped"};
+  if(!week || week.status === "skipped") return {created:false, usedExistingManual:false, status:week?.status||"skipped"};
+  if(week.status === "manual_existing"){
+    return {
+      created:false, usedExistingManual:true, status:week.status,
+      signalementKey:week.signalementKey||null,
+      personName:week.personName||null,
+      personGrade:week.personGrade||null,
+    };
+  }
   return {
     created: week.status === "created" || week.status === "claimed",
+    usedExistingManual:false,
     status: week.status,
     signalementKey: week.signalementKey || null,
     personName: week.personName || null,
@@ -262,56 +310,36 @@ exports.handler = async function (event) {
         if(existingWeek){
           return json(200,{
             ok:true, alreadyProcessed:true, dueThisWeek:false,
-            canChooseManually: session.level === "OWNER",
-            eligibleEmployees: [],
             result: automaticSignalementPublicResult(existingWeek),
           },corsHeaders);
         }
-        const dueThisWeek = Number(ensured.state.nextAutomaticReportIn) <= 1;
-        let eligibleEmployees = [];
-        if(dueThisWeek && session.level === "OWNER"){
-          // Même relais, même source de vérité : la liste est relue MAINTENANT
-          // depuis rosterEmsData ; aucune copie d'employés n'est créée dans Pillbox.
-          const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
-          if(!rosterRes.ok) return json(502,{error:`Roster indisponible (${rosterRes.status}).`},corsHeaders);
-          eligibleEmployees = automaticSignalementEligibleEmployees(await rosterRes.json()).map(e=>({
-            employeeKey:e.employeeKey, name:e.personName, grade:e.personGrade,
-          }));
-        }
         return json(200,{
-          ok:true, alreadyProcessed:false, dueThisWeek,
-          canChooseManually: session.level === "OWNER",
-          eligibleEmployees,
-          nextAutomaticReportIn: ensured.state.nextAutomaticReportIn,
+          ok:true, alreadyProcessed:false,
+          dueThisWeek:Number(ensured.state.nextAutomaticReportIn) <= 1,
+          nextAutomaticReportIn:ensured.state.nextAutomaticReportIn,
         },corsHeaders);
       }
 
-      if (body.action === "finalizeAutomaticPayrollSignalement") {
+      if (body.action === "processAutomaticPayrollSignalementOnAnalysis" || body.action === "finalizeAutomaticPayrollSignalement") {
         const weekKey = String(body.weekKey || "");
         if(!/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) return json(400,{error:"Clé de semaine invalide."},corsHeaders);
-        const selectionMethod = body.selectionMethod === "owner_selected" ? "owner_selected" : "random";
-        // Contrôle de sécurité RÉEL côté serveur : même une requête bricolée
-        // à la main est refusée si le jeton signé n'est pas exactement OWNER.
-        if(ownerSelectionForbidden(session, selectionMethod)){
-          return json(403,{error:"Le choix manuel d'une personne est strictement réservé à l'Owner."},corsHeaders);
-        }
-        const selectedEmployeeKey = selectionMethod === "owner_selected" ? String(body.selectedEmployeeKey||"") : "";
-        if(selectionMethod === "owner_selected" && !selectedEmployeeKey){
-          return json(400,{error:"Personne à vérifier manquante."},corsHeaders);
+
+        // Depuis le 31/10, le choix manuel ne passe PLUS par Pillbox. Même
+        // l'OWNER doit créer son signalement dans le Roster ; une requête
+        // bricolée avec owner_selected est donc refusée côté serveur.
+        if(body.selectionMethod === "owner_selected" || body.selectedEmployeeKey){
+          return json(403,{error:"Le choix manuel depuis Pillbox a été supprimé : crée le signalement directement dans le Roster."},corsHeaders);
         }
 
         const sandbox = body.sandbox === true;
         const stateUrl = automaticSignalementStateUrl(sandbox, idToken);
+        const targetRoot = sandbox ? "signalements_test" : "signalements";
         let claimedWeek = null;
 
         for(let attempt=0; attempt<6; attempt++){
           const read = await readAutomaticSignalementState(stateUrl);
           let state = normalizeAutomaticSignalementState(read.state);
-          if(!read.state){
-            // Même règle que la prévisualisation : si aucun état n'existe
-            // encore, le premier intervalle est tiré puis persisté par CAS.
-            state.initializedAt = Date.now();
-          }
+          if(!read.state) state.initializedAt = Date.now();
 
           const already = state.weeks?.[weekKey];
           if(already){
@@ -331,23 +359,66 @@ exports.handler = async function (event) {
             const put = await putAutomaticSignalementState(stateUrl,state,read.etag);
             if(put.status === 412) continue;
             if(!put.ok) return json(502,{error:`Mise à jour du compteur impossible (${put.status}).`},corsHeaders);
-            return json(200,{ok:true,created:false,nextAutomaticReportIn:state.nextAutomaticReportIn},corsHeaders);
+            return json(200,{ok:true,created:false,usedExistingManual:false,nextAutomaticReportIn:state.nextAutomaticReportIn},corsHeaders);
           }
 
-          const rosterRes = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+          // La semaine est due : on relit AU MÊME MOMENT le Roster et les
+          // signalements officiels. Aucun grade ni statut actif n'est pris
+          // depuis une ancienne analyse Pillbox.
+          const [rosterRes, signalementsRes] = await Promise.all([
+            fetch(`${ROSTER_URL}?auth=${idToken}`),
+            fetch(`${SIGNALEMENTS_BASE}/${targetRoot}.json?auth=${idToken}`),
+          ]);
           if(!rosterRes.ok) return json(502,{error:`Roster indisponible (${rosterRes.status}).`},corsHeaders);
+          if(!signalementsRes.ok) return json(502,{error:`Signalements indisponibles (${signalementsRes.status}).`},corsHeaders);
+
           const eligible = automaticSignalementEligibleEmployees(await rosterRes.json());
           if(!eligible.length) return json(409,{error:"Aucun employé actif éligible (MF à ADD) dans le Roster actuel."},corsHeaders);
+          const rawSignalements = (await signalementsRes.json()) || {};
 
-          let person;
-          if(selectionMethod === "owner_selected"){
-            person = eligible.find(e=>e.employeeKey === selectedEmployeeKey);
-            if(!person){
-              return json(409,{error:"La personne choisie n'est plus présente, active ou éligible dans le Roster actuel."},corsHeaders);
-            }
-          }else{
-            person = chooseWeightedAutomaticSignalementEmployee(eligible,state.recentRandomEmployeeKeys);
+          // Priorité au signalement que l'équipe a réellement créé dans le
+          // Roster. Il reste 100 % manuel et n'est pas réécrit avec un badge
+          // automatique : Pillbox se contente de le prendre pour cette semaine.
+          const manual = findExistingManualSignalementForPayroll(
+            rawSignalements, eligible, state.usedManualSignalementKeys, Date.now()
+          );
+          if(manual){
+            const nextInterval = randomAutomaticSignalementInterval();
+            const now = Date.now();
+            const week = {
+              status:"manual_existing",
+              signalementKey:manual.key,
+              personName:manual.person.personName,
+              personId:manual.person.personId,
+              personGrade:manual.person.personGrade,
+              employeeKey:manual.person.employeeKey,
+              source:"roster_manual_signalement",
+              selectionMethod:"roster_manual",
+              processedAt:now,
+              nextAutomaticReportIn:nextInterval,
+            };
+            state.nextAutomaticReportIn = nextInterval;
+            const consumedManualKeys = Array.isArray(manual.relatedKeys) && manual.relatedKeys.length ? manual.relatedKeys : [manual.key];
+            state.usedManualSignalementKeys = [
+              ...consumedManualKeys,
+              ...(state.usedManualSignalementKeys||[]).filter(k=>!consumedManualKeys.includes(k))
+            ].slice(0,120);
+            state.weeks[weekKey] = week;
+            state.weeks = pruneAutomaticSignalementWeeks(state.weeks);
+            state.updatedAt = now;
+            const put = await putAutomaticSignalementState(stateUrl,state,read.etag);
+            if(put.status === 412) continue;
+            if(!put.ok) return json(502,{error:`Réservation du signalement Roster impossible (${put.status}).`},corsHeaders);
+            return json(200,{
+              ok:true, created:false, usedExistingManual:true,
+              signalementKey:manual.key,
+              personName:manual.person.personName,
+              personGrade:manual.person.personGrade,
+              nextAutomaticReportIn:nextInterval,
+            },corsHeaders);
           }
+
+          const person = chooseWeightedAutomaticSignalementEmployee(eligible,state.recentRandomEmployeeKeys);
           if(!person) return json(409,{error:"Impossible de tirer une personne éligible."},corsHeaders);
 
           const signalementKey = `automatic-payroll-${weekKey}`;
@@ -358,16 +429,13 @@ exports.handler = async function (event) {
             personName:person.personName, personId:person.personId, personGrade:person.personGrade,
             employeeKey:person.employeeKey,
             source:AUTO_SIGNALEMENT_SOURCE,
-            selectionMethod,
+            selectionMethod:"random",
             createdAt,
             nextAutomaticReportIn:nextInterval,
           };
-          if(selectionMethod === "owner_selected") week.selectedBy = String(session.discordId);
 
           state.nextAutomaticReportIn = nextInterval;
-          if(selectionMethod === "random"){
-            state.recentRandomEmployeeKeys = [person.employeeKey, ...(state.recentRandomEmployeeKeys||[]).filter(k=>k!==person.employeeKey)].slice(0,5);
-          }
+          state.recentRandomEmployeeKeys = [person.employeeKey, ...(state.recentRandomEmployeeKeys||[]).filter(k=>k!==person.employeeKey)].slice(0,5);
           state.weeks[weekKey] = week;
           state.weeks = pruneAutomaticSignalementWeeks(state.weeks);
           state.updatedAt = createdAt;
@@ -379,15 +447,14 @@ exports.handler = async function (event) {
           break;
         }
 
-        if(!claimedWeek) return json(409,{error:"Conflit de clôture simultanée — réessaie."},corsHeaders);
-        if(claimedWeek.status === "skipped"){
-          return json(200,{ok:true,...automaticSignalementPublicResult(claimedWeek)},corsHeaders);
+        if(!claimedWeek) return json(409,{error:"Conflit d'analyse simultanée — relance l'analyse."},corsHeaders);
+        if(claimedWeek.status === "skipped" || claimedWeek.status === "manual_existing"){
+          return json(200,{ok:true,...automaticSignalementPublicResult(claimedWeek),nextAutomaticReportIn:claimedWeek.nextAutomaticReportIn},corsHeaders);
         }
 
         // Une réservation "claimed" est volontairement réparable : si Netlify
-        // tombe entre le compteur et l'écriture officielle, la relance reprend
-        // LA MÊME personne et LA MÊME clé au lieu de refaire un tirage.
-        const targetRoot = sandbox ? "signalements_test" : "signalements";
+        // tombe entre le compteur et l'écriture officielle, le prochain clic
+        // "Analyser la semaine" reprend LA MÊME personne et LA MÊME clé.
         const signalementEntry = {
           personName: claimedWeek.personName,
           personId: claimedWeek.personId || null,
@@ -396,9 +463,8 @@ exports.handler = async function (event) {
           reason: AUTO_SIGNALEMENT_REASON,
           createdAt: claimedWeek.createdAt || Date.now(),
           source: AUTO_SIGNALEMENT_SOURCE,
-          selectionMethod: claimedWeek.selectionMethod || "random",
+          selectionMethod: "random",
         };
-        if(claimedWeek.selectionMethod === "owner_selected" && claimedWeek.selectedBy) signalementEntry.selectedBy = claimedWeek.selectedBy;
 
         const signalementUrl = `${SIGNALEMENTS_BASE}/${targetRoot}/${claimedWeek.signalementKey}.json?auth=${idToken}`;
         const signalementRes = await fetch(signalementUrl,{
@@ -413,7 +479,7 @@ exports.handler = async function (event) {
         const completeWeek = {...claimedWeek,status:"created",completedAt:Date.now()};
         const completeRes = await fetch(stateWeekUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(completeWeek)});
         if(!completeRes.ok){
-          return json(502,{error:`Signalement créé, mais finalisation de sa trace technique impossible (${completeRes.status}). Réessaie : aucune duplication ne sera créée.`},corsHeaders);
+          return json(502,{error:`Signalement créé, mais finalisation de sa trace technique impossible (${completeRes.status}). Relance l'analyse : aucune duplication ne sera créée.`},corsHeaders);
         }
         await logAction({
           action:"signalement_automatique_paye",
@@ -421,7 +487,12 @@ exports.handler = async function (event) {
           targetDiscordId:claimedWeek.personId || null, targetName:claimedWeek.personName,
           details:`Vérification automatique — semaine ${weekKey}`, weekKey, idToken,
         }).catch(()=>{});
-        return json(200,{ok:true,created:true,signalementKey:claimedWeek.signalementKey,personName:claimedWeek.personName,personGrade:claimedWeek.personGrade},corsHeaders);
+        return json(200,{
+          ok:true,created:true,usedExistingManual:false,
+          signalementKey:claimedWeek.signalementKey,
+          personName:claimedWeek.personName,personGrade:claimedWeek.personGrade,
+          nextAutomaticReportIn:claimedWeek.nextAutomaticReportIn,
+        },corsHeaders);
       }
 
       if (body.action === "getAutomaticPayrollSignalementDebug") {
@@ -845,7 +916,7 @@ exports._test = {
   chooseWeightedAutomaticSignalementEmployee,
   randomAutomaticSignalementInterval,
   normalizeAutomaticSignalementState,
-  ownerSelectionForbidden,
+  findExistingManualSignalementForPayroll,
   ensureAutomaticSignalementState,
   automaticSignalementStateUrl,
 };
