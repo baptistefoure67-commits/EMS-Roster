@@ -45,7 +45,7 @@ const GRADE_PERMISSION_KEYS = [
 // resolveIndividualDecision plus bas, désormais retirés pour cette clé).
 // Réservé dans les faits à OWNER et DG : voir le contrôle de grade explicite
 // dans get-logs.js, en plus de la vraie permission individuelle ici.
-const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll", "exclude_animations", "delete_logs"];
+const INDIVIDUAL_ONLY_KEYS = ["owner_delegate", "manage_troll", "exclude_animations", "delete_logs", "use_gain_de_temps"];
 
 // Suppression de logs : OWNER réel uniquement. Cette permission n'est ni
 // proposée par grade ni accordable individuellement.
