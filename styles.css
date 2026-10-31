@@ -1067,3 +1067,10 @@ body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doo
 .roster-unsaved-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 9px rgba(251,191,36,.35);margin-right:5px;vertical-align:1px}
 @media(max-width:620px){.save-review-dialog{padding:16px;border-radius:16px}.save-review-counts{grid-template-columns:repeat(2,1fr)}.save-review-grid{grid-template-columns:1fr}.save-review-footer{margin:16px -16px -16px;padding:12px 16px;flex-direction:column-reverse}.save-review-footer button{width:100%}}
 @media(prefers-reduced-motion:reduce){.save-review-overlay *{animation:none!important;transition:none!important}}
+
+/* Correctif 31/10/2026 — modale animations Sauvegarder/Synchroniser */
+#liaisonOverlay{display:none!important;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:18px!important;align-items:center!important;justify-content:center!important;overflow:auto!important;z-index:2147483003!important}
+#liaisonOverlay.liaison-ui-open:not([hidden]){display:flex!important}
+#liaisonOverlay[hidden]{display:none!important}
+#liaisonOverlay>.liaison-dialog{position:relative!important;flex:0 0 auto!important;width:min(460px,calc(100vw - 36px))!important;max-width:460px!important;max-height:calc(100dvh - 36px)!important;margin:auto!important;overflow:auto!important}
+html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important}
