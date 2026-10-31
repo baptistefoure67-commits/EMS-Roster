@@ -791,6 +791,90 @@ function empRowHtml(e, isLicencie){
   `;
 }
 
+const GAIN_ACCESS_ELIGIBLE_GRADES_UI = new Set(["MF","MP","MLP","RF","RP","RL","MC","ADD","CD","D","DG"]);
+function readGainAccessDecision(personEntry){
+  const entry = personEntry && personEntry.use_gain_de_temps;
+  if(!entry || typeof entry !== "object") return null;
+  for(const layer of ["OWNER","DG","D","CD"]){
+    if(entry[layer] === true || entry[layer] === false) return entry[layer];
+  }
+  return null;
+}
+async function ensureGainAccessSnapshot(){
+  if(individualPermsCache) return individualPermsCache;
+  if(!currentSessionToken) throw new Error("Session expirée.");
+  const res = await fetch(`/.netlify/functions/manage-individual-permissions?token=${encodeURIComponent(currentSessionToken)}`);
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || `${res.status}`);
+  individualPermsCache = data.individualPermissions || {};
+  if(Array.isArray(data.allPermissions)) individualAllPermsCache = data.allPermissions;
+  if(data.effectiveByGrade) effectiveByGradeCache = data.effectiveByGrade;
+  return individualPermsCache;
+}
+async function hydrateGainAccessShortcut(slot, e){
+  if(currentUserLevel !== "OWNER" || !e || !e.discordId) return;
+  const status = slot.querySelector(`[data-gain-access-status="${e.id}"]`);
+  const btn = slot.querySelector(`[data-gain-access-toggle="${e.id}"]`);
+  if(!status || !btn) return;
+
+  // L'OWNER utilise toujours l'outil : le serveur Gain de Temps lui donne
+  // un bypass explicite pour ne jamais se verrouiller lui-même hors de son
+  // propre outil. Les autres personnes doivent, elles, être validées une
+  // par une ici ou dans Permissions individuelles.
+  if(String(e.discordId) === String(currentUserDiscordId)){
+    status.textContent = "Accès OWNER permanent";
+    status.style.color = "var(--green)";
+    btn.style.display = "none";
+    return;
+  }
+  if(!GAIN_ACCESS_ELIGIBLE_GRADES_UI.has(String(e.grade||"").toUpperCase())){
+    status.textContent = "Non éligible — minimum Médecin Spécialisé";
+    status.style.color = "var(--text-faint)";
+    btn.disabled = true;
+    btn.textContent = "Accès impossible";
+    return;
+  }
+  status.textContent = "Vérification…";
+  btn.disabled = true;
+  try{
+    await ensureGainAccessSnapshot();
+    const allowed = readGainAccessDecision((individualPermsCache||{})[e.discordId]) === true;
+    const paint = ()=>{
+      status.textContent = allowed ? "Autorisé" : "Refusé";
+      status.style.color = allowed ? "var(--green)" : "var(--red)";
+      btn.textContent = allowed ? "Retirer l’accès" : "Autoriser l’accès";
+      btn.className = allowed ? "btn-danger btn-small" : "btn-primary btn-small";
+      btn.disabled = false;
+    };
+    paint();
+    btn.onclick = async ()=>{
+      btn.disabled = true;
+      const next = !(readGainAccessDecision((individualPermsCache||{})[e.discordId]) === true);
+      status.textContent = next ? "Autorisation…" : "Retrait…";
+      try{
+        const res = await fetch("/.netlify/functions/manage-individual-permissions", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ token:currentSessionToken, action:"set", targetDiscordId:e.discordId, permissionName:"use_gain_de_temps", value:next })
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data.error || `${res.status}`);
+        individualPermsCache = individualPermsCache || {};
+        individualPermsCache[e.discordId] = data.person || individualPermsCache[e.discordId] || {};
+        toast(next ? `✓ ${e.name} peut maintenant utiliser Gain de Temps EMS.` : `✓ Accès Gain de Temps retiré à ${e.name}.`);
+        await hydrateGainAccessShortcut(slot, e);
+      }catch(err){
+        status.textContent = `Erreur : ${err.message}`;
+        status.style.color = "var(--red)";
+        btn.disabled = false;
+      }
+    };
+  }catch(err){
+    status.textContent = `Indisponible : ${err.message}`;
+    status.style.color = "var(--red)";
+    btn.disabled = false;
+  }
+}
+
 function editRowHtml(e){
   return `
     <div class="edit-row">
@@ -804,6 +888,7 @@ function editRowHtml(e){
       <input type="text" data-edit-name="${e.id}" value="${esc(e.name)}" style="min-width:140px;">
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
+      ${currentUserLevel === "OWNER" && e.discordId ? `<span style="font-size:.76rem;color:var(--text-dim);font-weight:800;">⏱️ Gain de Temps : <b data-gain-access-status="${e.id}" style="color:var(--text-faint);">…</b></span><button type="button" class="btn-ghost btn-small" data-gain-access-toggle="${e.id}">Vérifier l’accès</button>` : ""}
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
       <button class="btn-ghost btn-small" data-cancel="${e.id}">Annuler</button>
       ${["OWNER","DG","D"].includes(currentUserLevel) && e.discordId ? `
@@ -1203,6 +1288,7 @@ function attachRowHandlers(){
       if(!e) return;
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
       slot.innerHTML = editRowHtml(e);
+      hydrateGainAccessShortcut(slot, e);
       slot.querySelector(`[data-save="${id}"]`).addEventListener("click", async ()=>{
         const before = { name:e.name, discordId:e.discordId, grade:e.grade, role:e.role, aliases:(e.aliases||[]).slice() };
         const newName = slot.querySelector(`[data-edit-name="${id}"]`).value.trim() || e.name;
@@ -3634,6 +3720,7 @@ const PERMISSION_LABEL = {
   owner_delegate: "👑 Droits OWNER délégués (individuel uniquement)",
   manage_troll: "🎭 Mode troll (individuel uniquement)",
   exclude_animations: "🚫 Exclure des animations",
+  use_gain_de_temps: "⏱️ Accès Gain de Temps EMS (individuel uniquement)",
 };
 const GRADE_PERMISSION_KEYS_UI = [
   "view_roster","manage_roster","manage_psychologue_category","manage_formateur_category",
@@ -3643,7 +3730,7 @@ const GRADE_PERMISSION_KEYS_UI = [
   "manage_pay_weeks","manage_absences","manage_pay_rules","force_logout","reset_activite_streak","reopen_roster_week"
 ];
 const REQUESTABLE_PERMISSION_KEYS = [...GRADE_PERMISSION_KEYS_UI];
-const INDIVIDUAL_PERM_KEYS = [...GRADE_PERMISSION_KEYS_UI, "owner_delegate", "manage_troll", "exclude_animations"];
+const INDIVIDUAL_PERM_KEYS = [...GRADE_PERMISSION_KEYS_UI, "owner_delegate", "manage_troll", "exclude_animations", "use_gain_de_temps"];
 const EDITABLE_LEVELS = ["MC","ADD","CD","D","DG"]; // jamais OWNER, toujours tout
 
 async function loadPermissionsTable(){
@@ -3804,6 +3891,12 @@ function renderIndividualPermTableForSelected(){
   </div>` : "";
 
   table.innerHTML = animationStyleBlock + (individualAllPermsCache || INDIVIDUAL_PERM_KEYS).map(perm=>{
+    if(perm === "use_gain_de_temps" && emp && !GAIN_ACCESS_ELIGIBLE_GRADES_UI.has(String(emp.grade||"").toUpperCase())){
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:0.82rem;opacity:.72;">
+        <span style="flex:1;color:var(--amber);font-weight:800;">${esc(PERMISSION_LABEL[perm]||perm)}<br><small style="color:var(--text-faint);font-weight:500;">Non attribuable : Gain de Temps est réservé à partir de Médecin Spécialisé.</small></span>
+        <span class="btn-small btn-ghost" style="pointer-events:none;">Non éligible</span>
+      </div>`;
+    }
     const layers = personEntry[perm] || { CD:null, D:null, DG:null, OWNER:null };
     // couche active = la plus haute qui a une valeur
     let activeLayer = null, activeValue = null;
