@@ -16,6 +16,28 @@ const { createFirebaseCustomToken } = require("./firebase-token");
 const INDIVIDUAL_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterIndividualPermissions.json";
 const GRADE_OVERRIDE_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterPermissionsOverride.json";
 const DECISION_LEVELS = ["CD", "D", "DG", "OWNER"];
+const ROSTER_URL = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app/rosterEmsData.json";
+const GAIN_ACCESS_PERMISSION = "use_gain_de_temps";
+const GAIN_ACCESS_GRADES = new Set(["MF","MP","MLP","RF","RP","RL","MC","ADD","CD","D","DG"]);
+
+// Gain de Temps reste un site séparé, mais l'accès est décidé ici dans le
+// Roster. Même un D/DG n'obtient aucun passe-droit : seule une validation
+// individuelle OWNER peut activer cette permission. Le contrôle de grade est
+// aussi refait côté serveur pour éviter qu'une requête bricolée autorise un
+// STG/A/INF/M par simple manipulation du navigateur.
+async function assertGainAccessTargetEligible(idToken, targetDiscordId){
+  const res = await fetch(`${ROSTER_URL}?auth=${idToken}`);
+  if(!res.ok) throw Object.assign(new Error(`Roster illisible (${res.status}).`), { statusCode:502 });
+  const data = await res.json().catch(()=>null);
+  const employees = data && Array.isArray(data.employees) ? data.employees : [];
+  const emp = employees.find(e => !e.licencie && String(e.discordId||"") === String(targetDiscordId||""));
+  if(!emp) throw Object.assign(new Error("Cette personne n'est pas un employé actif du Roster."), { statusCode:400 });
+  const grade = String(emp.grade||"").toUpperCase();
+  if(!GAIN_ACCESS_GRADES.has(grade)) {
+    throw Object.assign(new Error(`Accès Gain de Temps impossible pour ${emp.name||"cet employé"} (${grade||"grade inconnu"}) : minimum Médecin Spécialisé.`), { statusCode:400 });
+  }
+  return emp;
+}
 
 // Les seuls personnages qui disposent actuellement des DEUX visuels
 // (dessin IA + photo RP détourée). Le choix de style est un réglage
@@ -294,6 +316,18 @@ exports.handler = async function (event) {
       const authorRank = INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(effectiveLayer);
       const cancellableLayers = DECISION_LEVELS.filter(l => INDIVIDUAL_DECISION_AUTHORITY_ORDER.indexOf(l) >= authorRank);
 
+      // La permission Gain de Temps est volontairement OWNER-only, y compris
+      // dans la sauvegarde groupée : un gestionnaire délégué ne peut jamais la
+      // glisser dans une requête manuelle pour contourner l'interface.
+      const gainOps = operations.filter(op => canonicalPermissionName(op && op.permissionName) === GAIN_ACCESS_PERMISSION);
+      if(gainOps.length && session.level !== "OWNER") {
+        return json(403, { error: "Seul l'OWNER peut accorder ou retirer l'accès Gain de Temps EMS." }, corsHeaders);
+      }
+      if(gainOps.some(op => op && op.action === "set" && op.value === true)) {
+        try{ await assertGainAccessTargetEligible(idToken, targetDiscordId); }
+        catch(err){ return json(err.statusCode||502, { error: err.message }, corsHeaders); }
+      }
+
       const applied = []; const refused = []; const refusedProtectionAttempts = [];
       operations.forEach(op => {
         const canonical = canonicalPermissionName(op && op.permissionName);
@@ -382,6 +416,13 @@ exports.handler = async function (event) {
     }
     if (!isBatch && canonical === "owner_delegate" && session.level !== "OWNER") {
       return json(403, { error: "Seul l'OWNER peut accorder ou retirer les droits OWNER délégués." }, corsHeaders);
+    }
+    if (!isBatch && canonical === GAIN_ACCESS_PERMISSION && session.level !== "OWNER") {
+      return json(403, { error: "Seul l'OWNER peut accorder ou retirer l'accès Gain de Temps EMS." }, corsHeaders);
+    }
+    if (!isBatch && canonical === GAIN_ACCESS_PERMISSION && action === "set" && value === true) {
+      try{ await assertGainAccessTargetEligible(idToken, targetDiscordId); }
+      catch(err){ return json(err.statusCode||502, { error: err.message }, corsHeaders); }
     }
 
     const effectiveLayer = effectiveLayerFor(session);
