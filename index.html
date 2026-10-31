@@ -1659,8 +1659,113 @@ function rosterResetTheme(){
 // Appliqué avant le premier rendu du <body> pour éviter le flash de thème.
 rosterLoadTheme();
 </script>
+
+<style id="theme-ambient-effects-style">
+  .theme-ambient-overlay{
+    position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0;isolation:isolate;
+    transition:opacity .28s ease;
+  }
+  .theme-ambient-overlay[hidden]{display:none!important;}
+  body > :not(.theme-ambient-overlay){position:relative;z-index:1;}
+  .theme-ambient-backdrop,.theme-ambient-glow,.theme-ambient-particles{position:absolute;inset:0;}
+  .theme-ambient-backdrop{
+    opacity:.46;
+    filter:saturate(1.08) blur(0px);
+    transition:background .45s ease,opacity .45s ease;
+  }
+  .theme-ambient-glow{
+    opacity:.28;
+    mix-blend-mode:screen;
+    transition:background .45s ease,opacity .45s ease;
+  }
+  .theme-ambient-particles{overflow:hidden;}
+  .theme-ambient-particle{
+    position:absolute;left:var(--left,0%);top:var(--top,0%);
+    width:var(--size,18px);height:calc(var(--size,18px) * var(--aspect,1));
+    opacity:0;
+    background:linear-gradient(145deg,var(--color-a,rgba(255,255,255,.92)),var(--color-b,rgba(255,255,255,.18)));
+    border-radius:50%;
+    box-shadow:0 0 calc(var(--size,18px) * .65) var(--glow,rgba(255,255,255,.18));
+    filter:blur(var(--blur,0px));
+    transform:translate3d(0,0,0) rotate(var(--rot-start,0deg)) scale(var(--scale-start,.92));
+    animation:themeAmbientFloat var(--dur,18s) linear infinite;
+    animation-delay:var(--delay,0s);
+    will-change:transform,opacity;
+  }
+  .theme-ambient-particle.shape-petal{
+    border-radius:74% 26% 70% 30% / 72% 34% 66% 28%;
+  }
+  .theme-ambient-particle.shape-leaf{
+    border-radius:78% 22% 76% 24% / 72% 26% 74% 28%;
+    clip-path:ellipse(48% 58% at 46% 48%);
+  }
+  .theme-ambient-particle.shape-ember{
+    border-radius:55% 45% 60% 40% / 45% 65% 35% 55%;
+  }
+  .theme-ambient-particle.shape-star{
+    clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+    aspect-ratio:1/1;
+  }
+  .theme-ambient-particle.shape-bubble{
+    border-radius:50%;
+    background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.98) 0 12%,rgba(255,255,255,.35) 13% 22%,rgba(255,255,255,.10) 23% 45%,transparent 46%), linear-gradient(145deg,var(--color-a),var(--color-b));
+    border:1px solid rgba(255,255,255,.28);
+  }
+  .theme-ambient-particle.shape-crystal{
+    clip-path:polygon(50% 0%,83% 18%,100% 52%,72% 100%,28% 100%,0% 52%,17% 18%);
+  }
+  .theme-ambient-particle.shape-shard{
+    clip-path:polygon(54% 0%,100% 24%,82% 100%,0% 76%,16% 18%);
+  }
+  .theme-ambient-particle.shape-spark{
+    clip-path:polygon(50% 0%,56% 28%,84% 16%,66% 44%,100% 50%,66% 56%,84% 84%,56% 72%,50% 100%,44% 72%,16% 84%,34% 56%,0% 50%,34% 44%,16% 16%,44% 28%);
+  }
+  .theme-ambient-particle.shape-glow{
+    border-radius:50%;filter:blur(var(--blur,4px));
+  }
+  @keyframes themeAmbientFloat{
+    0%{opacity:0;transform:translate3d(0,0,0) rotate(var(--rot-start,0deg)) scale(var(--scale-start,.9));}
+    12%{opacity:var(--opacity,.5);}
+    68%{opacity:calc(var(--opacity,.5) * .85);}
+    100%{opacity:0;transform:translate3d(var(--travel-x,0px),var(--travel-y,0px),0) rotate(var(--rot-end,180deg)) scale(var(--scale-end,1.08));}
+  }
+  .theme-ambient-overlay.effect-sakura .theme-ambient-backdrop{background:radial-gradient(circle at 18% 18%,rgba(255,247,251,.75),transparent 24%),radial-gradient(circle at 82% 26%,rgba(249,168,212,.22),transparent 26%),linear-gradient(180deg,rgba(255,247,251,.10),rgba(244,114,182,.05) 45%,rgba(196,181,253,.08));}
+  .theme-ambient-overlay.effect-sakura .theme-ambient-glow{background:radial-gradient(circle at 18% 32%,rgba(244,114,182,.22),transparent 26%),radial-gradient(circle at 78% 74%,rgba(196,181,253,.22),transparent 28%);}
+  .theme-ambient-overlay.effect-lava .theme-ambient-backdrop{background:radial-gradient(circle at 16% 84%,rgba(249,115,22,.26),transparent 34%),radial-gradient(circle at 88% 18%,rgba(250,204,21,.18),transparent 22%),linear-gradient(180deg,rgba(127,29,29,.06),rgba(23,3,3,.18));}
+  .theme-ambient-overlay.effect-lava .theme-ambient-glow{background:radial-gradient(circle at 24% 78%,rgba(220,38,38,.28),transparent 28%),radial-gradient(circle at 76% 26%,rgba(251,191,36,.20),transparent 20%);opacity:.34;}
+  .theme-ambient-overlay.effect-midnight .theme-ambient-backdrop{background:radial-gradient(circle at 18% 20%,rgba(224,231,255,.10),transparent 18%),radial-gradient(circle at 82% 68%,rgba(56,189,248,.09),transparent 22%),linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.16));}
+  .theme-ambient-overlay.effect-midnight .theme-ambient-glow{background:radial-gradient(circle at 22% 24%,rgba(67,56,202,.20),transparent 24%),radial-gradient(circle at 78% 76%,rgba(56,189,248,.16),transparent 24%);opacity:.22;}
+  .theme-ambient-overlay.effect-pearl .theme-ambient-backdrop{background:radial-gradient(circle at 18% 22%,rgba(255,255,255,.34),transparent 18%),radial-gradient(circle at 84% 74%,rgba(224,242,254,.24),transparent 22%),linear-gradient(180deg,rgba(255,255,255,.08),rgba(252,231,243,.10));}
+  .theme-ambient-overlay.effect-pearl .theme-ambient-glow{background:radial-gradient(circle at 26% 30%,rgba(255,255,255,.20),transparent 20%),radial-gradient(circle at 76% 68%,rgba(237,233,254,.18),transparent 20%);opacity:.24;}
+  .theme-ambient-overlay.effect-holographic .theme-ambient-backdrop{background:radial-gradient(circle at 22% 24%,rgba(255,116,212,.18),transparent 20%),radial-gradient(circle at 78% 72%,rgba(126,247,211,.18),transparent 22%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(114,221,247,.08));}
+  .theme-ambient-overlay.effect-holographic .theme-ambient-glow{background:conic-gradient(from 45deg at 30% 20%,rgba(255,116,212,.14),rgba(114,221,247,.08),rgba(126,247,211,.12),rgba(255,116,212,.14));opacity:.26;}
+  .theme-ambient-overlay.effect-gold .theme-ambient-backdrop{background:radial-gradient(circle at 20% 26%,rgba(255,244,186,.24),transparent 22%),radial-gradient(circle at 80% 76%,rgba(245,158,11,.18),transparent 22%),linear-gradient(180deg,rgba(255,251,235,.08),rgba(120,53,15,.06));}
+  .theme-ambient-overlay.effect-gold .theme-ambient-glow{background:radial-gradient(circle at 24% 36%,rgba(253,224,71,.16),transparent 18%),radial-gradient(circle at 76% 66%,rgba(251,191,36,.18),transparent 18%);opacity:.24;}
+  .theme-ambient-overlay.effect-aurora .theme-ambient-backdrop{background:linear-gradient(180deg,rgba(16,185,129,.07),rgba(34,211,238,.06) 35%,rgba(167,139,250,.08) 68%,transparent),radial-gradient(circle at 82% 18%,rgba(240,171,252,.16),transparent 22%);}
+  .theme-ambient-overlay.effect-aurora .theme-ambient-glow{background:linear-gradient(135deg,rgba(34,211,238,.16),transparent 28%,rgba(167,139,250,.18) 52%,transparent 72%),radial-gradient(circle at 24% 26%,rgba(74,222,128,.16),transparent 22%);opacity:.26;}
+  .theme-ambient-overlay.effect-sunset .theme-ambient-backdrop{background:radial-gradient(circle at 18% 72%,rgba(254,240,138,.24),transparent 24%),radial-gradient(circle at 82% 18%,rgba(244,63,94,.16),transparent 24%),linear-gradient(180deg,rgba(251,146,60,.06),rgba(124,58,237,.06));}
+  .theme-ambient-overlay.effect-sunset .theme-ambient-glow{background:linear-gradient(150deg,rgba(251,113,133,.14),transparent 28%,rgba(124,58,237,.12) 48%,transparent 72%),radial-gradient(circle at 28% 76%,rgba(254,240,138,.18),transparent 18%);opacity:.28;}
+  .theme-ambient-overlay.effect-ice .theme-ambient-backdrop{background:radial-gradient(circle at 22% 26%,rgba(255,255,255,.26),transparent 20%),radial-gradient(circle at 80% 70%,rgba(125,211,252,.18),transparent 22%),linear-gradient(180deg,rgba(224,242,254,.06),rgba(125,211,252,.05));}
+  .theme-ambient-overlay.effect-ice .theme-ambient-glow{background:linear-gradient(140deg,rgba(255,255,255,.14),transparent 30%,rgba(125,211,252,.16) 48%,transparent 72%);opacity:.24;}
+  .theme-ambient-overlay.effect-plasma .theme-ambient-backdrop{background:radial-gradient(circle at 22% 22%,rgba(34,211,238,.22),transparent 22%),radial-gradient(circle at 78% 70%,rgba(236,72,153,.18),transparent 24%),linear-gradient(180deg,rgba(99,102,241,.07),rgba(17,24,39,.02));}
+  .theme-ambient-overlay.effect-plasma .theme-ambient-glow{background:linear-gradient(145deg,rgba(34,211,238,.18),transparent 26%,rgba(168,85,247,.18) 44%,transparent 58%,rgba(236,72,153,.16) 72%,transparent 88%);opacity:.28;}
+  .theme-ambient-overlay.effect-chrome .theme-ambient-backdrop{background:linear-gradient(180deg,rgba(226,232,240,.08),rgba(71,85,105,.04)),radial-gradient(circle at 78% 26%,rgba(255,255,255,.22),transparent 18%);}
+  .theme-ambient-overlay.effect-chrome .theme-ambient-glow{background:linear-gradient(120deg,rgba(255,255,255,.18),transparent 24%,rgba(148,163,184,.18) 48%,transparent 70%);opacity:.20;}
+  .theme-ambient-overlay.effect-emerald .theme-ambient-backdrop{background:radial-gradient(circle at 20% 76%,rgba(167,243,208,.20),transparent 22%),radial-gradient(circle at 82% 22%,rgba(45,212,191,.18),transparent 22%),linear-gradient(180deg,rgba(16,185,129,.05),rgba(6,95,70,.04));}
+  .theme-ambient-overlay.effect-emerald .theme-ambient-glow{background:linear-gradient(145deg,rgba(110,231,183,.16),transparent 28%,rgba(34,211,238,.12) 52%,transparent 78%);opacity:.24;}
+  .theme-ambient-overlay.effect-nebula .theme-ambient-backdrop{background:radial-gradient(circle at 18% 22%,rgba(255,255,255,.14),transparent 10%),radial-gradient(circle at 78% 68%,rgba(124,58,237,.18),transparent 24%),radial-gradient(circle at 82% 26%,rgba(219,39,119,.16),transparent 18%),linear-gradient(180deg,rgba(2,6,23,.08),rgba(76,29,149,.08));}
+  .theme-ambient-overlay.effect-nebula .theme-ambient-glow{background:radial-gradient(circle at 24% 30%,rgba(56,189,248,.18),transparent 20%),radial-gradient(circle at 76% 64%,rgba(219,39,119,.16),transparent 20%);opacity:.26;}
+  .theme-ambient-overlay.effect-ocean .theme-ambient-backdrop{background:radial-gradient(circle at 20% 78%,rgba(103,232,249,.20),transparent 22%),radial-gradient(circle at 82% 18%,rgba(14,165,233,.18),transparent 20%),linear-gradient(180deg,rgba(14,165,233,.04),rgba(13,148,136,.04));}
+  .theme-ambient-overlay.effect-ocean .theme-ambient-glow{background:linear-gradient(165deg,rgba(255,255,255,.14),transparent 28%,rgba(45,212,191,.14) 48%,transparent 70%);opacity:.22;}
+  @media (prefers-reduced-motion: reduce){
+    .theme-ambient-particle{animation:none!important;opacity:.16!important;transform:translate3d(0,0,0) rotate(var(--rot-start,0deg)) scale(var(--scale-start,.92))!important;}
+    .theme-ambient-glow{opacity:.16!important;}
+  }
+</style>
+
 </head>
 <body>
+<div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
 
 <div id="rosterSaveReviewOverlay" class="save-review-overlay" role="dialog" aria-modal="true" aria-labelledby="rosterSaveReviewTitle" hidden data-risk="normal">
   <div class="save-review-dialog">
@@ -8600,5 +8705,120 @@ document.addEventListener("keydown", (e)=>{
   }
 });
 </script>
+
+<script id="theme-ambient-effects-script">
+(function(){
+  const THEME_AMBIENT_CONFIG = {
+    sakura:{count:18, shapes:['petal','petal','petal','leaf','glow'], colors:['rgba(255,247,251,.92)','rgba(249,168,212,.85)','rgba(244,114,182,.78)','rgba(196,181,253,.75)'], size:[14,34], top:[-8,92], driftX:[-90,90], driftY:[110,220], spin:[110,340]},
+    lava:{count:16, shapes:['ember','ember','spark','glow'], colors:['rgba(254,242,153,.92)','rgba(251,146,60,.86)','rgba(220,38,38,.82)','rgba(250,204,21,.70)'], size:[10,24], top:[62,102], driftX:[-55,55], driftY:[-180,-90], spin:[80,260]},
+    midnight:{count:18, shapes:['star','star','spark','glow'], colors:['rgba(255,255,255,.95)','rgba(224,231,255,.88)','rgba(125,211,252,.74)','rgba(129,140,248,.65)'], size:[6,18], top:[0,100], driftX:[-30,30], driftY:[-24,24], spin:[40,140]},
+    pearl:{count:15, shapes:['bubble','bubble','glow'], colors:['rgba(255,255,255,.88)','rgba(252,231,243,.74)','rgba(224,242,254,.70)','rgba(237,233,254,.66)'], size:[10,28], top:[10,100], driftX:[-45,45], driftY:[-130,-45], spin:[20,120]},
+    holographic:{count:18, shapes:['shard','shard','glow','star'], colors:['rgba(255,116,212,.76)','rgba(114,221,247,.74)','rgba(126,247,211,.76)','rgba(255,255,255,.72)'], size:[10,28], top:[0,100], driftX:[-65,65], driftY:[-75,75], spin:[120,420]},
+    gold:{count:16, shapes:['spark','spark','glow','star'], colors:['rgba(255,255,255,.96)','rgba(251,191,36,.82)','rgba(253,224,71,.76)','rgba(180,83,9,.64)'], size:[8,20], top:[0,100], driftX:[-50,50], driftY:[-35,35], spin:[90,300]},
+    aurora:{count:16, shapes:['glow','glow','shard'], colors:['rgba(74,222,128,.65)','rgba(34,211,238,.60)','rgba(167,139,250,.60)','rgba(240,171,252,.48)'], size:[16,42], top:[0,100], driftX:[-80,80], driftY:[-40,40], spin:[30,180]},
+    sunset:{count:16, shapes:['glow','petal','spark'], colors:['rgba(254,240,138,.80)','rgba(251,146,60,.72)','rgba(244,63,94,.66)','rgba(124,58,237,.54)'], size:[12,32], top:[10,100], driftX:[-60,60], driftY:[-55,55], spin:[70,240]},
+    ice:{count:18, shapes:['crystal','star','bubble'], colors:['rgba(255,255,255,.94)','rgba(224,242,254,.88)','rgba(125,211,252,.72)','rgba(191,219,254,.68)'], size:[10,24], top:[-4,92], driftX:[-40,40], driftY:[70,170], spin:[80,220]},
+    plasma:{count:18, shapes:['glow','glow','shard','spark'], colors:['rgba(34,211,238,.78)','rgba(168,85,247,.72)','rgba(236,72,153,.70)','rgba(255,255,255,.60)'], size:[12,34], top:[0,100], driftX:[-90,90], driftY:[-70,70], spin:[120,360]},
+    chrome:{count:16, shapes:['shard','glow','spark'], colors:['rgba(255,255,255,.96)','rgba(226,232,240,.78)','rgba(148,163,184,.72)','rgba(71,85,105,.62)'], size:[10,22], top:[0,100], driftX:[-70,70], driftY:[-35,35], spin:[90,320]},
+    emerald:{count:16, shapes:['leaf','leaf','glow','bubble'], colors:['rgba(209,250,229,.84)','rgba(110,231,183,.76)','rgba(16,185,129,.70)','rgba(45,212,191,.58)'], size:[12,28], top:[0,100], driftX:[-55,55], driftY:[-95,40], spin:[90,240]},
+    nebula:{count:18, shapes:['star','glow','glow','shard'], colors:['rgba(255,255,255,.92)','rgba(56,189,248,.72)','rgba(219,39,119,.60)','rgba(124,58,237,.62)'], size:[8,24], top:[0,100], driftX:[-65,65], driftY:[-45,45], spin:[80,300]},
+    ocean:{count:15, shapes:['bubble','bubble','glow'], colors:['rgba(207,250,254,.86)','rgba(103,232,249,.74)','rgba(14,165,233,.64)','rgba(45,212,191,.56)'], size:[10,26], top:[30,104], driftX:[-45,45], driftY:[-155,-55], spin:[30,150]}
+  };
+  const EFFECT_PRIORITY = ['sakura','lava','midnight','pearl','holographic','gold','aurora','sunset','ice','plasma','chrome','emerald','nebula','ocean'];
+  const rand = (min,max) => Math.random() * (max - min) + min;
+  const randInt = (min,max) => Math.round(rand(min,max));
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  function currentEffect(){
+    const raw = (document.documentElement.getAttribute('data-theme-effects') || '').trim();
+    if(!raw) return '';
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    return EFFECT_PRIORITY.find(name => tokens.includes(name)) || tokens.find(name => THEME_AMBIENT_CONFIG[name]) || '';
+  }
+  function ensureOverlay(){
+    if(document.getElementById('themeAmbientOverlay')) return document.getElementById('themeAmbientOverlay');
+    const overlay = document.createElement('div');
+    overlay.id = 'themeAmbientOverlay';
+    overlay.className = 'theme-ambient-overlay';
+    overlay.hidden = true;
+    overlay.innerHTML = '<div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div>';
+    document.body.prepend(overlay);
+    return overlay;
+  }
+  function renderAmbient(){
+    const overlay = ensureOverlay();
+    const particlesHost = overlay.querySelector('#themeAmbientParticles');
+    const effect = currentEffect();
+    if(!effect || !THEME_AMBIENT_CONFIG[effect]){
+      overlay.hidden = true;
+      overlay.className = 'theme-ambient-overlay';
+      particlesHost.innerHTML = '';
+      return;
+    }
+    const cfg = THEME_AMBIENT_CONFIG[effect];
+    const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const count = reduced ? Math.min(6, Math.max(4, Math.ceil(cfg.count * .35))) : cfg.count;
+    overlay.hidden = false;
+    overlay.className = `theme-ambient-overlay effect-${effect}`;
+    particlesHost.innerHTML = '';
+    for(let i=0;i<count;i++){
+      const shape = pick(cfg.shapes);
+      const el = document.createElement('span');
+      el.className = `theme-ambient-particle shape-${shape}`;
+      const size = randInt(cfg.size[0], cfg.size[1]);
+      const left = rand(-8, 100);
+      const top = rand(cfg.top[0], cfg.top[1]);
+      const opacity = reduced ? rand(.10,.22) : rand(.18,.52);
+      const driftX = rand(cfg.driftX[0], cfg.driftX[1]);
+      const driftY = rand(cfg.driftY[0], cfg.driftY[1]);
+      const rotStart = randInt(0, 360);
+      const rotEnd = rotStart + randInt(cfg.spin[0], cfg.spin[1]);
+      const colorA = pick(cfg.colors);
+      const colorB = pick(cfg.colors);
+      el.style.setProperty('--size', `${size}px`);
+      el.style.setProperty('--left', `${left}%`);
+      el.style.setProperty('--top', `${top}%`);
+      el.style.setProperty('--opacity', opacity.toFixed(3));
+      el.style.setProperty('--dur', `${reduced ? rand(18,26) : rand(11,24)}s`);
+      el.style.setProperty('--delay', `${-rand(0,20).toFixed(2)}s`);
+      el.style.setProperty('--travel-x', `${driftX.toFixed(1)}px`);
+      el.style.setProperty('--travel-y', `${driftY.toFixed(1)}px`);
+      el.style.setProperty('--rot-start', `${rotStart}deg`);
+      el.style.setProperty('--rot-end', `${rotEnd}deg`);
+      el.style.setProperty('--color-a', colorA);
+      el.style.setProperty('--color-b', colorB);
+      el.style.setProperty('--glow', colorA.replace(/rgba?\(([^)]+)\)/, (_, vals) => {
+        const parts = vals.split(',').map(s=>s.trim());
+        if(parts.length === 4) parts[3] = '0.28';
+        else parts.push('0.28');
+        return `rgba(${parts.join(',')})`;
+      }));
+      if(shape === 'petal' || shape === 'leaf') el.style.setProperty('--aspect', (rand(1.05,1.45)).toFixed(2));
+      if(shape === 'glow') el.style.setProperty('--blur', `${randInt(3,10)}px`);
+      if(shape === 'bubble') el.style.setProperty('--aspect', '1');
+      particlesHost.appendChild(el);
+    }
+  }
+  function bootAmbient(){
+    if(!document.body){
+      document.addEventListener('DOMContentLoaded', bootAmbient, { once:true });
+      return;
+    }
+    renderAmbient();
+    const root = document.documentElement;
+    if(window.__themeAmbientObserver) return;
+    window.__themeAmbientObserver = new MutationObserver(renderAmbient);
+    window.__themeAmbientObserver.observe(root,{attributes:true,attributeFilter:['data-theme-effects']});
+    if(window.matchMedia){
+      const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const handler = () => renderAmbient();
+      if(media.addEventListener) media.addEventListener('change', handler);
+      else if(media.addListener) media.addListener(handler);
+    }
+    window.addEventListener('pageshow', renderAmbient);
+  }
+  bootAmbient();
+})();
+</script>
+
 </body>
 </html>
