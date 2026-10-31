@@ -1763,6 +1763,47 @@ rosterLoadTheme();
   }
 </style>
 
+
+<style id="liaison-modal-hard-fix-v1">
+/* Correctif 31/10/2026 — Sauvegarder + Synchroniser : la scène doit toujours
+   être une vraie modale et ne doit jamais entrer dans le flux du Roster. */
+#liaisonOverlay{
+  display:none!important;
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100vh!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:18px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:auto!important;
+  background:radial-gradient(1200px 800px at 50% 20%,rgba(37,99,235,.14),rgba(3,8,18,.92))!important;
+  backdrop-filter:blur(10px)!important;
+  -webkit-backdrop-filter:blur(10px)!important;
+  z-index:2147483003!important;
+}
+#liaisonOverlay.liaison-ui-open:not([hidden]){display:flex!important;}
+#liaisonOverlay[hidden]{display:none!important;}
+#liaisonOverlay>.liaison-dialog{
+  position:relative!important;
+  flex:0 0 auto!important;
+  width:min(460px,calc(100vw - 36px))!important;
+  max-width:460px!important;
+  max-height:calc(100vh - 36px)!important;
+  max-height:calc(100dvh - 36px)!important;
+  margin:auto!important;
+  overflow:auto!important;
+}
+html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
+@media(max-width:520px){
+  #liaisonOverlay{padding:10px!important;}
+  #liaisonOverlay>.liaison-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;}
+}
+</style>
 </head>
 <body>
 <div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
@@ -4783,6 +4824,22 @@ function applyCharacterPortrait(imgEl, discordId, portraitStyle){
   imgEl.alt = app ? app.name : "";
 }
 
+function setLiaisonOverlayOpen(open){
+  const overlay = document.getElementById("liaisonOverlay");
+  if(!overlay) return;
+  if(open){
+    overlay.hidden = false;
+    overlay.classList.add("liaison-ui-open");
+    document.documentElement.classList.add("liaison-modal-open");
+    document.body.classList.add("liaison-modal-open");
+  }else{
+    overlay.classList.remove("liaison-ui-open");
+    overlay.hidden = true;
+    document.documentElement.classList.remove("liaison-modal-open");
+    document.body.classList.remove("liaison-modal-open");
+  }
+}
+
 function showLiaisonOverlay(kind, title, stepLabels, trigger){
   liaisonSkipped = false;
   liaisonTrigger = trigger || null;
@@ -4866,11 +4923,11 @@ function showLiaisonOverlay(kind, title, stepLabels, trigger){
   // restent appelables sans erreur pendant ce temps (l'élément existe,
   // juste jamais rendu visible).
   if(!liaisonReduced()){
-    overlay.hidden = false;
+    setLiaisonOverlayOpen(true);
     const dlg = overlay.querySelector(".liaison-dialog");
     if(dlg) dlg.focus({preventScroll:true});
   } else {
-    overlay.hidden = true;
+    setLiaisonOverlayOpen(false);
   }
 
   const counterEl = document.getElementById("liaisonCounter");
@@ -4927,7 +4984,7 @@ function finishLiaisonOverlay(state, message, subtitle){
 }
 function hideLiaisonOverlay(restoreFocus){
   const overlay = document.getElementById("liaisonOverlay");
-  overlay.hidden = true;
+  setLiaisonOverlayOpen(false);
   if(liaisonSceneTimer){ clearTimeout(liaisonSceneTimer); liaisonSceneTimer=null; }
   overlay.classList.remove("scene-paused");
   if(liaisonCounterTimer){ clearInterval(liaisonCounterTimer); liaisonCounterTimer = null; }
@@ -4941,6 +4998,10 @@ async function liaisonMinDelay(startedAt, minMs){
   const remaining = Math.min(minMs - (Date.now()-startedAt), LIAISON_MAX_EXTRA_MS);
   if(remaining > 0) await new Promise(r=>setTimeout(r, remaining));
 }
+// Sécurité d'affichage : au chargement, aucune animation Sauvegarder/Synchroniser
+// ne doit être visible tant qu'une opération ne l'a pas explicitement ouverte.
+setLiaisonOverlayOpen(false);
+
 document.getElementById("liaisonSkipBtn").addEventListener("click", ()=>{
   liaisonSkipped = true;
   hideLiaisonOverlay(true);
