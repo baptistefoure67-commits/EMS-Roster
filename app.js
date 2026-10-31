@@ -1707,7 +1707,9 @@ const CHARACTER_PORTRAITS = {
   "227444055594893312": "assets/portraits/ia/227444055594893312.png",
   "451073171194511370": "assets/portraits/ia/451073171194511370.png",
   "51487127135243469": "assets/portraits/ia/51487127135243469.png",
-  "1339800960637075547": "assets/portraits/ia/1339800960637075547.png"
+  "1339800960637075547": "assets/portraits/ia/1339800960637075547.png",
+
+  "263758146177204225": "assets/portraits/ia/263758146177204225.png",
 };
 
 // Photos réelles GTA RP détourées — même clés Discord que les dessins IA.
@@ -1720,7 +1722,9 @@ const CHARACTER_REAL_PORTRAITS = {
   "227444055594893312": "assets/portraits/rp/227444055594893312.png",
   "451073171194511370": "assets/portraits/rp/451073171194511370.png",
   "51487127135243469": "assets/portraits/rp/51487127135243469.png",
-  "1339800960637075547": "assets/portraits/rp/1339800960637075547.png"
+  "1339800960637075547": "assets/portraits/rp/1339800960637075547.png",
+
+  "263758146177204225": "assets/portraits/rp/263758146177204225.png",
 };
 
 // (20/10, demandé) Liste des personnes ayant une vraie illustration
@@ -1778,9 +1782,11 @@ const CHARACTER_APPEARANCES = {
   "451073171194511370": { name:"Eliot" },
   "51487127135243469": { name:"Papy Alucard Saotome" },
   "1339800960637075547": { name:"Leyah Akada" },
+
+  "263758146177204225": { name:"Leto Mendez" },
 };
 // (20/10, demandé) Silhouette neutre pour quiconque n'a pas encore de
-// vraie illustration (seules les 9 personnes ci-dessus en ont une) —
+// vraie illustration (seules les 10 personnes ci-dessus en ont une) —
 // jamais un personnage "cassé" ou vide à l'écran.
 // Rotation équilibrée des collègues : chacun apparaît une fois avant répétition.
 function pickBalancedEmsColleague(excludeId, scope){
