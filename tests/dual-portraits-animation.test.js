@@ -16,8 +16,9 @@ function objKeys(src,name){
 const ai=objKeys(roster,'CHARACTER_PORTRAITS');
 const real=objKeys(roster,'CHARACTER_REAL_PORTRAITS');
 t('Roster contient un deuxième objet de photos réelles', roster.includes('const CHARACTER_REAL_PORTRAITS = {'));
-t('Les 9 clés réelles correspondent exactement aux 9 clés IA', ai.length===9 && real.length===9 && [...ai].sort().join(',')===[...real].sort().join(','));
-t('Pillbox possède aussi les deux objets', pill.includes('const CHARACTER_REAL_PORTRAITS = {') && objKeys(pill,'CHARACTER_REAL_PORTRAITS').length===9);
+t('Les 10 clés réelles correspondent exactement aux 10 clés IA', ai.length===10 && real.length===10 && [...ai].sort().join(',')===[...real].sort().join(','));
+t('Pillbox possède aussi les deux objets', pill.includes('const CHARACTER_REAL_PORTRAITS = {') && objKeys(pill,'CHARACTER_REAL_PORTRAITS').length===10);
+t('Leto Mendez est disponible en dessin IA + personnage RP dans Roster et Pillbox', ai.includes('263758146177204225') && real.includes('263758146177204225') && roster.includes('Leto Mendez') && pill.includes('Leto Mendez'));
 t('Le style est résolu une seule fois au début d’une animation Roster (choix OWNER ou 50/50)', roster.includes('let portraitStyle = animationPortraitStyleForScene(currentUserDiscordId)'));
 t('Synchroniser applique le même portraitStyle aux deux personnes', roster.includes('syncMePortrait"), currentUserDiscordId, portraitStyle') && roster.includes('syncColleaguePortrait"), colleagueId, portraitStyle'));
 t('Sauvegarder applique le même portraitStyle aux deux personnes', roster.includes('saveRosterPortrait"), currentUserDiscordId, portraitStyle') && roster.includes('saveRosterColleaguePortrait"), colleagueId, portraitStyle'));
