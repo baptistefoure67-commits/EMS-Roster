@@ -1808,6 +1808,71 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   #liaisonOverlay>.liaison-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;}
 }
 </style>
+
+<style id="roster-save-review-modal-hardening-20261101">
+/* 01/11/2026 — la comparaison de sauvegarde doit toujours être une vraie modale viewport. */
+#rosterSaveReviewOverlay{
+  position:fixed!important;
+  inset:0!important;
+  top:0!important;right:0!important;bottom:0!important;left:0!important;
+  width:100vw!important;
+  height:100vh!important;
+  height:100dvh!important;
+  min-width:100vw!important;
+  min-height:100vh!important;
+  min-height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:clamp(12px,2vw,24px)!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:auto!important;
+  isolation:isolate!important;
+  transform:none!important;
+  filter:none!important;
+  contain:none!important;
+  z-index:2147483006!important;
+  background:
+    radial-gradient(900px 520px at 50% 20%,rgba(59,130,246,.15),transparent 64%),
+    rgba(2,7,15,.72)!important;
+  backdrop-filter:blur(12px) saturate(1.05)!important;
+  -webkit-backdrop-filter:blur(12px) saturate(1.05)!important;
+}
+#rosterSaveReviewOverlay[hidden]{display:none!important;}
+#rosterSaveReviewOverlay:not([hidden]){display:flex!important;}
+#rosterSaveReviewOverlay>.save-review-dialog{
+  position:relative!important;
+  flex:0 0 auto!important;
+  width:min(760px,calc(100vw - 32px))!important;
+  max-width:760px!important;
+  max-height:calc(100vh - 32px)!important;
+  max-height:calc(100dvh - 32px)!important;
+  margin:auto!important;
+  overflow:auto!important;
+  overscroll-behavior:contain!important;
+  border-radius:20px!important;
+  box-shadow:0 30px 110px rgba(0,0,0,.60),0 0 42px rgba(59,130,246,.08)!important;
+}
+html.roster-save-review-open,body.roster-save-review-open{overflow:hidden!important;overscroll-behavior:none!important;}
+@media(max-width:620px){
+  #rosterSaveReviewOverlay{padding:10px!important;align-items:flex-start!important;}
+  #rosterSaveReviewOverlay>.save-review-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;margin:0 auto!important;border-radius:16px!important;}
+}
+</style>
+
+
+<style id="roster-simple-overlays-hardening-20261101">
+#syncPillboxOverlay,#rosterOperationOverlay{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;
+  max-width:none!important;max-height:none!important;margin:0!important;align-items:center!important;justify-content:center!important;
+  overflow:auto!important;isolation:isolate!important;transform:none!important;contain:none!important;
+}
+#syncPillboxOverlay[hidden],#rosterOperationOverlay[hidden]{display:none!important;}
+#syncPillboxOverlay:not([hidden]),#rosterOperationOverlay:not([hidden]){display:flex!important;}
+#syncPillboxOverlay>.sync-dialog,#rosterOperationOverlay>.operation-dialog{margin:auto!important;max-height:calc(100dvh - 36px)!important;overflow:auto!important;}
+</style>
+
 </head>
 <body>
 <div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
@@ -3066,8 +3131,22 @@ function showRosterSaveReview(review){
     if(review.selectionChanged) other.push(`<li>Formation Opération : <b>${review.cloudSelectionCount}</b> → <b>${review.currentSelectionCount}</b> sélectionné(s)</li>`);
     if(review.activityChanges.length) other.push(`<li>Suivi d'activité modifié pour <b>${review.activityChanges.length}</b> membre(s) : ${review.activityChanges.slice(0,8).map(esc).join(", ")}${review.activityChanges.length>8?` (+${review.activityChanges.length-8})`:""}</li>`);
     content.innerHTML=rosterHtml+extras.join("")+`<div class="save-review-section"><h3>📦 Autres données du bouton Sauvegarder</h3>${other.length?`<ul class="save-review-list">${other.join("")}</ul>`:`<div class="save-review-empty">Sélection Formation Opération et suivi d'activité identiques à la dernière version cloud.</div>`}</div>`;
-    rosterSaveReviewOpen=true; overlay.hidden=false; document.getElementById("rosterSaveReviewTitle")?.focus({preventScroll:true});
-    const cleanup=(value)=>{ rosterSaveReviewOpen=false; overlay.hidden=true; ack.onchange=null; confirmBtn.onclick=null; cancelBtn.onclick=null; resolve(value); };
+    rosterSaveReviewOpen=true;
+    // Garantie navigateur : l'overlay est toujours un enfant direct du body et ne peut pas être
+    // enfermé dans un conteneur transformé/thémé.
+    if(overlay.parentElement!==document.body) document.body.appendChild(overlay);
+    document.documentElement.classList.add("roster-save-review-open");
+    document.body.classList.add("roster-save-review-open");
+    overlay.hidden=false;
+    document.getElementById("rosterSaveReviewTitle")?.focus({preventScroll:true});
+    const cleanup=(value)=>{
+      rosterSaveReviewOpen=false;
+      overlay.hidden=true;
+      document.documentElement.classList.remove("roster-save-review-open");
+      document.body.classList.remove("roster-save-review-open");
+      ack.onchange=null; confirmBtn.onclick=null; cancelBtn.onclick=null;
+      resolve(value);
+    };
     ack.onchange=()=>{ confirmBtn.disabled=risk&&!ack.checked; };
     confirmBtn.onclick=()=>cleanup(true); cancelBtn.onclick=()=>cleanup(false);
   });
@@ -6331,6 +6410,21 @@ if(openPillboxTerminalLink){
   });
 }
 
+
+// État sûr après F5 / retour arrière : aucune modale de comparaison ne reste coincée.
+(function(){
+  const resetSaveReviewModal=()=>{
+    const overlay=document.getElementById("rosterSaveReviewOverlay");
+    if(overlay && !rosterSaveReviewOpen) overlay.hidden=true;
+    if(!rosterSaveReviewOpen){
+      document.documentElement.classList.remove("roster-save-review-open");
+      document.body.classList.remove("roster-save-review-open");
+    }
+  };
+  window.addEventListener("pageshow",resetSaveReviewModal);
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",resetSaveReviewModal,{once:true});
+  else resetSaveReviewModal();
+})();
 
 document.addEventListener("keydown",event=>{
   const overlay=document.getElementById("rosterSaveReviewOverlay");
