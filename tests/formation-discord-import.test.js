@@ -36,6 +36,31 @@ test('Nettoie le gras Markdown autour de la personne formée',()=>{
  assert.strictEqual(markdownParsed.records[0].type,'operation');
 });
 
+const todayTimeOnlySample=`[ADD] Baptiste Fore [LS], — 17:43
+@[A] Fatima Babidi Formation Opération Validée :T_CK:
+@[A] Kelly Guzman Formation Opération Validée :T_CK:
+@[A] John Smith Formation Opération Validée :T_CK:`;
+const todayNow=new Date(2026,10,1,18,0,0,0).getTime();
+const todayParsed=imp.parseDiscordFormationText(todayTimeOnlySample,todayNow);
+test('Accepte un en-tête Discord du jour avec heure seule',()=>{
+ assert.strictEqual(todayParsed.records.length,3);
+ assert.ok(todayParsed.records.every(r=>r.trainerName==='Baptiste Fore'));
+ assert.ok(todayParsed.records.every(r=>r.type==='operation'));
+});
+test('Associe une heure seule à la date du jour',()=>{
+ const d=new Date(todayParsed.records[0].occurredAt);
+ assert.strictEqual(d.getFullYear(),2026);
+ assert.strictEqual(d.getMonth(),10);
+ assert.strictEqual(d.getDate(),1);
+ assert.strictEqual(d.getHours(),17);
+ assert.strictEqual(d.getMinutes(),43);
+});
+test('Accepte aussi le libellé Discord Aujourd’hui à HH:MM',()=>{
+ const p=imp.parseDiscordFormationText(`[ADD] Baptiste Fore — Aujourd'hui à 17:43\n@[A] John Smith Formation Opération Validée ✅`,todayNow);
+ assert.strictEqual(p.records.length,1);
+ assert.strictEqual(p.records[0].trainerName,'Baptiste Fore');
+});
+
 const employees=[
  {id:'1',name:'Aaron Stopenski',discordId:'11',idUnique:'101',grade:'CD',aliases:[]},
  {id:'2',name:'Pablo Akada',discordId:'12',idUnique:'102',grade:'M'},
