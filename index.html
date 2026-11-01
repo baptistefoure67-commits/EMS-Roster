@@ -493,6 +493,10 @@
     padding:3px 8px; cursor:pointer;
   }
   .emp-id:hover{color:var(--theme-primary-bright); border-color:var(--theme-primary-bright);}
+  .emp-id-label{font-size:.58rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;opacity:.58;margin-right:6px;}
+  .emp-id-unique{color:color-mix(in srgb,var(--theme-primary-bright) 78%,var(--text-dim));border-color:color-mix(in srgb,var(--theme-primary-bright) 28%,var(--border-soft));background:color-mix(in srgb,var(--theme-primary-bright) 7%,var(--bg-0));}
+  .emp-id-unique.missing{opacity:.52;cursor:default;border-style:dashed;}
+  .emp-id-unique.missing:hover{color:var(--text-dim);border-color:var(--border-soft);}
   .emp-role-tag{
     font-size:0.68rem; color:var(--text-dim); border:1px solid var(--border-soft);
     border-radius:5px; padding:2px 7px;
@@ -1804,271 +1808,6 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   #liaisonOverlay>.liaison-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;}
 }
 </style>
-
-<style id="roster-modern-redesign-v1">
-/* Refonte visuelle 01/11/2026 — logique métier inchangée. */
-:root{
-  --ui-glass:color-mix(in srgb,var(--panel) 78%,transparent);
-  --ui-glass-strong:color-mix(in srgb,var(--panel) 92%,#07101f 8%);
-  --ui-line:color-mix(in srgb,var(--theme-primary-bright) 18%,var(--border));
-  --ui-shadow:0 18px 55px rgba(1,8,20,.30);
-}
-
-/* Fond : suppression totale du quadrillage/carrés. Le fond suit les combinaisons. */
-body,
-html.theme-special body{
-  background:
-    radial-gradient(900px 620px at 8% -8%,color-mix(in srgb,var(--theme-primary) 24%,transparent),transparent 64%),
-    radial-gradient(780px 560px at 95% 4%,color-mix(in srgb,var(--theme-secondary-bright) 16%,transparent),transparent 62%),
-    radial-gradient(620px 440px at 52% 34%,color-mix(in srgb,var(--theme-primary-bright) 7%,transparent),transparent 70%),
-    linear-gradient(155deg,#07101e 0%,var(--bg-0) 34%,#0a1425 68%,#07101b 100%)!important;
-  background-size:auto!important;
-  background-position:center!important;
-  background-attachment:fixed!important;
-  padding-top:20px;
-}
-
-.wrap{max-width:1180px;position:relative;}
-
-/* Branding : nouveau logo + teinte dynamique pour les combinaisons. */
-header.top{
-  align-items:center;
-  gap:18px;
-  margin-bottom:24px;
-  padding:10px 2px 24px;
-  border-bottom:0;
-  position:relative;
-}
-header.top::after{
-  content:"";
-  position:absolute;
-  left:0;right:0;bottom:0;height:1px;
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--theme-primary-bright) 45%,transparent),color-mix(in srgb,var(--theme-secondary-bright) 32%,transparent),transparent);
-  box-shadow:0 0 18px color-mix(in srgb,var(--theme-primary) 18%,transparent);
-}
-.roster-brand{gap:16px;align-items:center;}
-.roster-logo-wrap{
-  width:94px!important;height:94px!important;flex:0 0 94px!important;
-  border-radius:24px;
-  overflow:hidden;
-  box-shadow:0 16px 38px rgba(0,0,0,.34),0 0 0 1px color-mix(in srgb,var(--theme-primary-bright) 24%,transparent);
-  transform:translateZ(0);
-}
-.roster-logo{
-  border-radius:24px;
-  filter:saturate(.96) contrast(1.03) drop-shadow(0 8px 18px rgba(0,0,0,.25))!important;
-}
-/* L'ancien logo transparent utilisait un mask. Le nouveau badge est carré :
-   on applique directement la palette au badge pour que A+B soit visible. */
-.roster-logo-wrap::before,
-.roster-logo-wrap::after,
-.roster-logo-sheen{
-  -webkit-mask:none!important;
-  mask:none!important;
-  border-radius:24px;
-}
-.roster-logo-wrap::before{
-  inset:-10%!important;
-  background:var(--theme-logo-gradient)!important;
-  opacity:.24!important;
-  filter:blur(18px)!important;
-  z-index:0!important;
-}
-.roster-logo-wrap::after{
-  inset:0!important;
-  background:var(--theme-logo-gradient)!important;
-  opacity:.34!important;
-  mix-blend-mode:color!important;
-  z-index:2!important;
-}
-html.theme-dual .roster-logo-wrap::after,
-html.theme-special .roster-logo-wrap::after{opacity:.64!important;background-size:320% 320%!important;}
-.roster-logo-sheen{
-  inset:0!important;
-  z-index:3!important;
-  mix-blend-mode:screen!important;
-  background:linear-gradient(112deg,transparent 22%,rgba(255,255,255,0) 38%,rgba(255,255,255,.72) 50%,rgba(255,255,255,0) 62%,transparent 78%)!important;
-  background-size:300% 100%!important;
-}
-.roster-brand-copy h1,header.top h1{
-  font-size:clamp(1.65rem,2.5vw,2.2rem);
-  font-weight:850;
-  letter-spacing:-.025em;
-  line-height:1.03;
-  text-shadow:0 8px 30px rgba(0,0,0,.28);
-}
-header.top .sub{font-size:.9rem;line-height:1.45;margin-top:7px;color:color-mix(in srgb,var(--text-dim) 92%,white 8%);}
-
-/* Le bouton palette devient un vrai contrôle moderne. */
-#rosterThemeBtn{
-  border-radius:999px!important;
-  min-height:42px;
-  padding:8px 14px!important;
-  background:color-mix(in srgb,var(--panel) 72%,transparent)!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 24%,var(--border))!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 9px 24px rgba(0,0,0,.16);
-  backdrop-filter:blur(14px);
-}
-#rosterThemeBtn:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--theme-primary) 9%,var(--panel))!important;}
-#rosterThemeBtn .roster-theme-dot{box-shadow:0 0 12px color-mix(in srgb,var(--theme-primary-bright) 56%,transparent);}
-
-.stats{gap:8px;margin-left:auto;}
-.stats>div{
-  min-width:72px;
-  text-align:center;
-  padding:9px 13px;
-  border-radius:16px;
-  background:color-mix(in srgb,var(--panel) 76%,transparent);
-  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 13%,var(--border));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
-  backdrop-filter:blur(12px);
-}
-.stats b{font-size:1.15rem;line-height:1.1;margin-bottom:2px;}
-
-/* On garde volontairement #accessGate tel quel. */
-#appContent{position:relative;}
-#discordAuthBar{
-  background:linear-gradient(135deg,color-mix(in srgb,var(--panel) 88%,transparent),color-mix(in srgb,var(--panel-2) 92%,transparent))!important;
-  border:1px solid var(--ui-line)!important;
-  border-radius:18px!important;
-  padding:12px 14px!important;
-  box-shadow:var(--ui-shadow),inset 0 1px 0 rgba(255,255,255,.035);
-  backdrop-filter:blur(18px);
-}
-
-/* Navigation : pills modernes et plus de faux onglets rectangulaires. */
-.tabbar{
-  gap:8px!important;
-  padding:6px;
-  margin:16px 0 20px!important;
-  border-radius:18px;
-  background:color-mix(in srgb,var(--panel) 66%,transparent);
-  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 10%,var(--border));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
-  backdrop-filter:blur(14px);
-}
-.tab-btn{
-  border-radius:12px!important;
-  border:1px solid transparent!important;
-  background:transparent!important;
-  padding:10px 14px!important;
-  color:var(--text-dim)!important;
-  transition:transform .16s ease,color .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease!important;
-}
-.tab-btn:hover{color:var(--text)!important;background:rgba(255,255,255,.035)!important;transform:translateY(-1px);}
-.tab-btn.active,
-html.theme-dual .tab-btn.active,
-html.theme-special .tab-btn.active{
-  color:var(--text)!important;
-  background:linear-gradient(135deg,color-mix(in srgb,var(--theme-primary) 19%,var(--panel)),color-mix(in srgb,var(--theme-secondary) 10%,var(--panel-2)))!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 38%,var(--border))!important;
-  box-shadow:0 8px 24px color-mix(in srgb,var(--theme-primary) 10%,transparent),inset 0 1px 0 rgba(255,255,255,.05)!important;
-}
-
-/* Cartes : surfaces douces, arrondies, sans effet "carré posé". */
-.card{
-  background:linear-gradient(145deg,color-mix(in srgb,var(--panel) 90%,transparent),color-mix(in srgb,var(--panel-2) 94%,transparent))!important;
-  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 10%,var(--border))!important;
-  border-radius:20px!important;
-  padding:20px 22px!important;
-  margin-bottom:16px!important;
-  box-shadow:0 14px 44px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.028);
-  backdrop-filter:blur(15px);
-}
-.card:hover{border-color:color-mix(in srgb,var(--theme-primary-bright) 20%,var(--border))!important;}
-
-/* Formulaires */
-input,select,textarea{
-  background:color-mix(in srgb,var(--bg-0) 78%,var(--panel))!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 11%,var(--border))!important;
-  border-radius:12px!important;
-  min-height:40px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.018);
-}
-input:focus,select:focus,textarea:focus{
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 72%,white 4%)!important;
-  box-shadow:0 0 0 3px color-mix(in srgb,var(--theme-primary) 14%,transparent),0 10px 24px rgba(0,0,0,.12)!important;
-}
-button,.btn-primary,.btn-ghost{border-radius:11px;}
-.btn-primary{
-  background:var(--theme-button-gradient)!important;
-  box-shadow:0 9px 22px color-mix(in srgb,var(--theme-primary) 18%,transparent),inset 0 1px 0 rgba(255,255,255,.18);
-  transition:transform .15s ease,filter .15s ease,box-shadow .15s ease!important;
-}
-.btn-primary:hover{opacity:1!important;filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 12px 30px color-mix(in srgb,var(--theme-primary) 24%,transparent),inset 0 1px 0 rgba(255,255,255,.22);}
-.btn-ghost{
-  background:color-mix(in srgb,var(--panel) 46%,transparent)!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 12%,var(--border))!important;
-}
-.btn-ghost:hover{background:color-mix(in srgb,var(--theme-primary) 9%,var(--panel))!important;}
-
-/* Sections / lignes employés */
-.grade-section{
-  border-left:0!important;
-  border:1px solid color-mix(in srgb,var(--grade-color,var(--theme-primary-bright)) 18%,var(--border))!important;
-  border-radius:17px!important;
-  background:linear-gradient(135deg,color-mix(in srgb,var(--grade-color,var(--theme-primary-bright)) 5%,var(--panel)),var(--panel-2))!important;
-  box-shadow:0 9px 28px rgba(0,0,0,.11);
-}
-.grade-head{padding:13px 15px!important;}
-.grade-badge{border-radius:999px!important;padding:4px 10px!important;box-shadow:0 5px 12px rgba(0,0,0,.13);}
-.grade-body{padding:0 10px 10px!important;}
-.emp-row{
-  border-bottom:0!important;
-  border:1px solid transparent;
-  border-radius:12px!important;
-  margin-top:5px;
-  padding:9px 10px!important;
-  transition:background .15s ease,border-color .15s ease,transform .15s ease;
-}
-.emp-row:hover{
-  background:color-mix(in srgb,var(--theme-primary) 5%,rgba(255,255,255,.025))!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 12%,transparent);
-  transform:translateX(2px);
-}
-.emp-id,.emp-role-tag,.role-chip,.special-format,.edit-row{
-  border-radius:10px!important;
-  background:color-mix(in srgb,var(--bg-0) 72%,var(--panel))!important;
-}
-
-/* Modale palette : même langage visuel que le nouveau Roster. */
-#rosterThemeModal>div{
-  border-radius:22px!important;
-  background:linear-gradient(145deg,color-mix(in srgb,var(--panel) 96%,transparent),color-mix(in srgb,var(--panel-2) 98%,transparent))!important;
-  border-color:color-mix(in srgb,var(--theme-primary-bright) 24%,var(--border))!important;
-  box-shadow:0 28px 80px rgba(0,0,0,.52),0 0 50px color-mix(in srgb,var(--theme-primary) 8%,transparent)!important;
-}
-
-@media(max-width:760px){
-  body,html.theme-special body{padding:16px 12px 70px!important;}
-  header.top{align-items:flex-start;gap:12px;padding-bottom:18px;}
-  .roster-logo-wrap{width:76px!important;height:76px!important;flex-basis:76px!important;border-radius:20px;}
-  .roster-logo,.roster-logo-wrap::before,.roster-logo-wrap::after,.roster-logo-sheen{border-radius:20px;}
-  .roster-brand{width:100%;gap:12px;}
-  header.top h1{font-size:1.72rem;}
-  header.top .sub{font-size:.82rem;max-width:260px;}
-  #rosterThemeBtn{order:2;}
-  .stats{order:3;margin-left:auto;}
-  .stats>div{min-width:64px;padding:8px 10px;}
-  .tabbar{padding:5px;border-radius:15px;gap:5px!important;}
-  .tab-btn{padding:9px 11px!important;font-size:.78rem!important;}
-  .card{padding:16px!important;border-radius:17px!important;}
-  #discordAuthBar{border-radius:16px!important;}
-}
-
-@media(max-width:480px){
-  .roster-logo-wrap{width:68px!important;height:68px!important;flex-basis:68px!important;}
-  header.top h1{font-size:1.52rem;}
-  header.top .sub{font-size:.78rem;max-width:220px;}
-  #rosterThemeBtn{padding:7px 11px!important;}
-  .stats{width:100%;margin-left:0;justify-content:flex-end;}
-  .stats>div{flex:0 0 auto;}
-  .tabbar{overflow-x:auto;flex-wrap:nowrap!important;scrollbar-width:none;}
-  .tabbar::-webkit-scrollbar{display:none;}
-  .tab-btn{flex:0 0 auto!important;}
-}
-</style>
-
 </head>
 <body>
 <div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
@@ -3387,7 +3126,7 @@ function esc(s){
   return String(s??"").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function norm(s){
-  return String(s??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  return String(s??"").normalize("NFKD").toLowerCase().replace(/[\u0300-\u036f]/g,"");
 }
 // (19/10, demandé) Anciens noms (mariage, wipe, bug de jeu...) — un
 // employé peut avoir plusieurs noms connus en plus du nom actuel
@@ -3826,7 +3565,8 @@ function empRowHtml(e, isLicencie){
   return `
     <div class="emp-row ${isLicencie?'licencie':''}" data-id="${e.id}">
       <span class="emp-name">${esc(e.name)}</span>
-      <span class="emp-id" data-copy-id="${esc(e.discordId)}" title="Copier l'ID Discord">${esc(e.discordId)}</span>
+      <span class="emp-id emp-id-discord" data-copy-id="${esc(e.discordId)}" title="Copier l'ID Discord"><span class="emp-id-label">Discord</span>${esc(e.discordId)}</span>
+      ${e.idUnique ? `<span class="emp-id emp-id-unique" data-copy-id="${esc(e.idUnique)}" title="Copier l'ID unique EMS"><span class="emp-id-label">ID EMS</span>${esc(e.idUnique)}</span>` : `<span class="emp-id emp-id-unique missing" title="L'ID unique sera mémorisé au prochain import du tableau EMS"><span class="emp-id-label">ID EMS</span>—</span>`}
       ${roleTag}
       ${licDate}
       <span class="emp-actions">
@@ -3933,6 +3673,7 @@ function editRowHtml(e){
       </select>
       <input type="text" data-edit-name="${e.id}" value="${esc(e.name)}" style="min-width:140px;">
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
+      <span class="emp-id emp-id-unique ${e.idUnique?'':'missing'}" ${e.idUnique?`data-copy-id="${esc(e.idUnique)}"`:''} title="ID unique EMS mémorisé depuis le tableau EMS"><span class="emp-id-label">ID EMS</span>${e.idUnique?esc(e.idUnique):'—'}</span>
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       ${currentUserLevel === "OWNER" && e.discordId ? `<span style="font-size:.76rem;color:var(--text-dim);font-weight:800;">⏱️ Gain de Temps : <b data-gain-access-status="${e.id}" style="color:var(--text-faint);">…</b></span><button type="button" class="btn-ghost btn-small" data-gain-access-toggle="${e.id}">Vérifier l’accès</button>` : ""}
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
@@ -3957,7 +3698,7 @@ function editRowHtml(e){
 // le nom, et retire les emoji/symboles collés en fin de nom (ex: "Papy Alucard
 // Saotome 🐧") en ne gardant que les mots contenant au moins une lettre.
 function cleanEmsName(employeRaw){
-  let name = (employeRaw||"").replace(/^\.*\[[^\]]*\]\s*/, "").trim();
+  let name = (employeRaw||"").replace(/^[^\p{L}\p{N}]*\[[^\]]*\]\s*/u, "").trim();
   name = name.split(/\s+/).filter(tok => /\p{L}/u.test(tok)).join(" ");
   return name;
 }
@@ -3979,7 +3720,7 @@ function splitEmsLine(line){
 // grade WDV sur quelqu'un d'actif (= licenciement à appliquer).
 function parseEmsTableForImport(text){
   const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [];
+  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [], uniqueIdUpdates = [], uniqueIdConflicts = [];
   const seenIds = new Set(); // employés retrouvés dans ce collage précis, peu importe la raison
 
   lines.forEach(line=>{
@@ -4014,6 +3755,26 @@ function parseEmsTableForImport(text){
     }
     if(existing) seenIds.add(existing.id);
 
+    // ID unique EMS : dès qu'un employé déjà connu est retrouvé dans le
+    // tableau EMS, on mémorise son ID unique s'il n'en avait pas encore.
+    // Une valeur déjà enregistrée n'est JAMAIS effacée par une cellule vide
+    // et n'est jamais remplacée silencieusement si le tableau renvoie un ID
+    // différent : le conflit est affiché pour vérification humaine.
+    if(existing && idUnique){
+      const incomingUnique = String(idUnique).trim();
+      const currentUnique = String(existing.idUnique||"").trim();
+      if(!currentUnique){
+        const otherOwner = employees.find(e=>e.id!==existing.id && String(e.idUnique||"").trim()===incomingUnique);
+        if(otherOwner){
+          uniqueIdConflicts.push({id:existing.id,name:existing.name,current:"—",incoming:incomingUnique,otherOwner:otherOwner.name});
+        }else{
+          uniqueIdUpdates.push({id:existing.id,name:existing.name,idUnique:incomingUnique});
+        }
+      }else if(currentUnique !== incomingUnique){
+        uniqueIdConflicts.push({id:existing.id,name:existing.name,current:currentUnique,incoming:incomingUnique});
+      }
+    }
+
     if(gradeRaw === "WDV"){
       if(existing && !existing.licencie){ toLicencier.push({id:existing.id, name:existing.name, discordId:existing.discordId, arrivalMs}); }
       else if(!existing){ skippedWdv.push(name); }
@@ -4046,7 +3807,7 @@ function parseEmsTableForImport(text){
     ? employees.filter(e => !e.licencie && !seenIds.has(e.id)).map(e => ({id:e.id, name:e.name}))
     : [];
 
-  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous};
+  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous, uniqueIdUpdates, uniqueIdConflicts};
 }
 
 // Départ rapide (29/09) : une personne recrutée qui repart avant une semaine
@@ -4090,9 +3851,35 @@ document.addEventListener("click", async (ev)=>{
   }
 });
 
+function applyUniqueIdMemoryUpdates(result){
+  const updates = Array.isArray(result?.uniqueIdUpdates) ? result.uniqueIdUpdates : [];
+  const applied = [];
+  updates.forEach(u=>{
+    const e = employees.find(x=>String(x.id)===String(u.id));
+    if(!e || e.idUnique) return;
+    const incoming = String(u.idUnique||"").trim();
+    if(!/^\d{1,12}$/.test(incoming)) return;
+    const duplicate = employees.find(x=>x.id!==e.id && String(x.idUnique||"").trim()===incoming);
+    if(duplicate){
+      result.uniqueIdConflicts = result.uniqueIdConflicts || [];
+      result.uniqueIdConflicts.push({id:e.id,name:e.name,current:"—",incoming,otherOwner:duplicate.name});
+      return;
+    }
+    e.idUnique = incoming;
+    applied.push({id:e.id,name:e.name,idUnique:incoming});
+    logHistory("ID unique EMS", e.name, `ID unique mémorisé : ${incoming}`);
+  });
+  result.uniqueIdApplied = applied;
+  if(applied.length){
+    saveState();
+    renderAll();
+  }
+  return applied;
+}
+
 function renderImportResults(result){
   const box = document.getElementById("importResults");
-  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length);
+  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length) && !(result.uniqueIdApplied&&result.uniqueIdApplied.length) && !(result.uniqueIdConflicts&&result.uniqueIdConflicts.length);
   if(nothing){
     box.innerHTML = `<div class="empty-msg">Rien reconnu — vérifie que le texte collé contient bien les colonnes "Employé" et "Grade" du tableau EMS.</div>`;
     return;
@@ -4103,6 +3890,13 @@ function renderImportResults(result){
   window._pendingLicencier = result.toLicencier;
   window._pendingRemove = result.toRemove;
   let html = "";
+
+  if(result.uniqueIdApplied && result.uniqueIdApplied.length){
+    html += `<div class="empty-msg" style="color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);">🪪 <b>${result.uniqueIdApplied.length} ID unique(s) EMS mémorisé(s)</b> dans le Roster. Ils resteront attachés aux fiches même si un prochain tableau ne renvoie pas l'ID.</div>`;
+  }
+  if(result.uniqueIdConflicts && result.uniqueIdConflicts.length){
+    html += `<div class="empty-msg" style="color:var(--amber);">⚠ ID unique différent détecté — aucune valeur existante n'a été remplacée : ${result.uniqueIdConflicts.map(c=>`${esc(c.name)} (${esc(c.current||"—")} → ${esc(c.incoming||"—")}${c.otherOwner?`, déjà utilisé par ${esc(c.otherOwner)}`:""})`).join(" ; ")}</div>`;
+  }
 
   if(result.toPromote.length){
     html += `<div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">⬆️ ${result.toPromote.length} grade(s) changé(s) détecté(s) — à mettre à jour :</div>`;
@@ -4487,6 +4281,7 @@ document.getElementById("filterGrade").addEventListener("change", renderAll);
 document.getElementById("btnAnalyzeEms").addEventListener("click", ()=>{
   const text = document.getElementById("emsTableInput").value;
   const result = parseEmsTableForImport(text);
+  applyUniqueIdMemoryUpdates(result);
   renderImportResults(result);
   // Un seul collage sert aussi à détecter les absences pour les onglets
   // Formateur/Psychologue — plus besoin de recoller le tableau une
