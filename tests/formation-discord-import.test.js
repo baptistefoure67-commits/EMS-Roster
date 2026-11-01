@@ -174,7 +174,7 @@ test('Le patch final ajoute exactement les crédits Formateur attendus',()=>{
  const built=imp.buildCommitPatch(enriched,{}, {data:{'id:108':{formations:4,recrutements:2}}}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].formations,6);
  assert.strictEqual(built.patch.activiteSuivi.data['id:108'].recrutements,2);
- assert.strictEqual(Object.values(built.trainerCredits).reduce((a,b)=>a+b,0),2);
+ assert.strictEqual(Object.values(built.trainerCredits).reduce((a,b)=>a+(b.formations||0)+(b.recrutements||0),0),2);
 });
 test('Les formations faites par un haut-gradé non MF/RF restent dans l’expérience sans polluer le compteur hebdo',()=>{
  const built=imp.buildCommitPatch(enriched,{}, {}, {}, {}, employees, {discordId:'owner',name:'Test'},1800000000000);
@@ -201,12 +201,13 @@ test('Une ligne déjà marquée doublon n’est jamais écrite ni recréditée',
 });
 
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
-test('Le bloc Opération contient la zone d’import Discord',()=>assert.ok(html.includes('Importer les formations Discord')));
+test('Le bloc Opération contient la zone d’import Discord',()=>assert.ok(html.includes('Importer les activités Discord')));
 test('La zone contient prévisualisation, import et historique expérience',()=>['formationDiscordImportPreview','btnFormationDiscordImport','formationExperienceHistory'].forEach(x=>assert.ok(html.includes(x),x)));
 test('Le client appelle la fonction serveur pour preview et commit',()=>{assert.ok(html.includes('formationDiscordRequest("preview"'));assert.ok(html.includes('formationDiscordRequest("commit"'));});
 test('Le collage déclenche automatiquement une prévisualisation temporisée',()=>assert.ok(html.includes('formationDiscordPreviewTimer=setTimeout')));
-test('La prévisualisation affiche +1 formation pour le formateur et Formation non reconnue si nécessaire',()=>{assert.ok(html.includes('+1 formation pour ${trainer}'));assert.ok(html.includes('Formation non reconnue'));});
+test('La prévisualisation affiche +1 formation/recrutement pour le responsable et Formation non reconnue si nécessaire',()=>{assert.ok(html.includes('+1 ${creditLabel} pour ${trainer}'));assert.ok(html.includes('Formation non reconnue'));});
 test('Le message après import sait afficher Formation Opération validée sans modifier la phrase UP de Pillbox',()=>assert.ok(html.includes('Formation Opération validée pour ${r.traineeName}')));
+test('Le message après import sait aussi afficher un recrutement validé',()=>assert.ok(html.includes('Recrutement validé pour ${r.traineeName}')));
 test('Le message de réussite reste affiché après la re-prévisualisation anti-doublon',()=>assert.ok(html.includes('status.textContent=successText;')));
 
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'..','firebase-rules.permissions-regroupees.json'),'utf8')).rules;
