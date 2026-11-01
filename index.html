@@ -2368,10 +2368,15 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div style="height:1px;background:var(--border-soft);margin:20px 0;"></div>
       <div class="special-head" style="align-items:flex-start;">
         <div>
-          <div class="special-title">⚡ Importer les formations Discord</div>
-          <div class="special-sub">Colle directement l'historique du salon Discord. Le Roster détecte le formateur, l'EMS formé et le type de formation. Les doublons déjà importés ne sont jamais recomptés.</div>
+          <div class="special-title">⚡ Importer les activités Discord</div>
+          <div class="special-sub">Collez directement un historique Discord. Le Roster reconnaît automatiquement le responsable, l'EMS concerné et le type d'activité (formation ou recrutement). Les doublons déjà importés ne sont jamais recomptés.</div>
         </div>
-        <div class="special-count"><b id="formationImportNewCount">0</b> nouvelle(s)</div>
+        <div class="special-count" id="formationImportCounters" style="display:flex;gap:10px;flex-wrap:wrap;font-size:0.74rem;">
+          <span>🔎 <b id="formationImportDetectedCount">0</b> détectée(s)</span>
+          <span style="color:var(--green);">✅ <b id="formationImportNewCount">0</b> nouvelle(s)</span>
+          <span style="color:var(--text-faint);">♻️ <b id="formationImportDupCount">0</b> doublon(s)</span>
+          <span style="color:var(--amber);">⚠️ <b id="formationImportUnresolvedCount">0</b> à vérifier</span>
+        </div>
       </div>
       <div class="special-controls" style="margin-top:12px;align-items:flex-start;">
         <textarea id="formationDiscordImportText" rows="9" style="flex:1;min-width:280px;" placeholder="Colle ici le bloc Discord complet, par exemple :
@@ -2382,7 +2387,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       <div class="special-controls" style="justify-content:space-between;">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn-ghost btn-small" id="btnFormationDiscordPreview">🔎 Analyser le collage</button>
-          <button class="btn-primary" id="btnFormationDiscordImport" disabled>✓ Importer les formations détectées</button>
+          <button class="btn-primary" id="btnFormationDiscordImport" disabled>Aucune nouvelle activité à importer</button>
         </div>
         <span class="special-sub" id="formationDiscordImportStatus"></span>
       </div>
@@ -4362,40 +4367,60 @@ async function formationDiscordRequest(action, text){
   return data;
 }
 function formationTypeBadge(type,label){
-  const icon = type==="operation" ? "🎓" : type==="copilote" ? "🧭" : type==="pilote" ? "🚁" : type==="mup" ? "🏥" : type==="unknown" ? "⚠️" : "📘";
+  const icon = type==="operation" ? "🎓" : type==="copilote" ? "🧭" : type==="pilote" ? "🚁" : type==="mup" ? "🏥" : type==="recrutement" ? "🧑‍💼" : type==="unknown" ? "⚠️" : "📘";
   return `<span style="white-space:nowrap;font-weight:700;">${icon} ${esc(label||type||"Formation")}</span>`;
 }
+// (section 11 du cahier des charges) Chaque ligne affiche clairement son
+// statut réel — NOUVEAU / DÉJÀ IMPORTÉ / À VÉRIFIER — jamais juste une
+// phrase générique, pour que la personne voie d'un coup d'œil ce qui sera
+// réellement importé au clic sur le bouton.
 function formationImportActionText(r){
-  if(r.duplicate) return {t:"Déjà importée",c:"var(--text-faint)"};
-  if(!r.importable) return {t:r.reason||"À vérifier",c:"var(--amber)"};
-  const trainer=r.trainer?.name||r.trainerName||"le formateur";
-  const credit=r.activityEligible ? `+1 formation pour ${trainer}` : `formation enregistrée pour ${trainer}`;
-  if(r.type==="operation") return {t:`Formation Opération → liste Pillbox · ${credit}`,c:"var(--green)"};
-  if(r.type==="unknown") return {t:`${credit} · ⚠ Formation non reconnue`,c:"var(--amber)"};
-  return {t:credit,c:"var(--green)"};
+  if(r.duplicate) return {t:"♻️ DÉJÀ IMPORTÉ",c:"var(--text-faint)"};
+  if(!r.importable) return {t:`⚠️ À VÉRIFIER — ${r.reason||"à vérifier"}`,c:"var(--amber)"};
+  const trainer=r.trainer?.name||r.trainerName||"le responsable";
+  const creditLabel=r.type==="recrutement" ? "recrutement" : "formation";
+  const credit=r.activityEligible ? `+1 ${creditLabel} pour ${trainer}` : `${creditLabel} enregistrée pour ${trainer}`;
+  if(r.type==="operation") return {t:`✅ NOUVEAU · Formation Opération → liste Pillbox · ${credit}`,c:"var(--green)"};
+  if(r.type==="unknown") return {t:`✅ NOUVEAU · ${credit} · ⚠ Formation non reconnue`,c:"var(--amber)"};
+  return {t:`✅ NOUVEAU · ${credit}`,c:"var(--green)"};
 }
 function formationImportSuccessText(data){
   const results=Array.isArray(data?.importResults)?data.importResults:[];
   if(results.length===1){
     const r=results[0];
-    const credit=r.activityCredited ? `+1 formation pour ${r.trainerName}` : `formation enregistrée pour ${r.trainerName}`;
+    const creditLabel=r.type==="recrutement" ? "recrutement" : "formation";
+    const credit=r.activityCredited ? `+1 ${creditLabel} pour ${r.trainerName}` : `${creditLabel} enregistrée pour ${r.trainerName}`;
     if(r.type==="operation") return `✓ Formation Opération validée pour ${r.traineeName} · ${credit}`;
+    if(r.type==="recrutement") return `✓ Recrutement validé pour ${r.traineeName} · ${credit}`;
     if(r.type==="unknown") return `✓ ${credit} · ⚠ Formation non reconnue`;
     return `✓ ${credit}`;
   }
   const unrecognized=Number(data?.summary?.unrecognized)||0;
-  return `✓ ${data?.imported||0} formation(s) importée(s) · ${data?.summary?.operations||0} Formation(s) Opération ajoutée(s) · ${data?.summary?.activityCredits||0} +1 formation crédité(s)${unrecognized?` · ⚠ ${unrecognized} formation(s) non reconnue(s)`:""}`;
+  const recruitments=Number(data?.summary?.recruitments)||0;
+  return `✓ ${data?.imported||0} activité(s) importée(s) · ${data?.summary?.operations||0} Formation(s) Opération ajoutée(s) · ${recruitments} recrutement(s) · ${data?.summary?.activityCredits||0} crédit(s)${unrecognized?` · ⚠ ${unrecognized} formation(s) non reconnue(s)`:""}`;
 }
 function renderFormationDiscordPreview(data){
   const box=document.getElementById("formationDiscordImportPreview");
   const count=document.getElementById("formationImportNewCount");
+  const detectedCount=document.getElementById("formationImportDetectedCount");
+  const dupCount=document.getElementById("formationImportDupCount");
+  const unresolvedCount=document.getElementById("formationImportUnresolvedCount");
   const btn=document.getElementById("btnFormationDiscordImport");
   const status=document.getElementById("formationDiscordImportStatus");
   if(!box||!count||!btn||!status) return;
   formationDiscordPreviewState=data||null;
   const sum=data?.summary||{};
   count.textContent=String(sum.importable||0);
-  btn.disabled=!(sum.importable>0);
+  if(detectedCount) detectedCount.textContent=String(sum.detected||0);
+  if(dupCount) dupCount.textContent=String(sum.duplicates||0);
+  if(unresolvedCount) unresolvedCount.textContent=String(sum.unresolved||0);
+  // (section 16) Le bouton indique le vrai nombre, ou se désactive avec un
+  // texte explicite s'il n'y a rien à importer — jamais un bouton actif
+  // qui ne ferait rien, ni un chiffre qui ne correspond pas à ce qui sera
+  // réellement écrit au clic.
+  const importableCount=Number(sum.importable)||0;
+  btn.disabled=!(importableCount>0);
+  btn.textContent=importableCount>0 ? `✅ Importer les ${importableCount} nouvelle${importableCount>1?"s":""} activité${importableCount>1?"s":""}` : "Aucune nouvelle activité à importer";
   status.textContent=data ? `${sum.detected||0} détectée(s) · ${sum.importable||0} nouvelle(s) · ${sum.duplicates||0} doublon(s) · ${sum.unresolved||0} à vérifier${sum.unrecognized?` · ⚠ ${sum.unrecognized} formation(s) non reconnue(s)`:""}` : "";
   status.style.color=((sum.unresolved||0)>0||(sum.unrecognized||0)>0) ? "var(--amber)" : "var(--text-dim)";
   const rows=Array.isArray(data?.records)?data.records:[];
@@ -4450,6 +4475,10 @@ document.getElementById("btnFormationDiscordImport").addEventListener("click",as
   const status=document.getElementById("formationDiscordImportStatus");
   const text=document.getElementById("formationDiscordImportText").value||"";
   if(!formationDiscordPreviewState?.summary?.importable){toast("Aucune nouvelle formation à importer");return;}
+  // (le texte du bouton reflète maintenant le vrai nombre d'activités —
+  // on le garde pour le réafficher si l'import échoue, mais on ne
+  // l'impose plus après un succès : la re-prévisualisation juste en
+  // dessous sait mieux que quiconque quel est l'état à jour.)
   btn.disabled=true; const old=btn.textContent; btn.textContent="Import en cours…";
   try{
     const data=await formationDiscordRequest("commit",text);
@@ -4462,14 +4491,18 @@ document.getElementById("btnFormationDiscordImport").addEventListener("click",as
     const successText=formationImportSuccessText(data);
     status.textContent=successText;
     status.style.color="var(--green)";
-    toast(`✓ ${data.imported||0} formation(s) importée(s)`);
+    toast(`✓ ${data.imported||0} activité(s) importée(s)`);
     await previewDiscordFormations({silent:true});
     // La re-prévisualisation sert à transformer les lignes importées en
-    // « doublons », mais on conserve le message de réussite demandé.
+    // « doublons » ET à remettre le bouton à son vrai état (désactivé
+    // s'il n'y a plus rien de nouveau) — on conserve seulement le
+    // message de réussite demandé.
     status.textContent=successText;
     status.style.color="var(--green)";
-  }catch(err){ status.textContent=`✕ Import refusé : ${err.message}`;status.style.color="var(--red)";toast(`✕ ${err.message}`); }
-  finally{btn.textContent=old;btn.disabled=!(formationDiscordPreviewState?.summary?.importable>0);}
+  }catch(err){
+    status.textContent=`✕ Import refusé : ${err.message}`;status.style.color="var(--red)";toast(`✕ ${err.message}`);
+    btn.textContent=old;btn.disabled=!(formationDiscordPreviewState?.summary?.importable>0);
+  }
 });
 // (10/10, demandé) Sauvegarde cloud de la sélection Formation Opération
 // — reprise telle quelle de l'ancien btnSpecialCloudSave, maintenant
