@@ -175,6 +175,10 @@
     padding:3px 8px; cursor:pointer;
   }
   .emp-id:hover{color:var(--cyan); border-color:var(--cyan);}
+  .emp-id-label{font-size:.58rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;opacity:.58;margin-right:6px;}
+  .emp-id-unique{color:color-mix(in srgb,var(--cyan) 78%,var(--text-dim));border-color:color-mix(in srgb,var(--cyan) 28%,var(--border-soft));background:color-mix(in srgb,var(--cyan) 7%,var(--bg-0));}
+  .emp-id-unique.missing{opacity:.52;cursor:default;border-style:dashed;}
+  .emp-id-unique.missing:hover{color:var(--text-dim);border-color:var(--border-soft);}
   .emp-role-tag{
     font-size:0.68rem; color:var(--text-dim); border:1px solid var(--border-soft);
     border-radius:5px; padding:2px 7px;
