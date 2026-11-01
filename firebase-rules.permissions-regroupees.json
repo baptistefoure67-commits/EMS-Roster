@@ -939,7 +939,7 @@
           ".validate": "newData.isString() && newData.val().length < 20"
         },
         "type": {
-          ".validate": "newData.isString() && (newData.val() == 'operation' || newData.val() == 'copilote' || newData.val() == 'pilote' || newData.val() == 'mup' || newData.val() == 'unknown')"
+          ".validate": "newData.isString() && (newData.val() == 'operation' || newData.val() == 'copilote' || newData.val() == 'pilote' || newData.val() == 'mup' || newData.val() == 'recrutement' || newData.val() == 'unknown')"
         },
         "typeLabel": {
           ".validate": "newData.isString() && newData.val().length < 30"
