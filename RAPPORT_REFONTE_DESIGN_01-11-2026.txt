@@ -1,0 +1,37 @@
+ROSTER EMS — REFONTE DESIGN 01/11/2026
+======================================
+
+CHANGEMENTS VISUELS
+- Nouveau logo bleu Pillbox Roster EMS intégré dans assets/roster-logo.png.
+- Icônes PWA 192x192 et 512x512 ajoutées.
+- Fond quadrillé / carrés supprimé visuellement.
+- Nouveau fond bleu nuit en mesh de lueurs, piloté par le thème actif.
+- Header modernisé, logo plus présent, statistiques en pills.
+- Bouton palette modernisé.
+- Barre de connexion Discord conservée dans son fonctionnement ; écran d'accès Discord conservé.
+- Barre d'onglets transformée en navigation pill moderne.
+- Cartes, champs, boutons, sections de grades et lignes employés modernisés.
+- Responsive mobile retravaillé.
+
+THEMES / COMBINAISONS
+- Le nouveau design utilise les variables de palette existantes.
+- Les combinaisons de deux couleurs/effets restent supportées.
+- Le nouveau logo reçoit la teinte/gradient de la combinaison active.
+- Les effets spéciaux existants (Lave, Sakura, Minuit, etc.) restent compatibles.
+
+LOGIQUE CONSERVEE
+- Firebase / données Roster : non modifiés.
+- Permissions : non modifiées.
+- Gain de Temps : non modifié.
+- Sauvegarde / Synchronisation / animations : non modifiées.
+
+TESTS
+- app.js : syntaxe OK.
+- all-scripts.js : syntaxe OK.
+- Toutes les fonctions Netlify JS : syntaxe OK.
+- 3 scripts inline index.html : syntaxe OK.
+- theme-dual-palette-static : 0 échec.
+- theme-combinable-effects : 0 échec.
+- gain-de-temps-access : 3/3.
+- save-safety-sync : 18/18.
+- Tests navigateur Playwright : non exécutés (Playwright absent de l'environnement).
