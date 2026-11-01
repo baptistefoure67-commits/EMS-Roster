@@ -341,7 +341,7 @@ function esc(s){
   return String(s??"").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function norm(s){
-  return String(s??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  return String(s??"").normalize("NFKD").toLowerCase().replace(/[\u0300-\u036f]/g,"");
 }
 // (19/10, demandé) Anciens noms (mariage, wipe, bug de jeu...) — un
 // employé peut avoir plusieurs noms connus en plus du nom actuel
@@ -780,7 +780,8 @@ function empRowHtml(e, isLicencie){
   return `
     <div class="emp-row ${isLicencie?'licencie':''}" data-id="${e.id}">
       <span class="emp-name">${esc(e.name)}</span>
-      <span class="emp-id" data-copy-id="${esc(e.discordId)}" title="Copier l'ID Discord">${esc(e.discordId)}</span>
+      <span class="emp-id emp-id-discord" data-copy-id="${esc(e.discordId)}" title="Copier l'ID Discord"><span class="emp-id-label">Discord</span>${esc(e.discordId)}</span>
+      ${e.idUnique ? `<span class="emp-id emp-id-unique" data-copy-id="${esc(e.idUnique)}" title="Copier l'ID unique EMS"><span class="emp-id-label">ID EMS</span>${esc(e.idUnique)}</span>` : `<span class="emp-id emp-id-unique missing" title="L'ID unique sera mémorisé au prochain import du tableau EMS"><span class="emp-id-label">ID EMS</span>—</span>`}
       ${roleTag}
       ${licDate}
       <span class="emp-actions">
@@ -887,6 +888,7 @@ function editRowHtml(e){
       </select>
       <input type="text" data-edit-name="${e.id}" value="${esc(e.name)}" style="min-width:140px;">
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
+      <span class="emp-id emp-id-unique ${e.idUnique?'':'missing'}" ${e.idUnique?`data-copy-id="${esc(e.idUnique)}"`:''} title="ID unique EMS mémorisé depuis le tableau EMS"><span class="emp-id-label">ID EMS</span>${e.idUnique?esc(e.idUnique):'—'}</span>
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       ${currentUserLevel === "OWNER" && e.discordId ? `<span style="font-size:.76rem;color:var(--text-dim);font-weight:800;">⏱️ Gain de Temps : <b data-gain-access-status="${e.id}" style="color:var(--text-faint);">…</b></span><button type="button" class="btn-ghost btn-small" data-gain-access-toggle="${e.id}">Vérifier l’accès</button>` : ""}
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
@@ -910,7 +912,7 @@ function editRowHtml(e){
 // le nom, et retire les emoji/symboles collés en fin de nom (ex: "Papy Alucard
 // Saotome 🐧") en ne gardant que les mots contenant au moins une lettre.
 function cleanEmsName(employeRaw){
-  let name = (employeRaw||"").replace(/^\[[^\]]*\]\s*/, "").trim();
+  let name = (employeRaw||"").replace(/^[^\p{L}\p{N}]*\[[^\]]*\]\s*/u, "").trim();
   name = name.split(/\s+/).filter(tok => /\p{L}/u.test(tok)).join(" ");
   return name;
 }
@@ -932,7 +934,7 @@ function splitEmsLine(line){
 // grade WDV sur quelqu'un d'actif (= licenciement à appliquer).
 function parseEmsTableForImport(text){
   const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [];
+  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [], uniqueIdUpdates = [], uniqueIdConflicts = [];
   const seenIds = new Set(); // employés retrouvés dans ce collage précis, peu importe la raison
 
   lines.forEach(line=>{
@@ -966,6 +968,26 @@ function parseEmsTableForImport(text){
     }
     if(existing) seenIds.add(existing.id);
 
+    // ID unique EMS : dès qu'un employé déjà connu est retrouvé dans le
+    // tableau EMS, on mémorise son ID unique s'il n'en avait pas encore.
+    // Une valeur déjà enregistrée n'est JAMAIS effacée par une cellule vide
+    // et n'est jamais remplacée silencieusement si le tableau renvoie un ID
+    // différent : le conflit est affiché pour vérification humaine.
+    if(existing && idUnique){
+      const incomingUnique = String(idUnique).trim();
+      const currentUnique = String(existing.idUnique||"").trim();
+      if(!currentUnique){
+        const otherOwner = employees.find(e=>e.id!==existing.id && String(e.idUnique||"").trim()===incomingUnique);
+        if(otherOwner){
+          uniqueIdConflicts.push({id:existing.id,name:existing.name,current:"—",incoming:incomingUnique,otherOwner:otherOwner.name});
+        }else{
+          uniqueIdUpdates.push({id:existing.id,name:existing.name,idUnique:incomingUnique});
+        }
+      }else if(currentUnique !== incomingUnique){
+        uniqueIdConflicts.push({id:existing.id,name:existing.name,current:currentUnique,incoming:incomingUnique});
+      }
+    }
+
     if(gradeRaw === "WDV"){
       if(existing && !existing.licencie){ toLicencier.push({id:existing.id, name:existing.name, discordId:existing.discordId, arrivalMs}); }
       else if(!existing){ skippedWdv.push(name); }
@@ -998,7 +1020,7 @@ function parseEmsTableForImport(text){
     ? employees.filter(e => !e.licencie && !seenIds.has(e.id)).map(e => ({id:e.id, name:e.name}))
     : [];
 
-  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous};
+  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous, uniqueIdUpdates, uniqueIdConflicts};
 }
 
 // Départ rapide (29/09) : une personne recrutée qui repart avant une semaine
@@ -1042,9 +1064,35 @@ document.addEventListener("click", async (ev)=>{
   }
 });
 
+function applyUniqueIdMemoryUpdates(result){
+  const updates = Array.isArray(result?.uniqueIdUpdates) ? result.uniqueIdUpdates : [];
+  const applied = [];
+  updates.forEach(u=>{
+    const e = employees.find(x=>String(x.id)===String(u.id));
+    if(!e || e.idUnique) return;
+    const incoming = String(u.idUnique||"").trim();
+    if(!/^\d{1,12}$/.test(incoming)) return;
+    const duplicate = employees.find(x=>x.id!==e.id && String(x.idUnique||"").trim()===incoming);
+    if(duplicate){
+      result.uniqueIdConflicts = result.uniqueIdConflicts || [];
+      result.uniqueIdConflicts.push({id:e.id,name:e.name,current:"—",incoming,otherOwner:duplicate.name});
+      return;
+    }
+    e.idUnique = incoming;
+    applied.push({id:e.id,name:e.name,idUnique:incoming});
+    logHistory("ID unique EMS", e.name, `ID unique mémorisé : ${incoming}`);
+  });
+  result.uniqueIdApplied = applied;
+  if(applied.length){
+    saveState();
+    renderAll();
+  }
+  return applied;
+}
+
 function renderImportResults(result){
   const box = document.getElementById("importResults");
-  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length);
+  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length) && !(result.uniqueIdApplied&&result.uniqueIdApplied.length) && !(result.uniqueIdConflicts&&result.uniqueIdConflicts.length);
   if(nothing){
     box.innerHTML = `<div class="empty-msg">Rien reconnu — vérifie que le texte collé contient bien les colonnes "Employé" et "Grade" du tableau EMS.</div>`;
     return;
@@ -1055,6 +1103,13 @@ function renderImportResults(result){
   window._pendingLicencier = result.toLicencier;
   window._pendingRemove = result.toRemove;
   let html = "";
+
+  if(result.uniqueIdApplied && result.uniqueIdApplied.length){
+    html += `<div class="empty-msg" style="color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);">🪪 <b>${result.uniqueIdApplied.length} ID unique(s) EMS mémorisé(s)</b> dans le Roster. Ils resteront attachés aux fiches même si un prochain tableau ne renvoie pas l'ID.</div>`;
+  }
+  if(result.uniqueIdConflicts && result.uniqueIdConflicts.length){
+    html += `<div class="empty-msg" style="color:var(--amber);">⚠ ID unique différent détecté — aucune valeur existante n'a été remplacée : ${result.uniqueIdConflicts.map(c=>`${esc(c.name)} (${esc(c.current||"—")} → ${esc(c.incoming||"—")}${c.otherOwner?`, déjà utilisé par ${esc(c.otherOwner)}`:""})`).join(" ; ")}</div>`;
+  }
 
   if(result.toPromote.length){
     html += `<div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">⬆️ ${result.toPromote.length} grade(s) changé(s) détecté(s) — à mettre à jour :</div>`;
@@ -1438,6 +1493,7 @@ document.getElementById("filterGrade").addEventListener("change", renderAll);
 document.getElementById("btnAnalyzeEms").addEventListener("click", ()=>{
   const text = document.getElementById("emsTableInput").value;
   const result = parseEmsTableForImport(text);
+  applyUniqueIdMemoryUpdates(result);
   renderImportResults(result);
   // Un seul collage sert aussi à détecter les absences pour les onglets
   // Formateur/Psychologue — plus besoin de recoller le tableau une
