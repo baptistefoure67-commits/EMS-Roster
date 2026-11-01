@@ -1804,6 +1804,271 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   #liaisonOverlay>.liaison-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;}
 }
 </style>
+
+<style id="roster-modern-redesign-v1">
+/* Refonte visuelle 01/11/2026 — logique métier inchangée. */
+:root{
+  --ui-glass:color-mix(in srgb,var(--panel) 78%,transparent);
+  --ui-glass-strong:color-mix(in srgb,var(--panel) 92%,#07101f 8%);
+  --ui-line:color-mix(in srgb,var(--theme-primary-bright) 18%,var(--border));
+  --ui-shadow:0 18px 55px rgba(1,8,20,.30);
+}
+
+/* Fond : suppression totale du quadrillage/carrés. Le fond suit les combinaisons. */
+body,
+html.theme-special body{
+  background:
+    radial-gradient(900px 620px at 8% -8%,color-mix(in srgb,var(--theme-primary) 24%,transparent),transparent 64%),
+    radial-gradient(780px 560px at 95% 4%,color-mix(in srgb,var(--theme-secondary-bright) 16%,transparent),transparent 62%),
+    radial-gradient(620px 440px at 52% 34%,color-mix(in srgb,var(--theme-primary-bright) 7%,transparent),transparent 70%),
+    linear-gradient(155deg,#07101e 0%,var(--bg-0) 34%,#0a1425 68%,#07101b 100%)!important;
+  background-size:auto!important;
+  background-position:center!important;
+  background-attachment:fixed!important;
+  padding-top:20px;
+}
+
+.wrap{max-width:1180px;position:relative;}
+
+/* Branding : nouveau logo + teinte dynamique pour les combinaisons. */
+header.top{
+  align-items:center;
+  gap:18px;
+  margin-bottom:24px;
+  padding:10px 2px 24px;
+  border-bottom:0;
+  position:relative;
+}
+header.top::after{
+  content:"";
+  position:absolute;
+  left:0;right:0;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--theme-primary-bright) 45%,transparent),color-mix(in srgb,var(--theme-secondary-bright) 32%,transparent),transparent);
+  box-shadow:0 0 18px color-mix(in srgb,var(--theme-primary) 18%,transparent);
+}
+.roster-brand{gap:16px;align-items:center;}
+.roster-logo-wrap{
+  width:94px!important;height:94px!important;flex:0 0 94px!important;
+  border-radius:24px;
+  overflow:hidden;
+  box-shadow:0 16px 38px rgba(0,0,0,.34),0 0 0 1px color-mix(in srgb,var(--theme-primary-bright) 24%,transparent);
+  transform:translateZ(0);
+}
+.roster-logo{
+  border-radius:24px;
+  filter:saturate(.96) contrast(1.03) drop-shadow(0 8px 18px rgba(0,0,0,.25))!important;
+}
+/* L'ancien logo transparent utilisait un mask. Le nouveau badge est carré :
+   on applique directement la palette au badge pour que A+B soit visible. */
+.roster-logo-wrap::before,
+.roster-logo-wrap::after,
+.roster-logo-sheen{
+  -webkit-mask:none!important;
+  mask:none!important;
+  border-radius:24px;
+}
+.roster-logo-wrap::before{
+  inset:-10%!important;
+  background:var(--theme-logo-gradient)!important;
+  opacity:.24!important;
+  filter:blur(18px)!important;
+  z-index:0!important;
+}
+.roster-logo-wrap::after{
+  inset:0!important;
+  background:var(--theme-logo-gradient)!important;
+  opacity:.34!important;
+  mix-blend-mode:color!important;
+  z-index:2!important;
+}
+html.theme-dual .roster-logo-wrap::after,
+html.theme-special .roster-logo-wrap::after{opacity:.64!important;background-size:320% 320%!important;}
+.roster-logo-sheen{
+  inset:0!important;
+  z-index:3!important;
+  mix-blend-mode:screen!important;
+  background:linear-gradient(112deg,transparent 22%,rgba(255,255,255,0) 38%,rgba(255,255,255,.72) 50%,rgba(255,255,255,0) 62%,transparent 78%)!important;
+  background-size:300% 100%!important;
+}
+.roster-brand-copy h1,header.top h1{
+  font-size:clamp(1.65rem,2.5vw,2.2rem);
+  font-weight:850;
+  letter-spacing:-.025em;
+  line-height:1.03;
+  text-shadow:0 8px 30px rgba(0,0,0,.28);
+}
+header.top .sub{font-size:.9rem;line-height:1.45;margin-top:7px;color:color-mix(in srgb,var(--text-dim) 92%,white 8%);}
+
+/* Le bouton palette devient un vrai contrôle moderne. */
+#rosterThemeBtn{
+  border-radius:999px!important;
+  min-height:42px;
+  padding:8px 14px!important;
+  background:color-mix(in srgb,var(--panel) 72%,transparent)!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 24%,var(--border))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 9px 24px rgba(0,0,0,.16);
+  backdrop-filter:blur(14px);
+}
+#rosterThemeBtn:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--theme-primary) 9%,var(--panel))!important;}
+#rosterThemeBtn .roster-theme-dot{box-shadow:0 0 12px color-mix(in srgb,var(--theme-primary-bright) 56%,transparent);}
+
+.stats{gap:8px;margin-left:auto;}
+.stats>div{
+  min-width:72px;
+  text-align:center;
+  padding:9px 13px;
+  border-radius:16px;
+  background:color-mix(in srgb,var(--panel) 76%,transparent);
+  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 13%,var(--border));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+  backdrop-filter:blur(12px);
+}
+.stats b{font-size:1.15rem;line-height:1.1;margin-bottom:2px;}
+
+/* On garde volontairement #accessGate tel quel. */
+#appContent{position:relative;}
+#discordAuthBar{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--panel) 88%,transparent),color-mix(in srgb,var(--panel-2) 92%,transparent))!important;
+  border:1px solid var(--ui-line)!important;
+  border-radius:18px!important;
+  padding:12px 14px!important;
+  box-shadow:var(--ui-shadow),inset 0 1px 0 rgba(255,255,255,.035);
+  backdrop-filter:blur(18px);
+}
+
+/* Navigation : pills modernes et plus de faux onglets rectangulaires. */
+.tabbar{
+  gap:8px!important;
+  padding:6px;
+  margin:16px 0 20px!important;
+  border-radius:18px;
+  background:color-mix(in srgb,var(--panel) 66%,transparent);
+  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 10%,var(--border));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  backdrop-filter:blur(14px);
+}
+.tab-btn{
+  border-radius:12px!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  padding:10px 14px!important;
+  color:var(--text-dim)!important;
+  transition:transform .16s ease,color .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease!important;
+}
+.tab-btn:hover{color:var(--text)!important;background:rgba(255,255,255,.035)!important;transform:translateY(-1px);}
+.tab-btn.active,
+html.theme-dual .tab-btn.active,
+html.theme-special .tab-btn.active{
+  color:var(--text)!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--theme-primary) 19%,var(--panel)),color-mix(in srgb,var(--theme-secondary) 10%,var(--panel-2)))!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 38%,var(--border))!important;
+  box-shadow:0 8px 24px color-mix(in srgb,var(--theme-primary) 10%,transparent),inset 0 1px 0 rgba(255,255,255,.05)!important;
+}
+
+/* Cartes : surfaces douces, arrondies, sans effet "carré posé". */
+.card{
+  background:linear-gradient(145deg,color-mix(in srgb,var(--panel) 90%,transparent),color-mix(in srgb,var(--panel-2) 94%,transparent))!important;
+  border:1px solid color-mix(in srgb,var(--theme-primary-bright) 10%,var(--border))!important;
+  border-radius:20px!important;
+  padding:20px 22px!important;
+  margin-bottom:16px!important;
+  box-shadow:0 14px 44px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.028);
+  backdrop-filter:blur(15px);
+}
+.card:hover{border-color:color-mix(in srgb,var(--theme-primary-bright) 20%,var(--border))!important;}
+
+/* Formulaires */
+input,select,textarea{
+  background:color-mix(in srgb,var(--bg-0) 78%,var(--panel))!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 11%,var(--border))!important;
+  border-radius:12px!important;
+  min-height:40px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.018);
+}
+input:focus,select:focus,textarea:focus{
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 72%,white 4%)!important;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--theme-primary) 14%,transparent),0 10px 24px rgba(0,0,0,.12)!important;
+}
+button,.btn-primary,.btn-ghost{border-radius:11px;}
+.btn-primary{
+  background:var(--theme-button-gradient)!important;
+  box-shadow:0 9px 22px color-mix(in srgb,var(--theme-primary) 18%,transparent),inset 0 1px 0 rgba(255,255,255,.18);
+  transition:transform .15s ease,filter .15s ease,box-shadow .15s ease!important;
+}
+.btn-primary:hover{opacity:1!important;filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 12px 30px color-mix(in srgb,var(--theme-primary) 24%,transparent),inset 0 1px 0 rgba(255,255,255,.22);}
+.btn-ghost{
+  background:color-mix(in srgb,var(--panel) 46%,transparent)!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 12%,var(--border))!important;
+}
+.btn-ghost:hover{background:color-mix(in srgb,var(--theme-primary) 9%,var(--panel))!important;}
+
+/* Sections / lignes employés */
+.grade-section{
+  border-left:0!important;
+  border:1px solid color-mix(in srgb,var(--grade-color,var(--theme-primary-bright)) 18%,var(--border))!important;
+  border-radius:17px!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--grade-color,var(--theme-primary-bright)) 5%,var(--panel)),var(--panel-2))!important;
+  box-shadow:0 9px 28px rgba(0,0,0,.11);
+}
+.grade-head{padding:13px 15px!important;}
+.grade-badge{border-radius:999px!important;padding:4px 10px!important;box-shadow:0 5px 12px rgba(0,0,0,.13);}
+.grade-body{padding:0 10px 10px!important;}
+.emp-row{
+  border-bottom:0!important;
+  border:1px solid transparent;
+  border-radius:12px!important;
+  margin-top:5px;
+  padding:9px 10px!important;
+  transition:background .15s ease,border-color .15s ease,transform .15s ease;
+}
+.emp-row:hover{
+  background:color-mix(in srgb,var(--theme-primary) 5%,rgba(255,255,255,.025))!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 12%,transparent);
+  transform:translateX(2px);
+}
+.emp-id,.emp-role-tag,.role-chip,.special-format,.edit-row{
+  border-radius:10px!important;
+  background:color-mix(in srgb,var(--bg-0) 72%,var(--panel))!important;
+}
+
+/* Modale palette : même langage visuel que le nouveau Roster. */
+#rosterThemeModal>div{
+  border-radius:22px!important;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--panel) 96%,transparent),color-mix(in srgb,var(--panel-2) 98%,transparent))!important;
+  border-color:color-mix(in srgb,var(--theme-primary-bright) 24%,var(--border))!important;
+  box-shadow:0 28px 80px rgba(0,0,0,.52),0 0 50px color-mix(in srgb,var(--theme-primary) 8%,transparent)!important;
+}
+
+@media(max-width:760px){
+  body,html.theme-special body{padding:16px 12px 70px!important;}
+  header.top{align-items:flex-start;gap:12px;padding-bottom:18px;}
+  .roster-logo-wrap{width:76px!important;height:76px!important;flex-basis:76px!important;border-radius:20px;}
+  .roster-logo,.roster-logo-wrap::before,.roster-logo-wrap::after,.roster-logo-sheen{border-radius:20px;}
+  .roster-brand{width:100%;gap:12px;}
+  header.top h1{font-size:1.72rem;}
+  header.top .sub{font-size:.82rem;max-width:260px;}
+  #rosterThemeBtn{order:2;}
+  .stats{order:3;margin-left:auto;}
+  .stats>div{min-width:64px;padding:8px 10px;}
+  .tabbar{padding:5px;border-radius:15px;gap:5px!important;}
+  .tab-btn{padding:9px 11px!important;font-size:.78rem!important;}
+  .card{padding:16px!important;border-radius:17px!important;}
+  #discordAuthBar{border-radius:16px!important;}
+}
+
+@media(max-width:480px){
+  .roster-logo-wrap{width:68px!important;height:68px!important;flex-basis:68px!important;}
+  header.top h1{font-size:1.52rem;}
+  header.top .sub{font-size:.78rem;max-width:220px;}
+  #rosterThemeBtn{padding:7px 11px!important;}
+  .stats{width:100%;margin-left:0;justify-content:flex-end;}
+  .stats>div{flex:0 0 auto;}
+  .tabbar{overflow-x:auto;flex-wrap:nowrap!important;scrollbar-width:none;}
+  .tabbar::-webkit-scrollbar{display:none;}
+  .tab-btn{flex:0 0 auto!important;}
+}
+</style>
+
 </head>
 <body>
 <div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
