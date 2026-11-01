@@ -66,6 +66,14 @@ function parseDateLabel(label, nowMs=Date.now()){
   if(rel){
     const d=new Date(nowMs); d.setDate(d.getDate()-1); d.setHours(Number(rel[1]),Number(rel[2]),0,0); return d.getTime();
   }
+  // Discord peut n'afficher que l'heure pour les messages du jour :
+  //   [ADD] Baptiste Fore [LS], — 17:43
+  // ou « Aujourd'hui à 17:43 ». Dans les deux cas, on rattache l'heure
+  // à la date courante afin de conserver un occurredAt exploitable.
+  const today=s.match(/^(?:Aujourd['’]hui\s+[àa]\s+)?(\d{1,2}):(\d{2})$/i);
+  if(today){
+    const d=new Date(nowMs); d.setHours(Number(today[1]),Number(today[2]),0,0); return d.getTime();
+  }
   return null;
 }
 function formationTypeFromLine(line){
@@ -102,8 +110,10 @@ function parseDiscordFormationText(text, nowMs=Date.now()){
     //   [RF] Djam Mas — 18/10/2026 22:05
     //   ### [RF] Djam Mas18/10/2026 22:05  (Markdown, date collée au nom)
     //   [RF] Djam Mas — Hier à 22:40
+    //   [ADD] Baptiste Fore [LS], — 17:43   (message du jour)
+    //   [ADD] Baptiste Fore [LS], — Aujourd'hui à 17:43
     const headerLine=line.replace(/^#{1,6}\s*/,'').trim();
-    const hm=headerLine.match(/^(.+?)(?:\s*[,;]?\s*[—–-]\s*|\s*)?((?:\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2})|(?:Hier\s+[àa]\s+\d{1,2}:\d{2}))\s*$/i);
+    const hm=headerLine.match(/^(.+?)(?:\s*[,;]?\s*[—–-]\s*|\s*)?((?:\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2})|(?:Hier\s+[àa]\s+\d{1,2}:\d{2})|(?:Aujourd['’]hui\s+[àa]\s+\d{1,2}:\d{2})|(?:\d{1,2}:\d{2}))\s*$/i);
     if(hm){
       const name=cleanDisplayName(hm[1]);
       author=name?{name,dateLabel:hm[2].trim(),timestamp:parseDateLabel(hm[2],nowMs),raw:line}:null;
