@@ -1,8 +1,20 @@
 {
-  "name": "Pillbox Terminal Paie",
-  "short_name": "Pillbox",
+  "name": "Roster EMS — Pillbox",
+  "short_name": "Roster EMS",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#150000",
-  "theme_color": "#150000"
+  "background_color": "#081224",
+  "theme_color": "#0f1f3d",
+  "icons": [
+    {
+      "src": "assets/roster-logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/roster-logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
