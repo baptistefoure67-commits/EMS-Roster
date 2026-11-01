@@ -2,7 +2,7 @@ const fs=require('fs'), path=require('path'), assert=require('assert');
 const root=path.resolve(__dirname,'..');
 const src=fs.readFileSync(path.join(root,'index.html'),'utf8');
 assert(src.includes('applyUniqueIdMemoryUpdates(result)'), 'capture automatique ID unique absente');
-assert(src.includes('ID EMS</span>${esc(e.idUnique)}'), 'ID EMS non affiché dans la ligne principale');
+assert(src.includes('ID Unique</span>${esc(e.idUnique)}'), 'ID Unique non affiché dans la ligne principale');
 assert(src.includes('if(!currentUnique)'), 'les IDs déjà mémorisés ne sont pas protégés');
 assert(src.includes('currentUnique !== incomingUnique'), 'détection conflit ID unique absente');
 assert(src.includes('.normalize("NFKD").toLowerCase()'), 'normalisation unicode stylisée absente');
