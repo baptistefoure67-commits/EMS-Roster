@@ -2265,7 +2265,7 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   <div id="signalementView" style="display:none;">
     <div class="card">
       <h1 style="font-size:1rem;margin:0 0 2px;">🔒 Signalement anonyme</h1>
-      <div class="sub" style="margin-bottom:10px;">Grades à responsabilité (Médecin/Responsable Formateur, Psychologue, Légiste, Médecin Chef).</div>
+      <div class="sub" style="margin-bottom:10px;">Grades à responsabilité (Médecin/Responsable Formateur, Psychologue, Légiste, Médecin Chef, Assistant de Direction).</div>
       <div style="display:flex;align-items:center;gap:10px;background:var(--bg-0);border:1px dashed var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:0.78rem;">
         🔒 Ton identité n'est jamais enregistrée nulle part — aucun champ de ce formulaire ne l'inclut.
       </div>
@@ -3566,7 +3566,7 @@ function empRowHtml(e, isLicencie){
     <div class="emp-row ${isLicencie?'licencie':''}" data-id="${e.id}">
       <span class="emp-name">${esc(e.name)}</span>
       <span class="emp-id emp-id-discord" data-copy-id="${esc(e.discordId)}" title="Copier l'ID Discord"><span class="emp-id-label">Discord</span>${esc(e.discordId)}</span>
-      ${e.idUnique ? `<span class="emp-id emp-id-unique" data-copy-id="${esc(e.idUnique)}" title="Copier l'ID unique EMS"><span class="emp-id-label">ID EMS</span>${esc(e.idUnique)}</span>` : `<span class="emp-id emp-id-unique missing" title="L'ID unique sera mémorisé au prochain import du tableau EMS"><span class="emp-id-label">ID EMS</span>—</span>`}
+      ${e.idUnique ? `<span class="emp-id emp-id-unique" data-copy-id="${esc(e.idUnique)}" title="Copier l'ID unique EMS"><span class="emp-id-label">ID Unique</span>${esc(e.idUnique)}</span>` : `<span class="emp-id emp-id-unique missing" title="L'ID unique sera mémorisé au prochain import du tableau EMS"><span class="emp-id-label">ID Unique</span>—</span>`}
       ${roleTag}
       ${licDate}
       <span class="emp-actions">
@@ -3673,7 +3673,7 @@ function editRowHtml(e){
       </select>
       <input type="text" data-edit-name="${e.id}" value="${esc(e.name)}" style="min-width:140px;">
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
-      <span class="emp-id emp-id-unique ${e.idUnique?'':'missing'}" ${e.idUnique?`data-copy-id="${esc(e.idUnique)}"`:''} title="ID unique EMS mémorisé depuis le tableau EMS"><span class="emp-id-label">ID EMS</span>${e.idUnique?esc(e.idUnique):'—'}</span>
+      <span class="emp-id emp-id-unique ${e.idUnique?'':'missing'}" ${e.idUnique?`data-copy-id="${esc(e.idUnique)}"`:''} title="ID unique EMS mémorisé depuis le tableau EMS"><span class="emp-id-label">ID Unique</span>${e.idUnique?esc(e.idUnique):'—'}</span>
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
       ${currentUserLevel === "OWNER" && e.discordId ? `<span style="font-size:.76rem;color:var(--text-dim);font-weight:800;">⏱️ Gain de Temps : <b data-gain-access-status="${e.id}" style="color:var(--text-faint);">…</b></span><button type="button" class="btn-ghost btn-small" data-gain-access-toggle="${e.id}">Vérifier l’accès</button>` : ""}
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
