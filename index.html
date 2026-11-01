@@ -3021,9 +3021,16 @@ function selectedEmployeeKeysFromCloud(data){
   return (data && Array.isArray(data.selectedEmployees)?data.selectedEmployees:[]).map(employeeDiffKey).sort();
 }
 function activityDisplayName(key){
+  // (corrigé) Appelait resolveActiviteIdentity, une fonction qui n'a
+  // jamais existé dans ce fichier — le typeof échouait donc toujours
+  // silencieusement et retombait sur l'ID brut ("ID 146389") au lieu du
+  // nom. resolveActiviteKeyToName fait exactement cette résolution,
+  // déjà utilisée ailleurs pour le même genre d'affichage.
   try{
-    const emp=typeof resolveActiviteIdentity==="function" ? resolveActiviteIdentity(key,employees) : null;
-    if(emp?.name) return emp.name;
+    if(typeof resolveActiviteKeyToName==="function"){
+      const resolved=resolveActiviteKeyToName(String(key||""));
+      if(resolved && !resolved.startsWith("(")) return resolved;
+    }
   }catch(e){}
   const raw=String(key||""); return raw.startsWith("name:") ? raw.slice(5) : raw.startsWith("id:") ? `ID ${raw.slice(3)}` : raw || "Entrée inconnue";
 }
