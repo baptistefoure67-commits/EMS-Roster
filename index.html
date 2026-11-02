@@ -2446,7 +2446,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   <div id="absencesView" style="display:none;">
     <div class="card">
       <div class="special-title">📅 Absences (plus de 3 jours)</div>
-      <div class="special-sub" style="margin-bottom:10px;">Détectées automatiquement à partir du collage du tableau EMS (étape "Importer depuis le tableau EMS"). Une absence de 3 jours ou moins n'est jamais comptabilisée ici. 3 absences "Prise en compte : OUI" sur une fenêtre glissante de 30 jours déclenchent un signalement transmis à Pillbox, pour décision humaine au moment des paies — ce suivi ne licencie ni ne rétrograde jamais tout seul.</div>
+      <div class="special-sub" style="margin-bottom:10px;">Détectées automatiquement à partir du collage du tableau EMS (étape "Importer depuis le tableau EMS"). Une absence de 3 jours ou moins n'est jamais comptabilisée ici. Une absence "Prise en compte : OUI" sort automatiquement du suivi 14 jours après sa date de fin (ou 21 jours si la personne a 3 absences actives ou plus) — elle reste consultable ici, elle ne compte simplement plus. 5 absences actives déclenchent un signalement transmis à Pillbox, pour décision humaine au moment des paies — ce suivi ne licencie ni ne rétrograde jamais tout seul.</div>
       <div id="absencesAlerts" style="margin-bottom:10px;"></div>
       <div class="special-controls" style="margin-top:0;">
         <input type="text" id="absencesSearch" placeholder="Rechercher un employé..." style="flex:1;min-width:220px;">
@@ -5566,9 +5566,11 @@ function formatAbsencePauseLabel(a){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ABSENCES DE PLUS DE 3 JOURS (03/10) — catégorie séparée, suivi des
-// récurrences sur une fenêtre glissante de 30 jours, signalement
-// transmis à Pillbox pour décision humaine (jamais automatique).
+// ABSENCES DE PLUS DE 3 JOURS (03/10, seuil et rétention revus le
+// 01/11) — catégorie séparée, suivi des récurrences via une fenêtre de
+// rétention de 14 ou 21 jours après la date de FIN de chaque absence
+// (voir computeAbsenceActiveMapLocal), signalement transmis à Pillbox
+// pour décision humaine (jamais automatique).
 // ═══════════════════════════════════════════════════════════════════
 const ABSENCES_CLOUD_URL_BASE = "/.netlify/functions/absences-actions";
 let absencesCache = {}; // { [id]: {employeeKey, name, grade, startIso, endIso, durationDays, priseEnCompte, createdAt} }
@@ -5692,30 +5694,38 @@ function renderAbsencesTab(){
   // dans Pillbox au moment des paies (section 17 : décision humaine,
   // jamais automatique).
   const signalements = computeSignalementsLocal(absencesCache);
+  const {activeIds: absenceActiveIds, countByEmployee: absenceActiveCounts} = computeAbsenceActiveMapLocal(absencesCache);
   alertsBox.innerHTML = signalements.length ? `<div class="hint" style="border-color:var(--amber);display:flex;flex-direction:column;gap:4px;">
-    ${signalements.map(s=>`<div>⚠ <b>${esc(s.name)}</b> : ${s.absences.length} absences prises en compte sur les 30 derniers jours — transmis à Pillbox pour décision au moment des paies.</div>`).join("")}
+    ${signalements.map(s=>`<div>⚠ <b>${esc(s.name)}</b> : ${s.absences.length} absences encore actives (dans leur fenêtre de rétention de 14 ou 21 jours) — transmis à Pillbox pour décision au moment des paies.</div>`).join("")}
   </div>` : "";
 
   box.innerHTML = groupOrder.length ? groupOrder.map(key=>{
     const g = groups[key];
-    const periodsHtml = g.periods.map(([id,a])=>`
-      <div class="special-row" style="grid-template-columns:minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.5fr) auto;padding-left:18px;border-left:2px solid var(--border);">
+    const periodsHtml = g.periods.map(([id,a])=>{
+      const isActive = absenceActiveIds.has(id);
+      const statusBadge = !a.priseEnCompte ? `<span style="font-size:0.68rem;color:var(--text-faint);">exemptée</span>`
+        : isActive ? `<span style="font-size:0.68rem;font-weight:700;color:var(--amber);">● compte actuellement</span>`
+        : `<span style="font-size:0.68rem;color:var(--text-faint);">sortie du suivi (historique)</span>`;
+      return `
+      <div class="special-row" style="grid-template-columns:minmax(110px,.8fr) minmax(110px,.8fr) minmax(70px,.5fr) minmax(140px,.8fr) auto;padding-left:18px;border-left:2px solid var(--border);">
         <span class="special-id">${esc(a.startIso)}</span>
         <span class="special-id">→ ${esc(a.endIso)}</span>
         <span style="color:var(--text-dim);">${a.durationDays||"?"} j</span>
+        ${statusBadge}
         <span style="display:flex;align-items:center;gap:8px;">
           <span style="font-weight:700;color:${a.priseEnCompte?'var(--green)':'var(--text-faint)'};">${a.priseEnCompte?'OUI':'NON'}</span>
           ${canManage ? `<button class="btn-ghost btn-small" data-toggle-pec="${esc(id)}" data-current="${a.priseEnCompte?'1':'0'}">${a.priseEnCompte?'Passer à NON':'Passer à OUI'}</button>
           <button class="btn-danger btn-small" data-delete-absence="${esc(id)}" title="À réserver aux erreurs de donnée (mauvaise date, doublon...) — pour exempter une vraie absence, utilise plutôt Prise en compte : NON, qui garde l'historique.">🗑 Supprimer</button>` : ""}
         </span>
       </div>
-    `).join("");
+    `;}).join("");
+    const activeCount = absenceActiveCounts[key] || 0;
     return `
     <div class="absence-group" style="margin-bottom:10px;">
       <div class="special-row" style="grid-template-columns:minmax(150px,1.3fr) minmax(90px,.6fr) auto;background:var(--panel-2);border-radius:8px 8px 0 0;">
         <span><b>${esc(g.name)}</b></span>
         <span style="color:var(--text-dim);">${esc(g.grade||"—")}</span>
-        <span style="font-weight:700;color:${g.periods.length>=3?'var(--red)':g.periods.length===2?'var(--amber)':'var(--text-dim)'};">${g.periods.length} absence${g.periods.length>1?"s":""}</span>
+        <span style="font-weight:700;color:${activeCount>=5?'var(--red)':activeCount>=3?'var(--amber)':'var(--text-dim)'};" title="Nombre d'absences encore actives (hors historique) — le signalement se déclenche à 5.">${activeCount} active${activeCount>1?"s":""} / ${g.periods.length} au total</span>
       </div>
       ${periodsHtml}
     </div>`;
@@ -5783,7 +5793,12 @@ const ABSENCE_RETENTION_SPLIT_COUNT_LOCAL = 3;
 const ABSENCE_RETENTION_LOW_LOCAL = 14;
 const ABSENCE_RETENTION_HIGH_LOCAL = 21;
 const ABSENCE_SIGNALEMENT_THRESHOLD_LOCAL = 5;
-function computeSignalementsLocal(absencesObj){
+// (01/11) Un seul calcul partagé par employeeKey, réutilisé à la fois
+// par computeSignalementsLocal (seuil global) ET par l'affichage par
+// personne/par absence (renderAbsencesTab) — jamais deux logiques
+// différentes qui pourraient se désaccorder entre elles. Pour chaque
+// absence admissible, renvoie si elle compte ENCORE aujourd'hui.
+function computeAbsenceActiveMapLocal(absencesObj){
   const ref = new Date();
   const refMs = ref.getTime();
   const byEmployee = {};
@@ -5794,7 +5809,8 @@ function computeSignalementsLocal(absencesObj){
     const key = a.employeeKey;
     (byEmployee[key] = byEmployee[key] || {employeeKey:key, name:a.name, grade:a.grade, list:[]}).list.push({id, endIso:a.endIso, startIso:a.startIso, durationDays:a.durationDays});
   });
-  const result = [];
+  const activeIds = new Set();
+  const countByEmployee = {};
   Object.values(byEmployee).forEach(emp=>{
     const retention = emp.list.length >= ABSENCE_RETENTION_SPLIT_COUNT_LOCAL ? ABSENCE_RETENTION_HIGH_LOCAL : ABSENCE_RETENTION_LOW_LOCAL;
     const active = emp.list.filter(a=>{
@@ -5802,11 +5818,20 @@ function computeSignalementsLocal(absencesObj){
       if(Number.isNaN(end)) return false;
       return (refMs - end) < retention*86400000;
     });
-    if(active.length >= ABSENCE_SIGNALEMENT_THRESHOLD_LOCAL){
-      result.push({employeeKey:emp.employeeKey, name:emp.name, grade:emp.grade, absences:active.map(a=>({id:a.id}))});
-    }
+    active.forEach(a=>activeIds.add(a.id));
+    countByEmployee[emp.employeeKey] = active.length;
   });
-  return result;
+  return {activeIds, countByEmployee};
+}
+function computeSignalementsLocal(absencesObj){
+  const {activeIds, countByEmployee} = computeAbsenceActiveMapLocal(absencesObj);
+  const byEmployee = {};
+  Object.entries(absencesObj||{}).forEach(([id,a])=>{
+    if(!activeIds.has(id)) return;
+    const key = a.employeeKey;
+    (byEmployee[key] = byEmployee[key] || {employeeKey:key, name:a.name, grade:a.grade, absences:[]}).absences.push({id});
+  });
+  return Object.values(byEmployee).filter(e=>(countByEmployee[e.employeeKey]||0) >= ABSENCE_SIGNALEMENT_THRESHOLD_LOCAL);
 }
 
 document.getElementById("absencesSearch").addEventListener("input", renderAbsencesTab);
