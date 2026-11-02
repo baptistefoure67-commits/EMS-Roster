@@ -85,6 +85,24 @@ exports.handler = async function (event) {
       const current = await currentRes.json();
       const currentSavedAt = current?.savedAt ?? null;
       if (currentSavedAt !== expectedSavedAt) return json(409, { error: "Le Roster a été modifié par une autre session. Relance Sauvegarder pour revoir les changements." });
+      // (01/11, corrigé) editEmployee refuse déjà un changement de grade
+      // à un ADD/CD (réservé D+), mais ce bouton (sauvegarde groupée,
+      // utilisé après un collage du tableau EMS) ne revérifiait RIEN :
+      // un ADD/CD pouvait donc faire exactement le même changement de
+      // grade interdit juste en passant par "Sauvegarder" au lieu de
+      // "Modifier" — un vrai trou qui annulait la restriction. Même
+      // règle ici désormais, comparée à la DERNIÈRE version réellement
+      // enregistrée (jamais à l'état local, qui peut avoir été manipulé).
+      if (!isDPlus(session.level)) {
+        const previousById = new Map((Array.isArray(current?.employees) ? current.employees : []).map(e => [String(e.id), e]));
+        const changedGrades = incoming
+          .map(e => ({ id: String(e.id), name: e.name, before: previousById.get(String(e.id))?.grade, after: e.grade }))
+          .filter(e => e.before !== undefined && e.before !== e.after);
+        if (changedGrades.length) {
+          const detail = changedGrades.slice(0, 5).map(c => `${c.name} (${c.before} → ${c.after})`).join(" ; ");
+          return json(403, { error: `Permission refusée (${session.level}) — le changement de grade est réservé à D et au-dessus, même via la sauvegarde groupée : ${detail}. Corrige le grade concerné (laisse-le identique) ou fais confirmer la sauvegarde par un D+.` });
+        }
+      }
       const validation = validateEmployees(incoming);
       if (validation.length) return json(422, { error: `Impossible d'enregistrer : ${validation.length} fiche(s) invalide(s) — ${validation.slice(0,5).join(" ; ")}` });
       const savedAt = Date.now();
