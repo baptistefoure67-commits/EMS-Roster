@@ -974,6 +974,14 @@
     "rosterLogsHiddenTrace": {
       ".read": "auth != null && auth.token.server == true",
       ".write": "auth != null && auth.token.server == true"
+    },
+    "gainTrolls": {
+      ".read": "auth != null && auth.token.gainTrollService == true",
+      ".write": "auth != null && auth.token.gainTrollService == true"
+    },
+    "gainTrollMedia": {
+      ".read": "auth != null && auth.token.gainTrollService == true",
+      ".write": "auth != null && auth.token.gainTrollService == true"
     }
   }
 }
