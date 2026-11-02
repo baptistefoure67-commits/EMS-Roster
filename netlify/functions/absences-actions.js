@@ -64,29 +64,108 @@ function absenceKey(employeeKey, startIso, endIso){
 // fonctions de calcul de cette section.
 const MC_AND_ABOVE = new Set(["MC","ADD","CD","D","DG"]);
 
-// Détection du signalement générique (section 8 d'origine, inchangée) :
-// 3 absences PRISES EN COMPTE (priseEnCompte=true) dont la date de FIN
-// tombe dans les 30 derniers jours glissants par rapport à refDate (pas
-// un mois civil). Groupe par employeeKey ; une absence très longue
-// (14j, 20j...) ne compte toujours que pour UNE puisqu'elle n'a qu'une
-// seule clé. S'applique de A jusqu'à MC exclu (section 2.3 : MC et
-// au-dessus exemptés) — les STG suivent leur propre règle séparée
-// (computeStgAbsenceSignalements), jamais celle-ci à la fois.
-// Exporté pour être réutilisé tel quel par pillbox-proxy.js, sans
-// dupliquer cette règle ailleurs.
-function computeAbsenceSignalements(absencesObj, refDate){
+// (01/11, remplace la fenêtre glissante de 30 jours) Seuil de
+// déclenchement du suivi générique : désormais 5 absences ACTIVES (pas
+// 3), et "active" ne dépend plus d'une fenêtre fixe de 30 jours mais
+// d'une durée de rétention qui grandit avec le nombre d'absences déjà
+// enregistrées pour la personne (voir getAbsenceRetentionDays). La
+// règle des >3 jours pour qu'une absence soit admissible reste
+// inchangée (déjà appliquée en amont, à l'ingestion — voir
+// extractQualifyingAbsences côté Roster, jamais ici).
+const SIGNALEMENT_THRESHOLD = 5;
+// 1 ou 2 absences actives -> 14 jours de rétention après leur fin ;
+// 3 absences actives ou plus -> 21 jours. Le palier bascule TOUTES les
+// absences de la personne au nouveau délai, pas seulement les
+// nouvelles (section 4 du cahier des charges).
+const RETENTION_SPLIT_COUNT = 3;
+const RETENTION_DAYS_LOW = 14;
+const RETENTION_DAYS_HIGH = 21;
+function getAbsenceRetentionDays(activeCount){
+  return activeCount >= RETENTION_SPLIT_COUNT ? RETENTION_DAYS_HIGH : RETENTION_DAYS_LOW;
+}
+
+// Admissibilité au système de suivi : prise en compte (OUI), jamais
+// STG (règle séparée, computeStgAbsenceSignalements) ni MC et
+// au-dessus (exemptés, section 2.3 d'origine, inchangée). La durée
+// réelle (>3 jours) est déjà garantie par extractQualifyingAbsences
+// côté client — revérifiée ici en toute sécurité au cas où une entrée
+// serait un jour insérée par un autre chemin.
+function isAbsenceEligible(a){
+  return !!a && a.priseEnCompte === true && a.grade !== "STG" && !MC_AND_ABOVE.has(a.grade) && Number(a.durationDays || 0) > 3;
+}
+function isAbsenceExpired(a, retentionDays, refMs){
+  const end = new Date(`${a.endIso}T00:00:00Z`).getTime();
+  if (Number.isNaN(end)) return true; // date de fin illisible -> ne compte jamais, par prudence
+  return (refMs - end) >= retentionDays * 86400000;
+}
+
+// (01/11) Centralise le calcul des absences "actives" (encore dans leur
+// fenêtre de rétention) par employé — un seul endroit, réutilisé par
+// isCountedAbsence/computeAbsenceSignalements/l'API, jamais recalculé
+// différemment ailleurs (section 8 du cahier des charges : "ne pas
+// multiplier plusieurs systèmes concurrents").
+//
+// Le palier (14 ou 21 jours) se choisit UNE SEULE FOIS par employé, à
+// partir du nombre d'absences actuellement ENREGISTRÉES et admissibles
+// (pas d'un recalcul en boucle sur le résultat déjà filtré) — c'est
+// l'exemple du cahier des charges (section 7) qui fixe cette lecture :
+// "il n'a que deux absences actives [...] donc absence 1 expire le
+// 20/11" est une simple affirmation sur le nombre d'absences au
+// dossier, pas un calcul itératif. Un recalcul en boucle ferait
+// disparaître en cascade des absences qui doivent rester actives dès
+// qu'une seule d'entre elles franchit sa propre échéance.
+function getActiveAbsences(absencesObj, refDate){
   const ref = refDate || new Date();
-  const windowStart = new Date(ref.getTime() - 30*24*60*60*1000);
+  const refMs = ref.getTime();
   const byEmployee = {};
   Object.entries(absencesObj || {}).forEach(([id, a]) => {
-    if (!a || a.priseEnCompte !== true) return;
-    if (a.grade === "STG" || MC_AND_ABOVE.has(a.grade)) return;
-    const end = new Date(a.endIso);
-    if (isNaN(end.getTime()) || end < windowStart || end > ref) return;
-    const key = a.employeeKey;
-    (byEmployee[key] = byEmployee[key] || { employeeKey: key, name: a.name, grade: a.grade, absences: [] }).absences.push({ id, startIso: a.startIso, endIso: a.endIso, durationDays: a.durationDays });
+    if (!isAbsenceEligible(a)) return;
+    (byEmployee[a.employeeKey] = byEmployee[a.employeeKey] || []).push({ id, ...a });
   });
-  return Object.values(byEmployee).filter(e => e.absences.length >= 3);
+  const result = {};
+  Object.entries(byEmployee).forEach(([key, list]) => {
+    const retention = getAbsenceRetentionDays(list.length);
+    result[key] = list.filter(a => !isAbsenceExpired(a, retention, refMs));
+  });
+  return result;
+}
+
+// Une absence précise compte-t-elle ENCORE pour le suivi en ce moment
+// (admissible + toujours dans sa fenêtre de rétention) ? Réutilise
+// getActiveAbsences pour ne jamais recalculer la logique de rétention
+// différemment. Ne dit RIEN sur l'historique Firebase : une absence
+// expirée reste lisible, elle ne compte simplement plus ici (section 6).
+function isCountedAbsence(absencesObj, absenceId, refDate){
+  const a = (absencesObj || {})[absenceId];
+  if (!a) return false;
+  const activeMap = getActiveAbsences(absencesObj, refDate);
+  return (activeMap[a.employeeKey] || []).some(x => x.id === absenceId);
+}
+
+// Point d'entrée unique pour l'API : calcule en un seul passage les
+// absences actives par employé ET les signalements à déclencher,
+// toujours à partir de la même donnée de référence (section 8).
+function updateAbsenceFollowUp(absencesObj, refDate){
+  const activeMap = getActiveAbsences(absencesObj, refDate);
+  const activeCounts = {};
+  Object.entries(activeMap).forEach(([k, list]) => { activeCounts[k] = list.length; });
+  return { activeMap, activeCounts, signalements: computeAbsenceSignalements(absencesObj, refDate) };
+}
+
+// Détection du signalement générique : SIGNALEMENT_THRESHOLD (5)
+// absences ACTIVES (voir getActiveAbsences) pour la même personne,
+// peu importe leur étalement dans le temps tant qu'elles restent dans
+// leur fenêtre de rétention respective. Exporté pour être réutilisé
+// tel quel par pillbox-proxy.js, sans dupliquer cette règle ailleurs.
+function computeAbsenceSignalements(absencesObj, refDate){
+  const activeMap = getActiveAbsences(absencesObj, refDate);
+  const result = [];
+  Object.entries(activeMap).forEach(([key, list]) => {
+    if (list.length < SIGNALEMENT_THRESHOLD) return;
+    const first = list[0];
+    result.push({ employeeKey: key, name: first.name, grade: first.grade, absences: list.map(a => ({ id: a.id, startIso: a.startIso, endIso: a.endIso, durationDays: a.durationDays })) });
+  });
+  return result;
 }
 
 // (13/10, section 2.6) Règle spéciale STG : DEUX absences DISTINCTES
@@ -183,27 +262,23 @@ function attachAlertDecisions(groups, type, decisionsStore){
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
 
-// (10/10, demandé) Suppression automatique des absences anciennes, et
-// des WDV (statut déjà connu/attendu, jamais un cas à faire remonter).
-// Le point de départ des 3 semaines dépend de la durée : absence de 10
-// jours ou moins -> compté depuis son DÉBUT (startIso) ; plus de 10
-// jours -> compté depuis sa FIN (endIso). Appelée à chaque lecture
-// (GET), pour que le nettoyage se fasse tout seul, sans action
-// manuelle de qui que ce soit.
-const AUTO_DELETE_DAYS = 21;
+// (01/11, corrigé) Avant : tout ce qui dépassait AUTO_DELETE_DAYS (21j)
+// était effacé de Firebase pour de bon — ça détruisait l'historique
+// complet des absences, pas seulement leur comptage (contraire à la
+// section 6 du cahier des charges : "je ne demande pas forcément de
+// supprimer l'historique Firebase"). Une absence qui sort de sa
+// fenêtre de rétention (14 ou 21 jours, voir getAbsenceRetentionDays)
+// ne compte simplement plus — elle reste lisible ici tant que
+// personne ne la supprime à la main (action "delete", réservée aux
+// erreurs de donnée) ou que la personne n'est plus dans le Roster/est
+// passée WDV (seuls cas nettoyés automatiquement, inchangé).
 function findExpiredAbsenceIds(all){
-  const now = Date.now();
   const expired = [];
   for(const [id, a] of Object.entries(all || {})){
     if(a.grade === "WDV"){ expired.push(id); continue; }
     // (19/10, demandé) Nettoie aussi les entrées MC et au-dessus déjà
     // enregistrées avant ce changement — plus prises en compte du tout.
     if(MC_AND_ABOVE.has(a.grade)){ expired.push(id); continue; }
-    const refIso = (a.durationDays || 0) > 10 ? a.endIso : a.startIso;
-    if(!refIso) continue;
-    const refMs = new Date(`${refIso}T00:00:00Z`).getTime();
-    if(Number.isNaN(refMs)) continue;
-    if(now - refMs >= AUTO_DELETE_DAYS * 86400000) expired.push(id);
   }
   return expired;
 }
@@ -272,9 +347,16 @@ exports.handler = async function (event) {
         const decRes = await fetch(`${ABSENCE_ALERT_DECISIONS_URL}?auth=${idToken}`);
         decisions = decRes.ok ? ((await decRes.json()) || {}) : {};
       }catch(e){ /* absence de décisions persistées -> tout redemandé, jamais bloquant */ }
+      // (01/11) Un seul calcul de référence (updateAbsenceFollowUp),
+      // réutilisé pour le seuil générique ET pour dire au client quelles
+      // absences comptent encore ("activeCounts") — jamais recalculé
+      // séparément côté client, pour que l'affichage et la vraie règle
+      // de déclenchement restent toujours d'accord entre eux.
+      const followUp = updateAbsenceFollowUp(all);
       return json(200, {
         absences: all || {},
-        signalements: computeAbsenceSignalements(all),
+        activeCounts: followUp.activeCounts,
+        signalements: followUp.signalements,
         stgSignalements: attachAlertDecisions(computeStgAbsenceSignalements(all), "stg2sem", decisions),
         longAbsenceSignalements: attachAlertDecisions(computeLongAbsenceSignalements(all), "long67j", decisions),
       });
@@ -476,3 +558,13 @@ module.exports.absenceAlertKey = absenceAlertKey;
 module.exports.absenceKey = absenceKey;
 module.exports.pruneExpiredAbsences = pruneExpiredAbsences;
 module.exports.MC_AND_ABOVE = MC_AND_ABOVE;
+module.exports.isAbsenceEligible = isAbsenceEligible;
+module.exports.isAbsenceExpired = isAbsenceExpired;
+module.exports.getAbsenceRetentionDays = getAbsenceRetentionDays;
+module.exports.getActiveAbsences = getActiveAbsences;
+module.exports.isCountedAbsence = isCountedAbsence;
+module.exports.updateAbsenceFollowUp = updateAbsenceFollowUp;
+module.exports.SIGNALEMENT_THRESHOLD = SIGNALEMENT_THRESHOLD;
+module.exports.RETENTION_DAYS_LOW = RETENTION_DAYS_LOW;
+module.exports.RETENTION_DAYS_HIGH = RETENTION_DAYS_HIGH;
+module.exports.RETENTION_SPLIT_COUNT = RETENTION_SPLIT_COUNT;
