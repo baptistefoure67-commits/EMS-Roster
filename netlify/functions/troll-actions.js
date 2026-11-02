@@ -33,8 +33,13 @@ const { logAction } = require("./logs");
 
 const BASE = "https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app";
 const CHUNK_BYTES = 3 * 1024 * 1024;
+// (01/11, demandé) GIF ajouté directement dans le créneau "image" —
+// jamais un cinquième champ séparé : une <img> affiche déjà un GIF
+// animé exactement comme un PNG/JPG, la distinction n'existe que pour
+// la validation (type MIME + signature réelle du fichier). Limite
+// relevée à 8 Mo (un GIF anime pèse souvent plus qu'une image fixe).
 const LIMITS = {
-  image: { maxBytes: 5 * 1024 * 1024, mimes: ["image/png", "image/jpeg", "image/webp"] },
+  image: { maxBytes: 8 * 1024 * 1024, mimes: ["image/png", "image/jpeg", "image/webp", "image/gif"] },
   audio: { maxBytes: 7 * 1024 * 1024, mimes: ["audio/mpeg", "audio/mp3"] },
 };
 const EXPIRY_MS = 7 * 24 * 3600 * 1000;
@@ -115,6 +120,7 @@ function magicOk(kind, mime, firstBytes){
     if (mime === "image/png") return hex === "89504e47";
     if (mime === "image/jpeg") return hex.startsWith("ffd8ff");
     if (mime === "image/webp") return b.slice(0,4).toString() === "RIFF" && b.slice(8,12).toString() === "WEBP";
+    if (mime === "image/gif") return b.slice(0,6).toString() === "GIF87a" || b.slice(0,6).toString() === "GIF89a";
     return false;
   }
   return b.slice(0,3).toString() === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0); // en-tête ID3 ou trame MPEG
@@ -248,7 +254,7 @@ exports.handler = async function (event) {
       const { kind, uploadId, mime } = body; const index = Number(body.index), total = Number(body.total), size = Number(body.size);
       const lim = LIMITS[kind];
       if (!id || !lim || !/^[a-z0-9]{6,20}$/.test(String(uploadId||""))) return json(400, { error: "Paramètres invalides." });
-      if (!lim.mimes.includes(mime)) return json(400, { error: kind === "image" ? "Format refusé : PNG, JPG, JPEG ou WEBP uniquement." : "Format refusé : MP3 uniquement." });
+      if (!lim.mimes.includes(mime)) return json(400, { error: kind === "image" ? "Format refusé : PNG, JPG, JPEG, WEBP ou GIF uniquement." : "Format refusé : MP3 uniquement." });
       if (!(size > 0) || size > lim.maxBytes) return json(400, { error: `Fichier trop volumineux (max ${lim.maxBytes/1024/1024} Mo).` });
       const expectedTotal = Math.ceil(size / CHUNK_BYTES);
       if (total !== expectedTotal || !(index >= 0 && index < total)) return json(400, { error: "Découpage incohérent." });
