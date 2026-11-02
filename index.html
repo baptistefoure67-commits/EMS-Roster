@@ -2593,9 +2593,9 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
           <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="trollAppPillbox"> Pillbox (Terminal Paie)</label>
         </div>
         <label style="font-size:0.82rem;">💬 Phrase (facultative)<textarea id="trollText" maxlength="500" rows="3" placeholder="Le message exact à afficher" style="width:100%;margin-top:4px;"></textarea><span id="trollTextCount" class="sub" style="font-size:0.72rem;">0 / 500</span></label>
-        <div style="font-size:0.82rem;">🖼️ Image (facultative — PNG, JPG, JPEG, WEBP, 5 Mo max)
+        <div style="font-size:0.82rem;">🖼️ Image ou GIF animé (facultatif — PNG, JPG, JPEG, WEBP, GIF, 8 Mo max)
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;">
-            <input type="file" id="trollImageInput" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+            <input type="file" id="trollImageInput" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif">
             <button type="button" class="btn-ghost btn-small" id="trollImageRemove" style="display:none;">Retirer l'image</button>
           </div>
           <div id="trollImageInfo" class="sub" style="font-size:0.75rem;margin-top:4px;">Aucune image</div>
@@ -5772,18 +5772,41 @@ function renderAbsencesTab(){
 // — dupliquée ici volontairement en miroir pour un affichage immédiat côté
 // Roster sans aller-retour serveur supplémentaire ; le serveur reste la
 // source de vérité pour ce que Pillbox reçoit réellement.
+// (01/11) Seuil générique passé à 5 absences ACTIVES, fin de la
+// fenêtre fixe de 30 jours : la rétention dépend maintenant du nombre
+// d'absences admissibles enregistrées pour la personne (14 jours pour
+// 1-2, 21 jours pour 3 et plus), calculée UNE SEULE FOIS par employé
+// (jamais recalculée en boucle sur le résultat déjà filtré — voir le
+// commentaire de getActiveAbsences côté serveur pour pourquoi). Garde
+// les mêmes exclusions que le serveur (STG, MC et au-dessus).
+const ABSENCE_RETENTION_SPLIT_COUNT_LOCAL = 3;
+const ABSENCE_RETENTION_LOW_LOCAL = 14;
+const ABSENCE_RETENTION_HIGH_LOCAL = 21;
+const ABSENCE_SIGNALEMENT_THRESHOLD_LOCAL = 5;
 function computeSignalementsLocal(absencesObj){
   const ref = new Date();
-  const windowStart = new Date(ref.getTime() - 30*24*60*60*1000);
+  const refMs = ref.getTime();
   const byEmployee = {};
   Object.entries(absencesObj||{}).forEach(([id,a])=>{
     if(!a || a.priseEnCompte !== true) return;
-    const end = new Date(a.endIso);
-    if(isNaN(end.getTime()) || end < windowStart || end > ref) return;
+    if(a.grade === "STG" || ["MC","ADD","CD","D","DG"].includes(a.grade)) return;
+    if(!(Number(a.durationDays||0) > 3)) return;
     const key = a.employeeKey;
-    (byEmployee[key] = byEmployee[key] || {employeeKey:key, name:a.name, absences:[]}).absences.push({id});
+    (byEmployee[key] = byEmployee[key] || {employeeKey:key, name:a.name, grade:a.grade, list:[]}).list.push({id, endIso:a.endIso, startIso:a.startIso, durationDays:a.durationDays});
   });
-  return Object.values(byEmployee).filter(e=>e.absences.length>=3);
+  const result = [];
+  Object.values(byEmployee).forEach(emp=>{
+    const retention = emp.list.length >= ABSENCE_RETENTION_SPLIT_COUNT_LOCAL ? ABSENCE_RETENTION_HIGH_LOCAL : ABSENCE_RETENTION_LOW_LOCAL;
+    const active = emp.list.filter(a=>{
+      const end = new Date(`${a.endIso}T00:00:00Z`).getTime();
+      if(Number.isNaN(end)) return false;
+      return (refMs - end) < retention*86400000;
+    });
+    if(active.length >= ABSENCE_SIGNALEMENT_THRESHOLD_LOCAL){
+      result.push({employeeKey:emp.employeeKey, name:emp.name, grade:emp.grade, absences:active.map(a=>({id:a.id}))});
+    }
+  });
+  return result;
 }
 
 document.getElementById("absencesSearch").addEventListener("input", renderAbsencesTab);
@@ -8400,10 +8423,24 @@ async function trollCall(body){
   if(!res.ok){ const e = new Error(data.error || String(res.status)); e.status = res.status; e.data = data; throw e; }
   return data;
 }
+// (01/11, corrigé) Avant : un seul essai par morceau, aucune trace en
+// cas d'échec — c'est précisément ce qui causait "le son marche, pas
+// l'image" (un raté réseau sur l'image ne laissait rien voir, pendant
+// que le son, récupéré séparément, continuait de fonctionner). Vraies
+// nouvelles tentatives ici, erreur réellement relancée (plus jamais
+// avalée en silence) si tout échoue malgré tout.
+async function trollFetchChunkWithRetry(id, kind, index, attempts=3){
+  let lastErr=null;
+  for(let i=0;i<attempts;i++){
+    try{ return await trollCall({ action:"mediaChunk", id, kind, index }); }
+    catch(err){ lastErr=err; if(i<attempts-1) await new Promise(r=>setTimeout(r,300*(i+1))); }
+  }
+  throw lastErr || new Error("morceau introuvable");
+}
 async function trollFetchMedia(id, meta, kind){
   const parts = [];
   for(let i=0; i<meta.chunks; i++){
-    const d = await trollCall({ action:"mediaChunk", id, kind, index:i });
+    const d = await trollFetchChunkWithRetry(id, kind, i);
     const bin = atob(d.data); const arr = new Uint8Array(bin.length);
     for(let k=0; k<bin.length; k++) arr[k] = bin.charCodeAt(k);
     parts.push(arr);
@@ -8496,9 +8533,18 @@ async function trollCheckPending(app){
       // phrase), on ne réserve pas — la blague reste en attente au lieu
       // d'être perdue. Réservation ensuite : si elle échoue (déjà jouée
       // dans un autre onglet, annulée entre-temps…), rien n'est affiché.
-      let imageUrl = null, audioUrl = null;
-      try{ if(p.image) imageUrl = await trollFetchMedia(p.id, p.image, "image"); }catch(e){}
-      try{ if(p.audio) audioUrl = await trollFetchMedia(p.id, p.audio, "audio"); }catch(e){}
+      // (01/11, corrigé) Image et son récupérés en PARALLÈLE (jamais plus
+      // l'un après l'autre) — un échec sur l'un n'attend plus, ni ne
+      // retarde, l'autre ; et l'échec est maintenant tracé (console.error),
+      // plus jamais un catch() vide qui perd l'image en silence.
+      const [imgRes, audRes] = await Promise.allSettled([
+        p.image ? trollFetchMedia(p.id, p.image, "image") : Promise.resolve(null),
+        p.audio ? trollFetchMedia(p.id, p.audio, "audio") : Promise.resolve(null),
+      ]);
+      const imageUrl = imgRes.status==="fulfilled" ? imgRes.value : null;
+      const audioUrl = audRes.status==="fulfilled" ? audRes.value : null;
+      if(imgRes.status==="rejected") console.error("[Troll] image non récupérée (continue quand même) :", imgRes.reason);
+      if(audRes.status==="rejected") console.error("[Troll] son non récupéré (continue quand même) :", audRes.reason);
       if(!p.text && !imageUrl && !audioUrl) continue;
       let joke = null;
       try{ joke = (await trollCall({ action:"claim", id:p.id, app })).joke; }catch(e){ continue; }
@@ -8513,7 +8559,9 @@ async function trollCheckPending(app){
 // ═══════════════════════════════════════════════════════════════════
 const TROLL_CHUNK = 3 * 1024 * 1024;
 const TROLL_LIMITS = {
-  image: { max: 5*1024*1024, mimes: ["image/png","image/jpeg","image/webp"], exts: [".png",".jpg",".jpeg",".webp"] },
+  // (01/11, demandé) GIF ajouté dans le créneau "image" — une <img>
+  // affiche déjà un GIF animé normalement, pas besoin d'un champ séparé.
+  image: { max: 8*1024*1024, mimes: ["image/png","image/jpeg","image/webp","image/gif"], exts: [".png",".jpg",".jpeg",".webp",".gif"] },
   audio: { max: 7*1024*1024, mimes: ["audio/mpeg","audio/mp3"], exts: [".mp3"] },
 };
 let trollJokesCache = [];
@@ -8530,7 +8578,7 @@ function trollBadge(st){
 }
 function trollValidateFile(kind, file){
   const L = TROLL_LIMITS[kind], name = (file.name||"").toLowerCase();
-  if(!L.exts.some(x=>name.endsWith(x)) || (file.type && !L.mimes.includes(file.type))) return kind==="image" ? "Format refusé : PNG, JPG, JPEG ou WEBP uniquement." : "Format refusé : MP3 uniquement.";
+  if(!L.exts.some(x=>name.endsWith(x)) || (file.type && !L.mimes.includes(file.type))) return kind==="image" ? "Format refusé : PNG, JPG, JPEG, WEBP ou GIF uniquement." : "Format refusé : MP3 uniquement.";
   if(!file.size) return "Fichier vide.";
   if(file.size > L.max) return `Fichier trop volumineux (${trollMb(file.size)}, max ${L.max/1048576} Mo).`;
   return null;
@@ -8538,7 +8586,7 @@ function trollValidateFile(kind, file){
 function trollMimeOf(kind, file){
   if(file.type && TROLL_LIMITS[kind].mimes.includes(file.type)) return file.type;
   if(kind==="audio") return "audio/mpeg";
-  return { png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg", webp:"image/webp" }[(file.name.split(".").pop()||"").toLowerCase()];
+  return { png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg", webp:"image/webp", gif:"image/gif" }[(file.name.split(".").pop()||"").toLowerCase()];
 }
 function trollPopulateTargets(keepId){
   const q = (document.getElementById("trollTargetSearch").value||"").trim().toLowerCase();
