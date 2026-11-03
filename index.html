@@ -7,6 +7,24 @@
 <title>Roster EMS — LS City RP</title>
 <style>
   :root{
+    /* (01/11) Hiérarchie centralisée des fenêtres/overlays du Roster —
+       un seul endroit à modifier, plus de valeurs éparpillées (avant :
+       50, 60, 90, 400, 10000, 12050, et même 2147483000+ par endroits,
+       un vrai hasard). Du plus bas au plus haut : le petit message de
+       confirmation (toast), les fenêtres de réglages/consultation, les
+       indicateurs d'opération en cours, la fenêtre de vérification
+       avant sauvegarde (doit rester au-dessus de tout le reste y
+       compris d'une autre fenêtre encore ouverte), et enfin l'overlay
+       d'animation de sauvegarde/synchro (bloquant, ne doit jamais être
+       caché par quoi que ce soit). Les variables Troll (déjà très
+       hautes, 2147483000+) ne sont volontairement pas touchées ici —
+       hors sujet de ce correctif.
+    */
+    --z-roster-toast: 9000;
+    --z-roster-modal-base: 9100;
+    --z-roster-operation-overlay: 9200;
+    --z-roster-save-review: 9300;
+    --z-roster-liaison-overlay: 9400;
     --bg-0:#0b1220;
     --bg-1:#0f1b2e;
     --panel:#101c30;
@@ -546,12 +564,12 @@
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
     background:var(--panel); border:1px solid var(--theme-primary-bright); color:var(--text);
     padding:10px 18px; border-radius:9px; font-size:0.82rem; opacity:0; pointer-events:none;
-    transition:opacity .2s ease, transform .2s ease; z-index:50;
+    transition:opacity .2s ease, transform .2s ease; z-index:var(--z-roster-toast);
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
 
   /* Synchronisation Roster → Pillbox */
-  .sync-overlay{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(3,8,18,.78);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);}
+  .sync-overlay{position:fixed;inset:0;z-index:var(--z-roster-operation-overlay);display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + 10vh);background:rgba(3,8,18,.78);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);}
   .sync-overlay[hidden]{display:none!important;}
   .sync-dialog{width:min(440px,100%);padding:28px 24px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(155deg,var(--panel),var(--panel-2));box-shadow:0 24px 90px rgba(0,0,0,.48);text-align:center;color:var(--text);}
   .sync-title{font-size:1.05rem;font-weight:750;letter-spacing:.01em;margin-bottom:8px;}
@@ -574,7 +592,7 @@
   @media(prefers-reduced-motion:reduce){.sync-dot,.sync-progress-bar{animation:none!important}.sync-progress-bar{width:45%;transform:none;}}
 
   /* Modale commune à la sauvegarde réelle et à la transition de navigation. */
-  .operation-overlay{position:fixed;inset:0;z-index:2147483002;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,8,18,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  .operation-overlay{position:fixed;inset:0;z-index:var(--z-roster-operation-overlay);display:flex;align-items:center;justify-content:center;padding:18px;padding-top:calc(18px + 10vh);background:rgba(3,8,18,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   .operation-overlay[hidden]{display:none!important;}
   .operation-dialog{width:min(460px,100%);padding:clamp(22px,5vw,30px);border:1px solid var(--border);border-radius:18px;background:linear-gradient(155deg,var(--panel),var(--panel-2));box-shadow:0 24px 90px rgba(0,0,0,.55);text-align:center;color:var(--text);outline:none;}
   .operation-title{font-size:1.05rem;font-weight:800;letter-spacing:.01em;margin:0 0 8px;}
@@ -613,7 +631,7 @@
      ligne de vie. Toujours "passable", toujours désactivable (bouton
      dédié + prefers-reduced-motion), jamais plus de 5s.
      ═══════════════════════════════════════════════════════════════ */
-  .liaison-overlay{position:fixed;inset:0;z-index:2147483003;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(1200px 800px at 50% 20%, rgba(37,99,235,.14), rgba(3,8,18,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+  .liaison-overlay{position:fixed;inset:0;z-index:var(--z-roster-liaison-overlay);display:flex;align-items:center;justify-content:center;padding:18px;padding-top:calc(18px + 10vh);background:radial-gradient(1200px 800px at 50% 20%, rgba(37,99,235,.14), rgba(3,8,18,.92));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
   .liaison-overlay[hidden]{display:none!important;}
   .liaison-dialog{position:relative;width:min(420px,100%);padding:30px 26px 26px;border:1px solid var(--border);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--panel-2));box-shadow:0 30px 100px rgba(0,0,0,.6), 0 0 0 1px rgba(56,189,248,.06) inset;text-align:center;color:var(--text);outline:none;overflow:hidden;}
   .liaison-dialog::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(transparent, transparent 3px, rgba(56,189,248,.025) 3px, rgba(56,189,248,.025) 4px);pointer-events:none;}
@@ -1371,7 +1389,7 @@ body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doo
 
 <style id="roster-save-review-safety-v1">
 /* Confirmation de sauvegarde Roster — sécurité anti-écrasement (21/10/2026). */
-.save-review-overlay{position:fixed;inset:0;z-index:12050;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(2,7,15,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.save-review-overlay{position:fixed;inset:0;z-index:var(--z-roster-save-review);display:flex;align-items:center;justify-content:center;padding:18px;padding-top:calc(18px + 10vh);background:rgba(2,7,15,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 
 /* F5 sécurisé : dernier snapshot visible immédiatement, édition bloquée tant que Firebase n'a pas confirmé. */
 /* Firebase non confirmé : mode lecture seule de sécurité.
@@ -2092,7 +2110,7 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   <!-- (26/10) Sélecteur de couleur — vraie modale du site, jamais window.prompt.
        Aperçu en direct sans rien enregistrer tant que "Appliquer" n'est pas
        cliqué ; fermer sans appliquer restaure la couleur précédente. -->
-  <div id="rosterThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;align-items:center;justify-content:center;padding:16px;">
+  <div id="rosterThemeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-roster-modal-base);align-items:center;justify-content:center;padding:16px;padding-top:calc(16px + 10vh);">
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:390px;width:100%;max-height:min(760px,92vh);overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.45);position:relative;">
       <button type="button" id="rosterThemeCloseBtn" aria-label="Fermer" style="position:absolute;top:10px;right:10px;background:transparent;border:none;font-size:18px;line-height:1;cursor:pointer;color:var(--text-dim);padding:4px;">✕</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;color:var(--text);">🎨 Palette du site</div>
@@ -2649,7 +2667,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 </div>
 
 
-<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;align-items:center;justify-content:center;">
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:var(--z-roster-modal-base);align-items:center;justify-content:center;padding-top:10vh;">
   <div class="card" style="max-width:640px;width:92%;max-height:80vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-weight:700;font-size:0.95rem;">🕘 Historique des changements</div>
@@ -2665,7 +2683,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
 <!-- (24/10, cahier des charges "évolution coordonnée") Vraie modale du site
      pour toute action sur une protection — jamais window.confirm(). Un seul
      élément réutilisé pour les 3 cas (retrait, remplacement, OWNER++). -->
-<div id="protectionConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:90;align-items:center;justify-content:center;">
+<div id="protectionConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:var(--z-roster-modal-base);align-items:center;justify-content:center;padding-top:10vh;">
   <div class="card" style="max-width:460px;width:92%;">
     <div id="protectionConfirmTitle" style="font-weight:700;font-size:1rem;margin-bottom:10px;"></div>
     <div id="protectionConfirmBody" style="font-size:0.88rem;line-height:1.5;margin-bottom:16px;white-space:pre-line;"></div>
@@ -3559,7 +3577,25 @@ function renderAll(){
 
   attachRowHandlers();
   renderSpecialSelection();
+  // (01/11, demandé) "Mode Modifier" qui reste actif : renderAll()
+  // reconstruit TOUT le tableau à chaque sauvegarde individuelle (pour
+  // que les filtres/sections de grade restent corrects, notamment si
+  // le grade a changé) — ce qui referme systématiquement, y compris la
+  // fiche qu'on vient tout juste de sauvegarder. Plutôt que de dupliquer
+  // la logique d'ouverture d'une fiche (un deuxième système), on
+  // redéclenche simplement le VRAI bouton "Modifier" de cette même
+  // personne juste après le nouveau rendu — jamais pour une autre
+  // personne, et jamais après un "Annuler" explicite (voir plus bas).
+  if(rosterReopenEditId){
+    const toReopen = rosterReopenEditId; rosterReopenEditId = null;
+    const btn = document.querySelector(`[data-edit="${toReopen}"]`);
+    if(btn) btn.click();
+  }
 }
+// Identifiant de la fiche à rouvrir juste après le prochain renderAll()
+// — posé juste avant de sauvegarder, jamais ailleurs. null = rien à
+// rouvrir (cas normal : recherche, filtre, licenciement, etc.).
+let rosterReopenEditId = null;
 
 function empRowHtml(e, isLicencie){
   const roleTag = e.role ? `<span class="emp-role-tag">${esc(e.role)}</span>` : "";
@@ -4179,6 +4215,7 @@ function attachRowHandlers(){
           if(before.role!==e.role) changes.push(`rôle "${before.role||'—'}" → "${e.role||'—'}"`);
           if(before.aliases.join(",")!==e.aliases.join(",")) changes.push(`anciens noms : ${e.aliases.join(", ")||"—"}`);
           if(changes.length) logHistory("Modification", e.name, changes.join(", "));
+          rosterReopenEditId = id; // (01/11) rouvre SA fiche juste après — jamais une autre, jamais après Annuler
           saveState(); renderAll(); toast(`${e.name} mis à jour (vérifié serveur)`);
         }catch(err){
           toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
