@@ -45,7 +45,9 @@ exports.handler = async function (event) {
       body: JSON.stringify({ token: firebaseToken, returnSecureToken: true }),
     });
     const exchData = await exch.json();
-    if (!exch.ok) return json(502, { error: "Échec d'authentification Firebase." }, corsHeaders);
+    // (01/11, corrigé, voir roster-presence.js) La vraie raison donnée
+    // par Firebase est conservée au lieu d'être jetée.
+    if (!exch.ok) return json(502, { error: `Échec d'authentification Firebase : ${exchData?.error?.message || `HTTP ${exch.status}`}` }, corsHeaders);
     idToken = exchData.idToken;
   } catch (e) {
     return json(502, { error: `Échec d'authentification Firebase : ${e.message}` }, corsHeaders);
