@@ -45,7 +45,14 @@ exports.handler = async function (event) {
       body: JSON.stringify({ token: firebaseToken, returnSecureToken: true }),
     });
     const exchData = await exch.json();
-    if (!exch.ok) return json(502, { error: "Échec d'authentification Firebase." }, corsHeaders);
+    // (01/11, corrigé) Avant : la VRAIE raison donnée par Firebase
+    // (exchData.error.message — ex. "INVALID_CUSTOM_TOKEN",
+    // "API_KEY_INVALID"...) était jetée ; seul un message générique
+    // sortait, impossible à diagnostiquer depuis les logs Netlify. Elle
+    // est maintenant conservée, ce qui dit enfin PRÉCISÉMENT ce qui
+    // bloque (identifiants de service erronés, clé API invalide, etc.)
+    // au lieu d'un "échec" muet.
+    if (!exch.ok) return json(502, { error: `Échec d'authentification Firebase : ${exchData?.error?.message || `HTTP ${exch.status}`}` }, corsHeaders);
     idToken = exchData.idToken;
   } catch (e) {
     return json(502, { error: `Échec d'authentification Firebase : ${e.message}` }, corsHeaders);
