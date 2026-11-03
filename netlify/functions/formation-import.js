@@ -67,6 +67,22 @@ function norm(value){
     .replace(/[^\p{L}\p{N}' -]+/gu,' ')
     .replace(/\s+/g,' ').trim().toLowerCase();
 }
+// (01/11, corrigé) Grades connus, pour extraire le tag [MP]/[MC]/... AVANT
+// qu'il ne soit jeté par cleanDisplayName — jusqu'ici ce tag était
+// complètement ignoré, ce qui a permis une vraie fausse correspondance :
+// "@[MP] Aaliyah Akada" associé par erreur à "Leyah Akada" (MC, pas MP),
+// uniquement parce que le nom de famille se ressemblait. Le tag de grade,
+// quand il est présent et reconnu, sert maintenant de garde-fou sur la
+// correspondance approximative (jamais sur une correspondance exacte par
+// nom/alias, qui reste prioritaire et fiable).
+const KNOWN_GRADES=['STG','A','INF','M','MF','MP','MLP','MUP','RF','RP','RL','MC','ADD','CD','D','DG'];
+function extractGradeTag(value){
+  const s=String(value||'').trim();
+  const m=s.match(/^@?\s*\[([^\]]+)\]/);
+  if(!m) return null;
+  const g=m[1].trim().toUpperCase();
+  return KNOWN_GRADES.includes(g)?g:null;
+}
 function cleanDisplayName(value){
   let s=String(value||'').normalize('NFKC').trim();
   s=s.replace(/^#{1,6}\s*/,'').trim();
@@ -102,7 +118,11 @@ function formationTypeFromLine(line){
   const after=(s.split(/\bformation\b/,2)[1]||'').replace(/'/g,' ').trim();
   if(/^(?:d\s+)?(?:operations?|ope|ops|op)\b/.test(after)) return 'operation';
   if(/^(?:co\s*pilote|copilote)\b/.test(after)) return 'copilote';
-  if(/^mup\b/.test(after)) return 'mup';
+  // (01/11, corrigé) "M.U.P" (avec points) devient "m u p" une fois
+  // normalisé (norm() remplace la ponctuation par des espaces) — la
+  // regex cherchait "mup" collé et ratait ce cas très courant côté
+  // Discord. Tolère maintenant 0 ou plusieurs espaces entre les lettres.
+  if(/^m\s*u\s*p\b/.test(after)) return 'mup';
   if(/^pilote\b/.test(after)) return 'pilote';
   return 'unknown';
 }
@@ -176,10 +196,12 @@ function parseDiscordFormationText(text, nowMs=Date.now()){
     const isRecruitment=!formationType && isRecruitmentLine(line);
     if(!formationType && !isRecruitment){ ignored.push({lineNumber:i+1,raw:line,reason:'not_activity'}); continue; }
     if(!author){ ignored.push({lineNumber:i+1,raw:line,reason:'missing_author'}); continue; }
-    let type, trainee, formationKey;
+    let type, trainee, traineeTagGrade=null, formationKey;
     if(formationType){
       const rawMatch=line.match(/^(.*?)\s+Formation\b/i);
-      trainee=cleanDisplayName(rawMatch?rawMatch[1]:'');
+      const rawTraineeText=rawMatch?rawMatch[1]:'';
+      traineeTagGrade=extractGradeTag(rawTraineeText);
+      trainee=cleanDisplayName(rawTraineeText);
       type=formationType;
       formationKey=formationKeyFromLine(line,type);
     } else {
@@ -189,7 +211,7 @@ function parseDiscordFormationText(text, nowMs=Date.now()){
     }
     if(!trainee){ ignored.push({lineNumber:i+1,raw:line,reason:'missing_trainee'}); continue; }
     records.push({
-      lineNumber:i+1, trainerName:author.name, traineeName:trainee, type, typeLabel:TYPE_LABELS[type], formationKey,
+      lineNumber:i+1, trainerName:author.name, traineeName:trainee, traineeTagGrade, type, typeLabel:TYPE_LABELS[type], formationKey,
       dateLabel:author.dateLabel, occurredAt:author.timestamp, rawAuthorLine:author.raw, rawFormationLine:line,
     });
   }
@@ -216,7 +238,7 @@ function levenshtein(a,b){
   }
   return prev[bl];
 }
-function matchEmployee(name, employees){
+function matchEmployee(name, employees, expectedGrade=null){
   const needle=norm(name);
   if(!needle) return {employee:null,ambiguous:false,candidates:[]};
   const active=(employees||[]).filter(e=>!e.licencie);
@@ -237,10 +259,23 @@ function matchEmployee(name, employees){
     const [shorter,longer]=a.length<=b.length?[a,b]:[b,a];
     return shorter.length>=4 && longer.length-shorter.length>=2 && longer.startsWith(shorter);
   };
-  const close=active.filter(e=>{
+  let close=active.filter(e=>{
     const otherName=norm(e.name);
     return levenshtein(needle,otherName)<=threshold && !isRiskyTruncation(needle,otherName);
   });
+  // (01/11, corrigé) Quand le message Discord annonce un grade (ex: "[MP]")
+  // et que ce grade est reconnu, un candidat trouvé par approximation dont
+  // le grade NE correspond PAS à celui annoncé est écarté — un nom de
+  // famille qui se ressemble ne suffit jamais à lui seul si la personne
+  // trouvée n'a manifestement pas le bon grade. Jamais appliqué à la
+  // correspondance exacte (par nom/alias), seulement à ce dernier recours,
+  // déjà plus incertain par nature.
+  if(expectedGrade && close.length>1){
+    const gradeFiltered=close.filter(e=>String(e.grade||'').toUpperCase()===expectedGrade);
+    if(gradeFiltered.length) close=gradeFiltered;
+  } else if(expectedGrade && close.length===1 && String(close[0].grade||'').toUpperCase()!==expectedGrade){
+    close=[];
+  }
   if(close.length===1) return {employee:close[0],ambiguous:false,candidates:close};
   return {employee:null,ambiguous:close.length>1,candidates:close};
 }
@@ -253,7 +288,7 @@ function enrichParsed(parsed, employees, history){
   const hist=(history&&typeof history==='object')?history:{};
   return parsed.records.map(r=>{
     const trainerMatch=matchEmployee(r.trainerName,employees);
-    const traineeMatch=matchEmployee(r.traineeName,employees);
+    const traineeMatch=matchEmployee(r.traineeName,employees,r.traineeTagGrade||null);
     const trainer=trainerMatch.employee, trainee=traineeMatch.employee;
     const fingerprint=(trainer&&trainee)?fingerprintFor(trainer,trainee,r.type,r.formationKey):null;
     const duplicate=!!(fingerprint&&hist[fingerprint]);
@@ -495,4 +530,4 @@ exports.handler=async function(event){
   }catch(err){ return json(500,{error:err.message||String(err)}); }
 };
 
-exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,TYPE_LABELS};
+exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,extractGradeTag,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,TYPE_LABELS};
