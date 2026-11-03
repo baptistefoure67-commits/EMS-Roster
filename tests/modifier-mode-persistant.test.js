@@ -53,6 +53,18 @@ const t = (name, cond, extra='') => { if(cond){results.push('✅ '+name);} else 
   await page.waitForTimeout(100);
   t('Sortie explicite ("Annuler") ferme bien la fiche — seule façon prévue de quitter', await page.evaluate(() => document.querySelector('[data-edit-slot="e1"]')?.innerHTML.length === 0));
 
+  // (01/11, demandé) Rappuyer sur "Modifier" alors que la fiche est déjà
+  // ouverte la referme — comme "Annuler" — plutôt que de ne rien faire.
+  // (e2/Baptiste est encore ouverte depuis le test 2 plus haut : on part
+  // de cet état connu — ouverte — pour tester le basculement proprement.)
+  t('État de départ : la fiche Baptiste (e2) est ouverte', await page.evaluate(() => document.querySelector('[data-edit-slot="e2"]')?.innerHTML.length > 0));
+  await page.click('[data-edit="e2"]');
+  await page.waitForTimeout(100);
+  t('Modifier (même bouton, fiche déjà ouverte) referme la fiche', await page.evaluate(() => document.querySelector('[data-edit-slot="e2"]')?.innerHTML.length === 0));
+  await page.click('[data-edit="e2"]');
+  await page.waitForTimeout(100);
+  t('Modifier (reclic) la rouvre normalement', await page.evaluate(() => document.querySelector('[data-edit-slot="e2"]')?.innerHTML.length > 0));
+
   const realErrors = errors.filter(e => !/Unexpected token/.test(e));
   console.log(results.join('\n'));
   console.log(`\n${results.length-failed}/${results.length} réussis, erreurs JS: ${realErrors.length}`);
