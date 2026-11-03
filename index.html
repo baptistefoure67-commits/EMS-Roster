@@ -4177,6 +4177,10 @@ function attachRowHandlers(){
       const e = employees.find(x=>String(x.id)===String(id));
       if(!e) return;
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
+      // (01/11, demandé) Rappuyer sur "Modifier" alors que la fiche est
+      // déjà ouverte la referme — exactement comme "Annuler" — plutôt
+      // que de la réafficher vide sans rien changer visuellement.
+      if(slot.innerHTML.trim()){ slot.innerHTML = ""; return; }
       slot.innerHTML = editRowHtml(e);
       hydrateGainAccessShortcut(slot, e);
       slot.querySelector(`[data-save="${id}"]`).addEventListener("click", async ()=>{
@@ -4565,7 +4569,19 @@ async function saveSpecialSelectionToCloud(signal){
 
 let specialSelectionLastSavedAt = 0;
 async function refreshSpecialSelectionFromCloud(){
-  if(!currentFirebaseIdToken && !currentSessionToken) return;
+  // (01/11, corrigé) Cette lecture est une lecture Firebase DIRECTE —
+  // elle exige vraiment currentFirebaseIdToken (voir withFirebaseAuth
+  // juste en dessous), jamais seulement une session active. Avant :
+  // currentSessionToken seul suffisait à passer ce garde-fou, alors que
+  // startRosterLiveUpdates() (qui appelle cette fonction) démarre
+  // AVANT la fin de l'échange du jeton Firebase, dans les deux chemins
+  // de connexion — donc le tout premier appel partait sans aucun
+  // ?auth=, provoquant un 401 immédiat et systématique sur
+  // rosterEmsSpecialSelection.json (confirmé dans le rapport de bug :
+  // 38ms après le chargement, bien avant que l'échange ait pu finir).
+  // Se réessaiera tout seul au prochain sondage (3s) une fois le
+  // jeton prêt — rien à faire d'autre ici.
+  if(!currentFirebaseIdToken) return;
   try{
     const res = await fetch(withFirebaseAuth(SPECIAL_SELECTION_CLOUD_URL));
     if(!res.ok) return;
