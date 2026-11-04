@@ -4150,62 +4150,15 @@ function buildPlainList(){
 }
 
 function attachRowHandlers(){
-
-  document.querySelectorAll("[data-view-history]").forEach(el=>{
-    el.addEventListener("click", ()=>{
-      switchTab("Logs");
-      const input = document.getElementById("logsFilterTarget");
-      if(input){ input.value = el.getAttribute("data-view-history"); }
-      loadLogs();
-    });
-  });
-  document.querySelectorAll("[data-copy-id]").forEach(el=>{
-    el.addEventListener("click", ()=>copyToClipboard(el.getAttribute("data-copy-id")));
-  });
-  document.querySelectorAll("[data-toggle-grade]").forEach(el=>{
-    el.addEventListener("click", ()=>{
-      const g = el.getAttribute("data-toggle-grade");
-      collapsedGrades.has(g) ? collapsedGrades.delete(g) : collapsedGrades.add(g);
-      renderAll();
-    });
-  });
+  // (audit du 04/11) Les 5 boutons ci-dessous étaient encore attachés
+  // DIRECTEMENT comme "Modifier" l'était avant son correctif du 01/11
+  // — exactement le même risque (bouton remplacé par le rafraîchissement
+  // automatique toutes les 3s pile entre l'affichage et le clic, qui ne
+  // déclenche alors plus rien). Convertis vers le même écouteur délégué
+  // unique (voir juste après la fermeture de cette fonction) — seul
+  // "licenciesHead", qui n'est jamais recréé par renderAll() (il garde
+  // toujours le même élément), n'avait pas ce risque et reste inchangé.
   document.getElementById("licenciesHead").onclick = ()=>{ licenciesCollapsed = !licenciesCollapsed; renderAll(); };
-
-
-  document.querySelectorAll("[data-licencier]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      const id = btn.getAttribute("data-licencier");
-      const e = employees.find(x=>String(x.id)===String(id));
-      if(!e) return;
-      if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
-      btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
-      try{
-        // Action sensible : même passage obligé par le serveur que pour
-        // "Modifier" (demandé le 07/09).
-        await protectedAction("licencier", { id });
-        employees = employees.filter(x=>String(x.id)!==String(id));
-        saveState(); renderAll();
-        logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
-        toast(`${e.name} licencié et retiré du roster`);
-      }catch(err){
-        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
-        btn.disabled = false; btn.textContent = original;
-      }
-    });
-  });
-
-  document.querySelectorAll("[data-reintegrer]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-reintegrer");
-      const e = employees.find(x=>String(x.id)===String(id));
-      if(!e) return;
-      e.licencie = false;
-      e.licencieDate = null;
-      saveState(); renderAll();
-      logHistory("Réintégration", e.name, "remis actif dans le roster");
-      toast(`${e.name} réintégré`);
-    });
-  });
 }
 
 // (01/11, corrigé) "Modifier" ne réagissait plus pour certaines
@@ -4316,6 +4269,77 @@ document.addEventListener("click", (ev)=>{
           }
         });
       });
+});
+
+// (audit du 04/11, corrigé) Même correctif que "Modifier" (voir le
+// commentaire au-dessus) appliqué aux 5 autres boutons qui avaient
+// exactement le même risque — écouteur délégué unique, jamais
+// ré-attaché, retrouve toujours le VRAI bouton affiché au moment du
+// clic quel que soit le nombre de rafraîchissements entre-temps.
+document.addEventListener("click", (ev)=>{
+  const historyBtn = ev.target.closest("[data-view-history]");
+  if(historyBtn){
+    switchTab("Logs");
+    const input = document.getElementById("logsFilterTarget");
+    if(input){ input.value = historyBtn.getAttribute("data-view-history"); }
+    loadLogs();
+    return;
+  }
+  const copyBtn = ev.target.closest("[data-copy-id]");
+  if(copyBtn){ copyToClipboard(copyBtn.getAttribute("data-copy-id")); return; }
+  const toggleBtn = ev.target.closest("[data-toggle-grade]");
+  if(toggleBtn){
+    const g = toggleBtn.getAttribute("data-toggle-grade");
+    collapsedGrades.has(g) ? collapsedGrades.delete(g) : collapsedGrades.add(g);
+    renderAll();
+    return;
+  }
+  const reintegrerBtn = ev.target.closest("[data-reintegrer]");
+  if(reintegrerBtn){
+    const id = reintegrerBtn.getAttribute("data-reintegrer");
+    const e = employees.find(x=>String(x.id)===String(id));
+    if(!e) return;
+    e.licencie = false;
+    e.licencieDate = null;
+    saveState(); renderAll();
+    logHistory("Réintégration", e.name, "remis actif dans le roster");
+    toast(`${e.name} réintégré`);
+    return;
+  }
+});
+// "Licencier" reste séparé : l'état du bouton doit persister PENDANT sa
+// propre action asynchrone (texte "Vérification…", désactivé), ce
+// qu'un écouteur délégué sans état par clic ne peut pas faire — un
+// deuxième clic pendant la vérification doit être ignoré, jamais
+// relancer l'action en double. On vérifie donc nous-mêmes le drapeau.
+const rosterLicencierInFlight = new Set();
+document.addEventListener("click", async (ev)=>{
+  const btn = ev.target.closest("[data-licencier]");
+  if(!btn) return;
+  const id = btn.getAttribute("data-licencier");
+  if(rosterLicencierInFlight.has(id)) return; // déjà en cours pour cette personne, ignore le double-clic
+  const e = employees.find(x=>String(x.id)===String(id));
+  if(!e) return;
+  if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
+  rosterLicencierInFlight.add(id);
+  btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
+  try{
+    // Action sensible : même passage obligé par le serveur que pour
+    // "Modifier" (demandé le 07/09).
+    await protectedAction("licencier", { id });
+    employees = employees.filter(x=>String(x.id)!==String(id));
+    saveState(); renderAll();
+    logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
+    toast(`${e.name} licencié et retiré du roster`);
+  }catch(err){
+    toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
+    // Le bouton cliqué a pu être remplacé entre-temps par un rendu —
+    // on réactive celui qui existe VRAIMENT encore, pas forcément `btn`.
+    const stillThere = document.querySelector(`[data-licencier="${id}"]`);
+    if(stillThere){ stillThere.disabled = false; stillThere.textContent = original; }
+  }finally{
+    rosterLicencierInFlight.delete(id);
+  }
 });
 
 // ═══════════════════════════ AJOUT / EXPORT / IMPORT ═══════════════════════════
