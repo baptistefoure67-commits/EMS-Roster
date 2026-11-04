@@ -4171,9 +4171,60 @@ function attachRowHandlers(){
   });
   document.getElementById("licenciesHead").onclick = ()=>{ licenciesCollapsed = !licenciesCollapsed; renderAll(); };
 
-  document.querySelectorAll("[data-edit]").forEach(btn=>{
+
+  document.querySelectorAll("[data-licencier]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const id = btn.getAttribute("data-licencier");
+      const e = employees.find(x=>String(x.id)===String(id));
+      if(!e) return;
+      if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
+      btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
+      try{
+        // Action sensible : même passage obligé par le serveur que pour
+        // "Modifier" (demandé le 07/09).
+        await protectedAction("licencier", { id });
+        employees = employees.filter(x=>String(x.id)!==String(id));
+        saveState(); renderAll();
+        logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
+        toast(`${e.name} licencié et retiré du roster`);
+      }catch(err){
+        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
+        btn.disabled = false; btn.textContent = original;
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-reintegrer]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-edit");
+      const id = btn.getAttribute("data-reintegrer");
+      const e = employees.find(x=>String(x.id)===String(id));
+      if(!e) return;
+      e.licencie = false;
+      e.licencieDate = null;
+      saveState(); renderAll();
+      logHistory("Réintégration", e.name, "remis actif dans le roster");
+      toast(`${e.name} réintégré`);
+    });
+  });
+}
+
+// (01/11, corrigé) "Modifier" ne réagissait plus pour certaines
+// personnes, par moments — cause trouvée : un écouteur attaché
+// DIRECTEMENT à chaque bouton, ré-attaché à chaque renderAll(), qui
+// tourne automatiquement toutes les 3 secondes en arrière-plan. Si ce
+// rafraîchissement tombe entre le moment où la personne voit le
+// bouton et celui où son clic est traité, le bouton cliqué est déjà
+// remplacé par un nouveau (identique visuellement, mais un autre
+// élément du DOM) — le clic ne déclenche alors plus rien, sans la
+// moindre erreur visible. Un seul écouteur délégué sur `document`,
+// posé UNE SEULE FOIS ici (jamais dans attachRowHandlers(), qui
+// s'exécute à chaque rendu), retrouve toujours le VRAI bouton
+// actuellement affiché au moment du clic, peu importe combien de
+// fois la liste a été reconstruite entre-temps.
+document.addEventListener("click", (ev)=>{
+  const btn = ev.target.closest("[data-edit]");
+  if(!btn) return;
+  const id = btn.getAttribute("data-edit");
       const e = employees.find(x=>String(x.id)===String(id));
       if(!e) return;
       const slot = document.querySelector(`[data-edit-slot="${id}"]`);
@@ -4265,44 +4316,7 @@ function attachRowHandlers(){
           }
         });
       });
-    });
-  });
-
-  document.querySelectorAll("[data-licencier]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      const id = btn.getAttribute("data-licencier");
-      const e = employees.find(x=>String(x.id)===String(id));
-      if(!e) return;
-      if(!confirm(`Licencier ${e.name} ? Il sera retiré du roster (pas juste marqué licencié).`)) return;
-      btn.disabled = true; const original = btn.textContent; btn.textContent = "Vérification…";
-      try{
-        // Action sensible : même passage obligé par le serveur que pour
-        // "Modifier" (demandé le 07/09).
-        await protectedAction("licencier", { id });
-        employees = employees.filter(x=>String(x.id)!==String(id));
-        saveState(); renderAll();
-        logHistory("Licenciement", e.name, "manuel (vérifié serveur)");
-        toast(`${e.name} licencié et retiré du roster`);
-      }catch(err){
-        toast(/introuvable/i.test(err.message) ? "✕ Cette personne n'est pas encore dans le cloud — patiente quelques secondes (sauvegarde automatique en cours) puis réessaie." : `✕ Refusé : ${err.message}`);
-        btn.disabled = false; btn.textContent = original;
-      }
-    });
-  });
-
-  document.querySelectorAll("[data-reintegrer]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-reintegrer");
-      const e = employees.find(x=>String(x.id)===String(id));
-      if(!e) return;
-      e.licencie = false;
-      e.licencieDate = null;
-      saveState(); renderAll();
-      logHistory("Réintégration", e.name, "remis actif dans le roster");
-      toast(`${e.name} réintégré`);
-    });
-  });
-}
+});
 
 // ═══════════════════════════ AJOUT / EXPORT / IMPORT ═══════════════════════════
 
