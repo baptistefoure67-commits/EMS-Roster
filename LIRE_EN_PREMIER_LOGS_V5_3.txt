@@ -1,0 +1,7 @@
+ROSTER EMS — V5.3, VERSION COMPLÈTE
+
+Conserve la liaison Roster/Pillbox, l’import du nouveau tableau et les autorisations individuelles. Ne remplace pas par un projet statique : publie le projet entier en conservant ton programme GitHub habituel et les fonctions Netlify.
+
+Logs Gain : sélection d’un employé autorisé, filtre, pages de 200 actions. Les événements du navigateur sont des déclarations (non des preuves absolues), les opérations serveur sont identifiées comme telles. L’accès privé est vérifié côté serveur par l’identité OWNER. Les deux anciennes copies exécutables non référencées ont été retirées de la distribution.
+
+Déploie ÉGALEMENT le Gain de Temps V5.3 pour que les nouvelles actions soient stockées avec suivi des erreurs.
