@@ -2524,6 +2524,24 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
         <option value="">Chargement des personnes autorisées…</option>
       </select>
       <button type="button" id="gainPrivateRefresh" class="btn-primary btn-small">↻ Actualiser le journal</button>
+      <button type="button" id="gainPrivateDiagnostic" class="btn-ghost btn-small">🔎 Tester la liaison</button>
+    </div>
+    <div id="gainPrivateDiagnosticStatus" class="sub" role="status" style="margin-top:8px;"></div>
+    <div class="special-controls" style="margin-top:8px;">
+      <select id="gainPrivateAction" aria-label="Filtrer par type d'action" style="max-width:230px;min-width:180px;">
+        <option value="">Toutes les actions</option>
+        <option value="ocr">OCR et plaques</option>
+        <option value="phrase">Phrases</option>
+        <option value="cloud">Mémoire Cloud</option>
+        <option value="page">Navigation</option>
+        <option value="other">Autres actions</option>
+      </select>
+      <select id="gainPrivateOutcome" aria-label="Filtrer par résultat" style="max-width:190px;min-width:150px;">
+        <option value="">Tous les résultats</option>
+        <option value="success">Réussies</option>
+        <option value="failure">Échecs</option>
+        <option value="attempt">Tentatives</option>
+      </select>
     </div>
     <div id="gainPrivateList" class="special-list" style="margin-top:12px;"></div>
   </div>
@@ -9279,78 +9297,123 @@ document.addEventListener("keydown", (e)=>{
 </script>
 
 <script>
-// Journal OWNER : le serveur sélectionne uniquement les personnes ayant
-// effectivement l'autorisation individuelle Gain de Temps.
+// Journal OWNER : accès vérifié sur le serveur, jamais par simple masquage CSS.
 (function(){
  const panel=document.getElementById('gainPrivateLogs');
  const list=document.getElementById('gainPrivateList');
  const btn=document.getElementById('gainPrivateRefresh');
  const select=document.getElementById('gainPrivateUser');
+ const diagButton=document.getElementById('gainPrivateDiagnostic');
+ const diagStatus=document.getElementById('gainPrivateDiagnosticStatus');
+ const actionFilter=document.getElementById('gainPrivateAction');
+ const outcomeFilter=document.getElementById('gainPrivateOutcome');
  if(!panel||!list||!btn||!select)return;
- let lastUserListAt=0;
- const pretty={page_open:'Ouverture du site',page_navigation:'Navigation',ocr_analyze_start:'Analyse OCR lancée',ocr_analyze_end:'Analyse OCR terminée',ocr_recheck:'Nouvelle lecture OCR',ocr_plate_edit:'Modification de plaque',ocr_manual_review:'Vérification manuelle',ocr_copy:'Copie OCR',phrase_copy:'Copie d’une phrase',theme_change:'Changement de thème',cloud_propose:'Proposition de correction Cloud',cloud_confirm:'Correction Cloud validée',cloud_reject:'Correction Cloud refusée',cloud_delete:'Correction Cloud supprimée',duplicate_check:'Vérification des doublons',cloud_export:'Export Cloud',cloud_refresh:'Actualisation Cloud',sign_in:'Connexion',sign_out:'Déconnexion',phrase_generate:'Génération de phrase',phrase_favorite:'Favori',phrase_schedule:'Planification',capture_import:'Import de capture',ocr_clear:'Effacement OCR',discord_send:'Action Discord'};
- const outcomes={attempt:'Tentative',success:'Réussie',failure:'Échec',unknown:'Non confirmé'};
+ const more=document.createElement('button');more.type='button';more.className='btn ghost';more.textContent='Afficher 200 actions supplémentaires';more.hidden=true;more.style.marginTop='10px';list.after(more);
+ let lastUserListAt=0,loadedEvents=[],lastPeriod=30,lastLimited=false,nextBefore=null;
+ const pretty={
+  page_open:'Ouverture du site',page_navigation:'Navigation',ocr_analyze_start:'Analyse OCR demandée',ocr_analyze_end:'Analyse OCR terminée',ocr_recheck:'Relecture OCR',ocr_plate_edit:'Correction d’une plaque',ocr_manual_review:'Vérification manuelle',ocr_copy:'Copie OCR',phrase_copy:'Copie d’une phrase',theme_change:'Thème modifié',cloud_propose:'Proposition de correction Cloud',cloud_confirm:'Correction Cloud validée',cloud_reject:'Correction Cloud refusée',cloud_delete:'Correction Cloud supprimée',duplicate_check:'Vérification doublon',cloud_export:'Export Cloud',cloud_refresh:'Actualisation Cloud',sign_in:'Connexion',sign_out:'Déconnexion',phrase_generate:'Nouvelle variante',phrase_favorite:'Favori modifié',phrase_schedule:'Date/heure modifiée',capture_import:'Import d’image',ocr_clear:'Effacement des résultats',discord_send:'Envoi Discord',audit_health:'Test du journal',roster_refresh:'Actualisation Roster',ocr_image_edit:'Éditeur de capture',ocr_auto_locate:'Recherche automatique de zone',ocr_quick_review:'Vérification rapide',ocr_second_plate:'Autre plaque sur capture',ocr_filter:'Filtre image',ocr_zoom:'Zoom sur l’image',ocr_region_select:'Zone sélectionnée',ocr_candidate:'Suggestion de plaque',app_export:'Export sauvegarde',app_import:'Import sauvegarde',settings_change:'Réglages',help_open:'Aide',image_copy:'Copie d’image',cloud_open:'Ouverture Cloud'
+ };
+ const outcomes={attempt:'Tentative (non confirmée)',success:'Réussie selon la source',failure:'Échec',unknown:'Non confirmé'};
  function trueOwner(){return currentUserLevel==='OWNER'&&String(currentUserDiscordId)==='861557966083850250';}
+ function reset(){loadedEvents=[];nextBefore=null;more.hidden=true;list.replaceChildren();select.replaceChildren(new Option('Sélectionne un employé',''));diagStatus.textContent='';}
  async function request(body){
-  if(!currentSessionToken)throw new Error('Session Roster absente, reconnecte-toi.');
+  if(!currentSessionToken)throw new Error('Session Roster absente : reconnecte-toi.');
   const response=await fetch('/.netlify/functions/gain-activity-logs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:currentSessionToken,...body})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||`Erreur HTTP ${response.status}`);
   return data;
  }
  async function loadUsers(force=false){
-  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return false;}
+  if(!trueOwner()){panel.style.display='none';reset();return false;}
   panel.style.display='block';
   if(!force&&Date.now()-lastUserListAt<60000&&select.options.length>1)return true;
   const selected=select.value;
-  select.disabled=true;select.innerHTML='<option value="">Chargement des accès depuis le Roster…</option>';
+  select.disabled=true;select.replaceChildren(new Option('Chargement des accès…',''));
   try{
    const data=await request({action:'users'});
    if(!trueOwner())return false;
    const users=Array.isArray(data.users)?data.users:[];
-   select.replaceChildren(new Option('Tous les utilisateurs autorisés', ''));
+   select.replaceChildren(new Option('Sélectionne un employé autorisé',''));
    users.forEach(u=>select.add(new Option(`${u.name} (${u.grade})`,u.discordId)));
    if([...select.options].some(o=>o.value===selected))select.value=selected;
    lastUserListAt=Date.now();
-   if(!users.length)list.textContent='Aucune personne autorisée trouvée. Vérifie les permissions Gain de Temps dans le Roster.';
+   if(!users.length)diagStatus.textContent='Aucun utilisateur autorisé trouvé dans le Roster. Vérifie les permissions use_gain_de_temps.';
    return true;
   }catch(e){
-   select.innerHTML='<option value="">Impossible de charger les accès</option>';
-   list.textContent=`Erreur des accès : ${e.message}`;
+   select.replaceChildren(new Option('Erreur de chargement',''));
+   diagStatus.textContent='Erreur liste des accès : '+e.message;
    return false;
   }finally{select.disabled=false;}
  }
- async function loadPrivate(){
-  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return;}
-  panel.style.display='block';list.textContent='Chargement du journal…';btn.disabled=true;
+ function categoryFor(action){
+  if(/^ocr|^image_copy|^capture_import|^duplicate_check/.test(action))return 'ocr';
+  if(/^phrase/.test(action))return 'phrase';
+  if(/^cloud/.test(action))return 'cloud';
+  if(/^page/.test(action))return 'page';
+  return 'other';
+ }
+ function render(){
+  if(!trueOwner()){panel.style.display='none';reset();return;}
+  list.replaceChildren();
+  const group=actionFilter?.value||'',outcome=outcomeFilter?.value||'';
+  const events=loadedEvents.filter(e=>(!group||categoryFor(e.action)===group)&&(!outcome||e.outcome===outcome));
+  if(!events.length){list.textContent='Aucune action pour les filtres sélectionnés. Si tout est vide, lance « Tester la liaison » puis « Tester les logs » depuis Gain de Temps.';return;}
+  const title=document.createElement('div');title.className='sub';title.style.marginBottom='10px';title.textContent=`${events.length} action(s) chargée(s) sur ${lastPeriod} jours${nextBefore?' · autres pages disponibles':''}.`;
+  list.appendChild(title);
+  for(const e of events){
+   const card=document.createElement('div');card.className='special-row';card.style.cssText='display:block;padding:10px 12px;margin-bottom:6px;';
+   const strong=document.createElement('b');strong.textContent=pretty[e.action]||e.action||'Événement';
+   const date=document.createElement('span');date.textContent=' · reçu par Firebase le '+(Number.isFinite(e.createdAt)?new Date(e.createdAt).toLocaleString('fr-FR'):'Date inconnue');
+   const header=document.createElement('div');header.append(strong,date);card.appendChild(header);
+   const who=document.createElement('div');who.style.cssText='font-size:.78rem;color:var(--text-dim);';who.textContent=`${e.actorName||'Inconnu'} (${e.actorGrade||'—'}) · Discord ${e.actorDiscordId||'—'}`;card.appendChild(who);
+   const detail=document.createElement('div');detail.style.cssText='font-size:.78rem;white-space:pre-wrap;color:var(--text-dim);margin-top:3px;';
+   const fields=[`Rubrique : ${e.category||'—'}`,`Résultat : ${outcomes[e.outcome]||'Non confirmé'}`];
+   if(e.target)fields.push(`Fonction : ${e.target}`);
+   if(e.detail)fields.push(`Détail : ${e.detail}`);
+   if(e.count)fields.push(`${e.count} élément(s)`);
+   if(e.plate)fields.push(`Plaque : ${e.plate}`);
+   if(e.origin==='client'&&e.clientAt&&Math.abs(e.createdAt-e.clientAt)>30000)fields.push(`Heure déclarée par le navigateur : ${new Date(e.clientAt).toLocaleString('fr-FR')}`);
+   fields.push(e.origin==='server'?'Enregistré après action du serveur':'Événement signalé par le navigateur — non certifié');
+   detail.textContent=fields.join(' · ');card.appendChild(detail);list.appendChild(card);
+  }
+ }
+ async function loadPrivate(append=false){
+  if(!trueOwner()){panel.style.display='none';reset();return;}
+  const id=select.value;
+  if(!id){loadedEvents=[];nextBefore=null;more.hidden=true;list.textContent='Choisis une personne autorisée dans la liste ci-dessus.';return;}
+  panel.style.display='block';if(!append){list.textContent='Lecture du journal Firebase…';loadedEvents=[];nextBefore=null;}
+  btn.disabled=true;more.disabled=true;
   try{
-   const data=await request({action:'logs',discordId:select.value});
-   if(!trueOwner())return;
-   if(!data.entries?.length){list.textContent='Aucune action enregistrée sur les 30 derniers jours pour cette sélection. Vérifie que Gain de Temps V5.1 est déployé et que ses journaux Firebase sont actifs.';return;}
-   const title=document.createElement('div');title.className='sub';title.style.marginBottom='10px';title.textContent=`${data.entries.length} événement(s) affiché(s) sur ${data.periodDays||30} jours${data.limited?' (résultats limités)':''}.`;
-   list.innerHTML='';list.appendChild(title);
-   for(const e of data.entries){
-    const card=document.createElement('div');card.className='special-row';card.style.cssText='display:block;padding:10px 12px;margin-bottom:6px;';
-    const strong=document.createElement('b');strong.textContent=pretty[e.action]||e.action||'Événement';
-    const date=document.createElement('span');date.textContent=' · '+(Number.isFinite(e.createdAt)?new Date(e.createdAt).toLocaleString('fr-FR'):'Date inconnue');
-    const header=document.createElement('div');header.append(strong,date);card.appendChild(header);
-    const who=document.createElement('div');who.style.cssText='font-size:.78rem;color:var(--text-dim);';who.textContent=`${e.actorName||'Inconnu'} (${e.actorGrade||'—'}) · Discord ${e.actorDiscordId||'—'}`;card.appendChild(who);
-    const details=document.createElement('div');details.style.cssText='font-size:.75rem;color:var(--text-faint);';
-    details.textContent=`Rubrique : ${e.category||'—'} · Résultat : ${outcomes[e.outcome]||e.outcome||'—'}${e.count?` · ${e.count} élément(s)`:''}${e.plate?` · Plaque : ${e.plate}`:''} · ${e.origin==='server'?'Confirmé serveur':'Signalé depuis le navigateur'}`;
-    card.appendChild(details);list.appendChild(card);
-   }
-  }catch(e){list.textContent=`Impossible de charger le journal : ${e.message}. Vérifie le déploiement des fonctions Netlify et des règles Firebase pour gainTemps/activityLogs.`;}
-  finally{btn.disabled=false;}
+   const cursor=append?nextBefore:null;
+   const data=await request({action:'logs',discordId:id,...(cursor||{})});
+   if(!trueOwner()||select.value!==id)return;
+   const incoming=Array.isArray(data.entries)?data.entries:[];
+   const ids=new Set(loadedEvents.map(e=>e.id));
+   loadedEvents.push(...incoming.filter(e=>!ids.has(e.id)));
+   lastPeriod=data.periodDays||30;nextBefore=data.hasMore?data.nextBefore:null;more.hidden=!nextBefore;
+   render();
+  }catch(e){if(!append)list.textContent='Impossible de charger le journal : '+e.message+'. Utilise le bouton « Tester la liaison » pour préciser le blocage.';else diagStatus.textContent='Erreur chargement supplémentaire : '+e.message;}
+  finally{btn.disabled=false;more.disabled=false;}
  }
- async function init(){
-  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return;}
-  if(await loadUsers(true))await loadPrivate();
+ async function diagnostic(){
+  if(!trueOwner())return;
+  diagButton.disabled=true;diagStatus.textContent='Test de lecture Firebase en cours…';
+  try{
+   const d=await request({action:'diagnostic'});
+   diagStatus.textContent=(d.entriesFound?'✓ ':'⚠ ')+d.message+(d.lastActionAt?' · Dernière action : '+new Date(d.lastActionAt).toLocaleString('fr-FR'):'');
+  }catch(err){diagStatus.textContent='✕ Liaison indisponible : '+err.message;}
+  finally{diagButton.disabled=false;}
  }
+ async function init(){if(!trueOwner()){panel.style.display='none';reset();return;}if(await loadUsers(true))await loadPrivate();}
  btn.addEventListener('click',async()=>{if(await loadUsers(true))await loadPrivate();});
+ more.addEventListener('click',()=>{if(nextBefore)void loadPrivate(true);});
+ diagButton?.addEventListener('click',diagnostic);
  select.addEventListener('change',loadPrivate);
+ actionFilter?.addEventListener('change',render);
+ outcomeFilter?.addEventListener('change',render);
  document.getElementById('tabLogsBtn')?.addEventListener('click',init);
- // Nettoie les données précédemment affichées lorsque la session se termine.
- window.addEventListener('pagehide',()=>{list.replaceChildren();select.replaceChildren();});
+ window.addEventListener('pagehide',reset);
+ document.getElementById('logoutBtn')?.addEventListener('click',reset);
 })();
 </script>
 </body>
