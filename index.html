@@ -2175,8 +2175,8 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
            cliquer nulle part. -->
       <button type="button" class="btn-ghost btn-small" id="btnSaveAll" title="Sauvegarde le Roster, la sélection Formation Opération et le suivi d'activité Formateur/Psychologue — raccourci : Ctrl+S">💾 Sauvegarder</button>
       <span id="saveAllStatus" style="font-size:0.74rem;color:var(--text-dim);"></span>
-      <button type="button" class="btn-primary btn-small" id="btnSyncPillbox" style="display:none" title="Ancien module conservé, plus utilisé">🔄 Synchroniser avec Pillbox</button>
-      <a href="https://paie-pillbox-terminal-ems.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:none;text-decoration:none;">💊 Ancien outil de paie</a>
+      <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
+      <a href="https://paie-pillbox-terminal-ems.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:inline-flex;align-items:center;text-decoration:none;">💊 Terminal Paie</a>
       <a href="https://gain-temps-ems2.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:inline-flex;align-items:center;text-decoration:none;">⏱️ Gain de Temps</a>
       <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
         Se déconnecter
@@ -2200,10 +2200,6 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   </div>
 
   <div id="rosterView">
-  <div class="card" style="border-left:3px solid var(--green);margin-bottom:12px;">
-    <b>🔑 Répertoire des accès Gain de Temps EMS</b>
-    <div class="sub" style="margin-top:5px;">Le tableau EMS sert à actualiser les noms RP, grades et ID uniques. <b>L'accès dépend toujours du vrai compte Discord et des autorisations individuelles du Roster.</b> L'ancienne gestion des paies n'est pas utilisée pour cet import.</div>
-  </div>
   <div class="card">
     <div class="toolbar">
       <div class="search">
@@ -2522,10 +2518,12 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
   <!-- L'onglet Logs ordinaire reste inchangé. Ce sous-journal est OWNER seulement. -->
   <div id="gainPrivateLogs" class="card" style="display:none;margin-top:14px;">
     <div class="special-title">🔐 Journal privé Gain de Temps EMS</div>
-    <div class="special-sub">Réservé au propriétaire via Roster. Actions par personne, heure, fonctionnalité et résultat. Les captures et textes de messages ne sont pas enregistrés. Historique conservé 30 jours.</div>
+    <div class="special-sub">Réservé au propriétaire via Roster. Sélectionne une personne ayant accès à Gain de Temps pour voir ses actions détaillées sur les 30 derniers jours. Les captures et les contenus copiés ne sont pas enregistrés.</div>
     <div class="special-controls" style="margin-top:10px;">
-      <input id="gainPrivateId" placeholder="ID Discord exact (optionnel)" inputmode="numeric" style="flex:1;min-width:180px;">
-      <button type="button" id="gainPrivateRefresh" class="btn-primary btn-small">↻ Charger les actions Gain de Temps</button>
+      <select id="gainPrivateUser" aria-label="Choisir un utilisateur autorisé à Gain de Temps" style="flex:1;min-width:220px;">
+        <option value="">Chargement des personnes autorisées…</option>
+      </select>
+      <button type="button" id="gainPrivateRefresh" class="btn-primary btn-small">↻ Actualiser le journal</button>
     </div>
     <div id="gainPrivateList" class="special-list" style="margin-top:12px;"></div>
   </div>
@@ -4046,16 +4044,16 @@ function renderImportResults(result){
     html += `<button class="btn-primary btn-small" id="btnApplyAllPromote" style="margin-top:8px;">Tout mettre à jour</button>`;
   }
   if(result.toLicencier.length){
-    html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;">🚪 ${result.toLicencier.length} passage(s) en WDV — désactivation d'accès à confirmer (sans supprimer les dossiers) :</div>`;
+    html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;">🚪 ${result.toLicencier.length} passage(s) en WDV — licenciement à confirmer (dossier conservé dans les archives) :</div>`;
     html += result.toLicencier.map((p,i)=>`
       <div class="edit-row" data-licencier-row="${i}">
         <span style="min-width:150px;font-weight:600;">${esc(p.name)}</span>
         <span class="grade-badge" style="background:var(--red);">WDV</span>
-        <button class="btn-danger btn-small" data-licencier-apply="${i}">Désactiver l’accès</button>
+        <button class="btn-danger btn-small" data-licencier-apply="${i}">Licencier</button>
         ${(()=>{ const qd = quickDepartureInfo(p); return qd ? `<span style="color:var(--amber);font-size:0.78rem;font-weight:600;">⚠ ${esc(quickDepartureWording(qd))}</span> <button class="btn-ghost btn-small" data-copy-quickdep="${i}">Copier pour Discord</button>` : ""; })()}
       </div>
     `).join("");
-    html += `<button class="btn-danger btn-small" id="btnApplyAllLicencier" style="margin-top:8px;">Désactiver les accès WDV confirmés</button>`;
+    html += `<button class="btn-danger btn-small" id="btnApplyAllLicencier" style="margin-top:8px;">Confirmer les licenciements WDV</button>`;
   }
   if(result.toRemove.length){
     html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;color:var(--red);">🗑️ ${result.toRemove.length} employé(s) absent(s) de ce tableau — dossier probablement supprimé sur le site :</div>`;
@@ -4080,7 +4078,7 @@ function renderImportResults(result){
     html += `<button class="btn-primary btn-small" id="btnAddAllPending" style="margin-top:8px;">Ajouter tous ceux avec un ID rempli</button>`;
   }
   if(result.skippedWdv.length){
-    html += `<div class="empty-msg">WDV ignoré(s) (${result.skippedWdv.length}) : ${result.skippedWdv.map(esc).join(", ")}</div>`;
+    html += `<div class="empty-msg">WDV déjà licencié(s) ou absent(s) du Roster (${result.skippedWdv.length}) : ${result.skippedWdv.map(esc).join(", ")}</div>`;
   }
   if(result.alreadyKnown.length){
     html += `<div class="empty-msg">Déjà dans le roster, ignoré(s) (${result.alreadyKnown.length}) : ${result.alreadyKnown.map(esc).join(", ")}</div>`;
@@ -4218,12 +4216,12 @@ function renderImportResults(result){
     if(!p) return;
     const e = employees.find(x=>x.id===p.id);
     if(!e) return;
-    if(!confirm(`Désactiver l'accès Gain de Temps de ${e.name} (WDV) ? Sa fiche restera archivée et l'ID Discord sera conservé.`)) return;
+    if(!confirm(`Licencier ${e.name} (WDV) ? Sa fiche sera classée dans les licenciés, sans effacer son historique.`)) return;
     e.licencie=true; e.licencieDate=new Date().toISOString().slice(0,10);
     saveState(); renderAll();
     if(row) row.remove();
-    logHistory("Accès désactivé (WDV)", e.name, "décision manuelle sur import EMS ; fiche conservée");
-    toast(`${e.name} : accès désactivé localement, sauvegarde requise`);
+    logHistory("Licenciement (WDV)", e.name, "décision manuelle sur import EMS ; fiche conservée");
+    toast(`${e.name} : licencié localement — clique sur Sauvegarder pour confirmer.`);
   };
   box.querySelectorAll("[data-licencier-apply]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -4235,10 +4233,10 @@ function renderImportResults(result){
   if(btnAllLicencier) btnAllLicencier.addEventListener("click", ()=>{
     const targets=window._pendingLicencier.filter(p=>employees.some(e=>e.id===p.id&&!e.licencie));
     if(!targets.length) return;
-    if(!confirm(`Désactiver ${targets.length} accès WDV ? Les fiches resteront dans le Roster.`)) return;
+    if(!confirm(`Confirmer le licenciement de ${targets.length} employés WDV ? Les fiches seront classées parmi les licenciés.`)) return;
     const ids=new Set(targets.map(p=>p.id));
-    employees.filter(e=>ids.has(e.id)).forEach(e=>{e.licencie=true;e.licencieDate=new Date().toISOString().slice(0,10);logHistory('Accès désactivé (WDV)',e.name,'décision groupée depuis le tableau EMS');});
-    saveState();renderAll();toast(`${targets.length} accès désactivés localement — Sauvegarder pour publier`);
+    employees.filter(e=>ids.has(e.id)).forEach(e=>{e.licencie=true;e.licencieDate=new Date().toISOString().slice(0,10);logHistory('Licenciement (WDV)',e.name,'décision groupée depuis le tableau EMS');});
+    saveState();renderAll();toast(`${targets.length} licenciement(s) WDV enregistrés localement — Sauvegarder pour publier`);
   });
 
   // ── Dossiers absents du tableau collé (suppression proposée) ──
@@ -8143,6 +8141,13 @@ function showGate(errorMsg){
   document.getElementById("accessGate").style.display = "";
   document.getElementById("appContent").style.display = "none";
   document.getElementById("accessGateError").textContent = errorMsg || "";
+  // Effacer immédiatement le journal privé lors d'une déconnexion / expiration.
+  const privatePanel=document.getElementById("gainPrivateLogs");
+  const privateList=document.getElementById("gainPrivateList");
+  const privateSelect=document.getElementById("gainPrivateUser");
+  if(privatePanel)privatePanel.style.display="none";
+  if(privateList)privateList.replaceChildren();
+  if(privateSelect)privateSelect.replaceChildren();
   currentSessionToken = null;
   currentFirebaseIdToken = null;
   currentUserLevel = null;
@@ -9274,28 +9279,78 @@ document.addEventListener("keydown", (e)=>{
 </script>
 
 <script>
-// Journal privé OWNER : l'API revérifie le niveau et l'ID Discord.
+// Journal OWNER : le serveur sélectionne uniquement les personnes ayant
+// effectivement l'autorisation individuelle Gain de Temps.
 (function(){
  const panel=document.getElementById('gainPrivateLogs');
  const list=document.getElementById('gainPrivateList');
  const btn=document.getElementById('gainPrivateRefresh');
- if(!panel||!list||!btn)return;
- async function loadPrivate(){
-  if(currentUserLevel!=='OWNER'||String(currentUserDiscordId)!=='861557966083850250'){panel.style.display='none';list.textContent='';return;}
-  panel.style.display='block';list.textContent='Chargement des actions…';
-  try{
-   const response=await fetch('/.netlify/functions/gain-activity-logs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:currentSessionToken,discordId:document.getElementById('gainPrivateId').value.trim()})});
-   const data=await response.json();if(!response.ok)throw new Error(data.error||response.status);
-   if(!data.entries?.length){list.textContent='Aucune action enregistrée sur cette période.';return;}
-   list.innerHTML=data.entries.map(e=>`<div class="special-row" style="display:block;padding:10px 12px;">
-     <div><b>${esc(e.action)}</b> · ${new Date(e.createdAt).toLocaleString('fr-FR')}</div>
-     <div style="font-size:.78rem;color:var(--text-dim)">${esc(e.actorName||'?')} (${esc(e.actorGrade)}) · Discord ${esc(e.actorDiscordId)}</div>
-     <div style="font-size:.75rem;color:var(--text-faint)">Section : ${esc(e.category||'—')} · ${esc(e.outcome||'—')} ${e.count?'· '+Number(e.count)+' élément(s)':''} ${e.plate?'· Plaque : '+esc(e.plate):''} · ${e.origin==='server'?'confirmé serveur':'signal navigateur'}</div>
-   </div>`).join('');
-  }catch(e){list.textContent='Impossible de consulter le journal : '+e.message;}
+ const select=document.getElementById('gainPrivateUser');
+ if(!panel||!list||!btn||!select)return;
+ let lastUserListAt=0;
+ const pretty={page_open:'Ouverture du site',page_navigation:'Navigation',ocr_analyze_start:'Analyse OCR lancée',ocr_analyze_end:'Analyse OCR terminée',ocr_recheck:'Nouvelle lecture OCR',ocr_plate_edit:'Modification de plaque',ocr_manual_review:'Vérification manuelle',ocr_copy:'Copie OCR',phrase_copy:'Copie d’une phrase',theme_change:'Changement de thème',cloud_propose:'Proposition de correction Cloud',cloud_confirm:'Correction Cloud validée',cloud_reject:'Correction Cloud refusée',cloud_delete:'Correction Cloud supprimée',duplicate_check:'Vérification des doublons',cloud_export:'Export Cloud',cloud_refresh:'Actualisation Cloud',sign_in:'Connexion',sign_out:'Déconnexion',phrase_generate:'Génération de phrase',phrase_favorite:'Favori',phrase_schedule:'Planification',capture_import:'Import de capture',ocr_clear:'Effacement OCR',discord_send:'Action Discord'};
+ const outcomes={attempt:'Tentative',success:'Réussie',failure:'Échec',unknown:'Non confirmé'};
+ function trueOwner(){return currentUserLevel==='OWNER'&&String(currentUserDiscordId)==='861557966083850250';}
+ async function request(body){
+  if(!currentSessionToken)throw new Error('Session Roster absente, reconnecte-toi.');
+  const response=await fetch('/.netlify/functions/gain-activity-logs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:currentSessionToken,...body})});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||`Erreur HTTP ${response.status}`);
+  return data;
  }
- btn.addEventListener('click',loadPrivate);
- document.querySelectorAll('#tabLogsBtn').forEach(el=>el.addEventListener('click',()=>{setTimeout(loadPrivate,100);}));
+ async function loadUsers(force=false){
+  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return false;}
+  panel.style.display='block';
+  if(!force&&Date.now()-lastUserListAt<60000&&select.options.length>1)return true;
+  const selected=select.value;
+  select.disabled=true;select.innerHTML='<option value="">Chargement des accès depuis le Roster…</option>';
+  try{
+   const data=await request({action:'users'});
+   if(!trueOwner())return false;
+   const users=Array.isArray(data.users)?data.users:[];
+   select.replaceChildren(new Option('Tous les utilisateurs autorisés', ''));
+   users.forEach(u=>select.add(new Option(`${u.name} (${u.grade})`,u.discordId)));
+   if([...select.options].some(o=>o.value===selected))select.value=selected;
+   lastUserListAt=Date.now();
+   if(!users.length)list.textContent='Aucune personne autorisée trouvée. Vérifie les permissions Gain de Temps dans le Roster.';
+   return true;
+  }catch(e){
+   select.innerHTML='<option value="">Impossible de charger les accès</option>';
+   list.textContent=`Erreur des accès : ${e.message}`;
+   return false;
+  }finally{select.disabled=false;}
+ }
+ async function loadPrivate(){
+  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return;}
+  panel.style.display='block';list.textContent='Chargement du journal…';btn.disabled=true;
+  try{
+   const data=await request({action:'logs',discordId:select.value});
+   if(!trueOwner())return;
+   if(!data.entries?.length){list.textContent='Aucune action enregistrée sur les 30 derniers jours pour cette sélection. Vérifie que Gain de Temps V5.1 est déployé et que ses journaux Firebase sont actifs.';return;}
+   const title=document.createElement('div');title.className='sub';title.style.marginBottom='10px';title.textContent=`${data.entries.length} événement(s) affiché(s) sur ${data.periodDays||30} jours${data.limited?' (résultats limités)':''}.`;
+   list.innerHTML='';list.appendChild(title);
+   for(const e of data.entries){
+    const card=document.createElement('div');card.className='special-row';card.style.cssText='display:block;padding:10px 12px;margin-bottom:6px;';
+    const strong=document.createElement('b');strong.textContent=pretty[e.action]||e.action||'Événement';
+    const date=document.createElement('span');date.textContent=' · '+(Number.isFinite(e.createdAt)?new Date(e.createdAt).toLocaleString('fr-FR'):'Date inconnue');
+    const header=document.createElement('div');header.append(strong,date);card.appendChild(header);
+    const who=document.createElement('div');who.style.cssText='font-size:.78rem;color:var(--text-dim);';who.textContent=`${e.actorName||'Inconnu'} (${e.actorGrade||'—'}) · Discord ${e.actorDiscordId||'—'}`;card.appendChild(who);
+    const details=document.createElement('div');details.style.cssText='font-size:.75rem;color:var(--text-faint);';
+    details.textContent=`Rubrique : ${e.category||'—'} · Résultat : ${outcomes[e.outcome]||e.outcome||'—'}${e.count?` · ${e.count} élément(s)`:''}${e.plate?` · Plaque : ${e.plate}`:''} · ${e.origin==='server'?'Confirmé serveur':'Signalé depuis le navigateur'}`;
+    card.appendChild(details);list.appendChild(card);
+   }
+  }catch(e){list.textContent=`Impossible de charger le journal : ${e.message}. Vérifie le déploiement des fonctions Netlify et des règles Firebase pour gainTemps/activityLogs.`;}
+  finally{btn.disabled=false;}
+ }
+ async function init(){
+  if(!trueOwner()){panel.style.display='none';list.replaceChildren();return;}
+  if(await loadUsers(true))await loadPrivate();
+ }
+ btn.addEventListener('click',async()=>{if(await loadUsers(true))await loadPrivate();});
+ select.addEventListener('change',loadPrivate);
+ document.getElementById('tabLogsBtn')?.addEventListener('click',init);
+ // Nettoie les données précédemment affichées lorsque la session se termine.
+ window.addEventListener('pagehide',()=>{list.replaceChildren();select.replaceChildren();});
 })();
 </script>
 </body>
