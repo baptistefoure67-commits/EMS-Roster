@@ -2514,6 +2514,17 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
       </div>
       <div id="logsList" class="special-list" style="margin-top:12px;"></div>
     </div>
+  <!-- L'onglet Logs ordinaire reste inchangé. Ce sous-journal est OWNER seulement. -->
+  <div id="gainPrivateLogs" class="card" style="display:none;margin-top:14px;">
+    <div class="special-title">🔐 Journal privé Gain de Temps EMS</div>
+    <div class="special-sub">Réservé au propriétaire via Roster. Actions par personne, heure, fonctionnalité et résultat. Les captures et textes de messages ne sont pas enregistrés. Historique conservé 30 jours.</div>
+    <div class="special-controls" style="margin-top:10px;">
+      <input id="gainPrivateId" placeholder="ID Discord exact (optionnel)" inputmode="numeric" style="flex:1;min-width:180px;">
+      <button type="button" id="gainPrivateRefresh" class="btn-primary btn-small">↻ Charger les actions Gain de Temps</button>
+    </div>
+    <div id="gainPrivateList" class="special-list" style="margin-top:12px;"></div>
+  </div>
+
   </div>
 
   <!-- Affiché uniquement aux personnes ayant la permission regroupée manage_permissions. -->
@@ -9146,5 +9157,30 @@ document.addEventListener("keydown", (e)=>{
 })();
 </script>
 
+<script>
+// Journal privé OWNER : l'API revérifie le niveau et l'ID Discord.
+(function(){
+ const panel=document.getElementById('gainPrivateLogs');
+ const list=document.getElementById('gainPrivateList');
+ const btn=document.getElementById('gainPrivateRefresh');
+ if(!panel||!list||!btn)return;
+ async function loadPrivate(){
+  if(currentUserLevel!=='OWNER'||String(currentUserDiscordId)!=='861557966083850250'){panel.style.display='none';list.textContent='';return;}
+  panel.style.display='block';list.textContent='Chargement des actions…';
+  try{
+   const response=await fetch('/.netlify/functions/gain-activity-logs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:currentSessionToken,discordId:document.getElementById('gainPrivateId').value.trim()})});
+   const data=await response.json();if(!response.ok)throw new Error(data.error||response.status);
+   if(!data.entries?.length){list.textContent='Aucune action enregistrée sur cette période.';return;}
+   list.innerHTML=data.entries.map(e=>`<div class="special-row" style="display:block;padding:10px 12px;">
+     <div><b>${esc(e.action)}</b> · ${new Date(e.createdAt).toLocaleString('fr-FR')}</div>
+     <div style="font-size:.78rem;color:var(--text-dim)">${esc(e.actorName||'?')} (${esc(e.actorGrade)}) · Discord ${esc(e.actorDiscordId)}</div>
+     <div style="font-size:.75rem;color:var(--text-faint)">Section : ${esc(e.category||'—')} · ${esc(e.outcome||'—')} ${e.count?'· '+Number(e.count)+' élément(s)':''} ${e.plate?'· Plaque : '+esc(e.plate):''} · ${e.origin==='server'?'confirmé serveur':'signal navigateur'}</div>
+   </div>`).join('');
+  }catch(e){list.textContent='Impossible de consulter le journal : '+e.message;}
+ }
+ btn.addEventListener('click',loadPrivate);
+ document.querySelectorAll('#tabLogsBtn').forEach(el=>el.addEventListener('click',()=>{setTimeout(loadPrivate,100);}));
+})();
+</script>
 </body>
 </html>
