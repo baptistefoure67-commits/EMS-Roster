@@ -1,0 +1,42 @@
+ROSTER EMS — IMPORT DU NOUVEAU TABLEAU EMPLOYÉS + ACCÈS GAIN DE TEMPS
+======================================================================
+
+BASE
+- Dernier EMS-Roster-main(2).zip fourni par l’utilisateur le 20/11/2026.
+- Journal privé OWNER de Gain de Temps EMS conservé.
+- Aucune fonction serveur ou règle Firebase modifiée pour cet import.
+
+NOUVEAU FONCTIONNEMENT
+1. Connecte-toi au Roster avec un compte disposant de la permission de gérer le Roster.
+2. Ouvre Roster > « Actualiser les employés depuis le nouveau tableau EMS ».
+3. Copie-colle le contenu de l’onglet Employés du nouveau site EMS.
+4. Clique « Comparer avec le Roster ». Le parseur lit le format vertical (Nom / 📂 dossier / ID unique / Grade) ainsi que l’ancien tableau à colonnes.
+5. Contrôle les propositions : nom RP changé, grade différent, ID unique manquant, employé nouveau, WDV, ou retour d’un ancien membre.
+6. Si le nouveau membre n'est pas déjà enregistré, saisis son ID Discord réel (16 à 22 chiffres) avant « Ajouter / lier ».
+7. Si cet ID Discord appartient déjà à une fiche du Roster, une confirmation permet de lier l’ID unique et de mettre à jour nom et grade SANS remplacer l’ID Discord ni les permissions.
+8. Pour WDV, l’action validée archive/désactive l’accès au lieu de supprimer la fiche. Les retours peuvent être réactivés par confirmation.
+9. Clique « 💾 Sauvegarder », examine le récapitulatif et confirme pour envoyer les changements au Cloud.
+
+IMPORTANT
+- Les nombres courts (ex. 251031) sont des ID uniques EMS, PAS des identifiants Discord.
+- Aucun identifiant Discord ne peut être récupéré depuis le seul tableau ; on conserve les ID déjà associés dans le Roster et on demande les autres.
+- Aucune absence d’une personne dans le tableau ne provoque une suppression automatique.
+- L’analyse seule ne modifie pas les employés, les activités ni les absences et n’écrit rien dans Firebase.
+- Le Roster continue de vérifier les autorisations individuelles et grades côté serveur pour Gain de Temps : un membre présent n’obtient pas automatiquement le droit d’accéder à l’application.
+- La liste collée ne devient pas une liste d’accès tant qu’un gestionnaire n’a pas confirmé et sauvegardé.
+- Les modules historiques sont conservés pour ne pas casser des fonctions ; les raccourcis vers l’ancien système de paie sont masqués dans l’en-tête.
+
+DÉPLOIEMENT
+- C’est un projet Netlify complet : index.html + netlify/functions.
+- Ne pas utiliser le simple glisser-déposer d'un site statique si les fonctions Netlify ne sont pas déjà déployées par ailleurs.
+- Sous Windows, décompresser le ZIP puis lancer DEPLOYER_ROSTER_NETLIFY.bat (Node.js nécessaire).
+- Choisir le site Roster EXISTANT lors de la liaison et non Gain de Temps.
+- Aucune modification des règles Firebase n’est nécessaire pour ces nouvelles fonctionnalités.
+
+TESTS EFFECTUÉS
+- 54 fiches reconnues dans un tableau vertical construit sur le format communiqué (44 grades actifs + 10 WDV).
+- Vérification des noms stylisés, des préfixes de grade, des avertissements et du dossier sans préfixe.
+- Tests : changement de nom RP, conflit d'ID unique, retour d’un employé archivé, WDV actif, tableau partiel et absence de suppressions automatiques.
+- Syntaxe JS de tous les scripts intégrés et des fonctions Netlify : valide.
+- Les fichiers existants sont identiques à la version précédente, sauf index.html.
+- Limite : pas de connexion réelle à Firebase, Discord ou au site EMS pendant les tests ; test d’interface Chromium restreint par l’environnement.
