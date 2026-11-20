@@ -2175,8 +2175,8 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
            cliquer nulle part. -->
       <button type="button" class="btn-ghost btn-small" id="btnSaveAll" title="Sauvegarde le Roster, la sélection Formation Opération et le suivi d'activité Formateur/Psychologue — raccourci : Ctrl+S">💾 Sauvegarder</button>
       <span id="saveAllStatus" style="font-size:0.74rem;color:var(--text-dim);"></span>
-      <button type="button" class="btn-primary btn-small" id="btnSyncPillbox">🔄 Synchroniser avec Pillbox</button>
-      <a href="https://paie-pillbox-terminal-ems.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:inline-flex;align-items:center;text-decoration:none;">💊 Outil de paie Pillbox</a>
+      <button type="button" class="btn-primary btn-small" id="btnSyncPillbox" style="display:none" title="Ancien module conservé, plus utilisé">🔄 Synchroniser avec Pillbox</button>
+      <a href="https://paie-pillbox-terminal-ems.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:none;text-decoration:none;">💊 Ancien outil de paie</a>
       <a href="https://gain-temps-ems2.netlify.app/" target="_blank" rel="noopener" class="btn-ghost btn-small" style="display:inline-flex;align-items:center;text-decoration:none;">⏱️ Gain de Temps</a>
       <button type="button" id="btnDiscordLogout" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:7px 14px;font-size:0.8rem;cursor:pointer;">
         Se déconnecter
@@ -2200,6 +2200,10 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   </div>
 
   <div id="rosterView">
+  <div class="card" style="border-left:3px solid var(--green);margin-bottom:12px;">
+    <b>🔑 Répertoire des accès Gain de Temps EMS</b>
+    <div class="sub" style="margin-top:5px;">Le tableau EMS sert à actualiser les noms RP, grades et ID uniques. <b>L'accès dépend toujours du vrai compte Discord et des autorisations individuelles du Roster.</b> L'ancienne gestion des paies n'est pas utilisée pour cet import.</div>
+  </div>
   <div class="card">
     <div class="toolbar">
       <div class="search">
@@ -2231,15 +2235,16 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
     </details>
 
     <details class="addbox">
-      <summary>Importer depuis le tableau EMS</summary>
+      <summary>🆕 Actualiser les employés depuis le nouveau tableau EMS</summary>
       <div style="margin-top:12px;">
         <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">
-          Colle ici le tableau complet copié depuis le site EMS. Pour chaque nouvel employé détecté, il ne restera qu'à
-          renseigner son ID Discord. Pour un employé déjà connu, un grade différent de celui enregistré est proposé comme
-          mise à jour (UP), et un passage en WDV est proposé comme licenciement — à confirmer d'un clic, rien n'est appliqué automatiquement.
+          <b>Nouveau tableau EMS accepté :</b> colle toute la page « Employés », même si le nom, le dossier 📂, l’ID unique et le grade sont sur des lignes séparées. L’ID unique EMS (ex. 251031) <b>n’est pas un ID Discord</b>. Les identifiants Discord déjà enregistrés sont conservés ; pour un nouvel employé, saisis son vrai ID Discord. Les changements de nom, grade, et le statut WDV sont proposés à validation. Une personne absente du collage n’est jamais supprimée automatiquement.
         </div>
         <textarea id="emsTableInput" rows="6" style="width:100%;" placeholder="Colle ici le tableau EMS (colonnes Employé et Grade incluses)..."></textarea>
-        <div style="margin-top:8px;"><button class="btn-primary" id="btnAnalyzeEms">Analyser</button></div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px;">
+          <button class="btn-primary" id="btnAnalyzeEms">🔎 Comparer avec le Roster</button>
+          <span style="font-size:.76rem;color:var(--text-dim);">Aucune donnée envoyée pendant l’analyse. Enregistre ensuite via « 💾 Sauvegarder ».</span>
+        </div>
         <div id="importResults" style="margin-top:12px;"></div>
       </div>
     </details>
@@ -3771,6 +3776,43 @@ function splitEmsLine(line){
   return cols;
 }
 
+// Nouveau tableau EMS (2026) : les champs sont empilés sur plusieurs lignes,
+// contrairement à l'ancien export tabulé. La ligne "📂︰nom-du-dossier" est
+// l'ancre fiable ; l'ID unique et le grade suivent. Aucune information de
+// Discord n'est contenue dans ce format : on ne l'invente jamais.
+function extractEmsRowsForImport(text){
+  const lines=String(text||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const folderIndexes=[];
+  for(let i=0;i<lines.length;i++) if(/^📂\s*[︰:]/u.test(lines[i])) folderIndexes.push(i);
+  if(folderIndexes.length === 0){
+    const rows=lines.map(splitEmsLine).filter(cols=>cols.length>=4).map(cols=>({rawName:(cols[1]||'').trim(),unique:String(cols[2]||'').trim(),grade:String(cols[3]||'').trim()}));
+    return {rows,mode:'columns',errors:[]};
+  }
+  const rows=[],errors=[];
+  let previousFolderEnd=-1;
+  const validGrade=/^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG|SENSEI|DIR)$/;
+  for(const i of folderIndexes){
+    const folder=lines[i].replace(/^📂\s*[︰:]\s*/u,'').trim();
+    let rawName='';
+    const before=lines.slice(Math.max(previousFolderEnd+1,i-9),i);
+    for(let j=before.length-1;j>=0;j--){
+      const v=before[j];
+      if(/^Avertissement\s+[1-3]$/i.test(v)) continue;
+      if(/^\[[^\]]+\]\s*\S/u.test(v)){ rawName=v; break; }
+      if(!rawName && !/^\d|^[-—]|^📂|^S\d|^AB\d|^Q\d|^\b(Info|Absences|Employé|Pillbox|Gestion|Ajouter|Dernière|Semaine|Estimation|Grade)\b/i.test(v) && /\p{L}.*\s+\p{L}/u.test(v)) rawName=v;
+    }
+    const unique=lines[i+1]||'';
+    const grade=(lines[i+2]||'').toUpperCase();
+    previousFolderEnd=i+2;
+    if(!rawName || !/^\d{1,12}$/.test(unique) || !validGrade.test(grade)){
+      errors.push({folder,rawName:rawName||'non trouvé',unique,grade});
+      continue;
+    }
+    rows.push({rawName,unique,grade,folder});
+  }
+  return {rows,mode:'stacked',errors};
+}
+
 // Analyse le texte collé et classe chaque ligne : nouveaux employés (à
 // ajouter, en demandant leur ID Discord), WDV, déjà connus (par nom,
 // qu'ils soient actifs ou licenciés), grades non reconnus — et maintenant
@@ -3778,21 +3820,19 @@ function splitEmsLine(line){
 // roster : un grade différent de celui stocké (= UP à appliquer), et un
 // grade WDV sur quelqu'un d'actif (= licenciement à appliquer).
 function parseEmsTableForImport(text){
-  const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], ambiguous = [], uniqueIdUpdates = [], uniqueIdConflicts = [];
+  const extracted = extractEmsRowsForImport(text);
+  const found = [], skippedWdv = [], alreadyKnown = [], unrecognized = [], toPromote = [], toLicencier = [], toReactivate = [], ambiguous = [], uniqueIdUpdates = [], uniqueIdConflicts = [], toRename = [];
   const seenIds = new Set(); // employés retrouvés dans ce collage précis, peu importe la raison
 
-  lines.forEach(line=>{
-    const cols = splitEmsLine(line);
-    if(cols.length < 4) return;
-    const employeRaw = (cols[1]||"").trim();
-    const idUnique = (cols[2]||"").trim();
-    let gradeRaw = (cols[3]||"").trim().toUpperCase();
+  extracted.rows.forEach(row=>{
+    const employeRaw = row.rawName;
+    const idUnique = row.unique;
+    let gradeRaw = row.grade.toUpperCase();
     if(GRADE_ALIASES[gradeRaw]) gradeRaw = GRADE_ALIASES[gradeRaw];
     // Date d'arrivée (29/09) : format "25/09/2026 - 14:13" (année sur 4
     // chiffres + heure), ce qui la distingue de la colonne de date d'UP
     // ("10/05/26"). Sert uniquement à l'avertissement de départ rapide.
-    const arrivalMatch = [...line.matchAll(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2}):(\d{2})/g)].pop();
+    const arrivalMatch = null; // le nouveau tableau n'utilise pas de date d'arrivée horodatée
     const arrivalMs = arrivalMatch ? new Date(+arrivalMatch[3], +arrivalMatch[2]-1, +arrivalMatch[1], +arrivalMatch[4], +arrivalMatch[5]).getTime() : null;
     if(!employeRaw || /^employ/i.test(employeRaw) || gradeRaw === "GRADE") return; // en-tête du tableau
 
@@ -3806,6 +3846,14 @@ function parseEmsTableForImport(text){
     const byId = idUnique ? employees.find(e=>e.idUnique && String(e.idUnique)===String(idUnique)) : null;
     const nameMatches = employees.filter(e=>employeeNameMatches(e,norm(name)) && !(e.idUnique && idUnique && String(e.idUnique)!==String(idUnique)));
     const existing = byId || (nameMatches.length===1 ? nameMatches[0] : null);
+    if(!byId && !existing && idUnique){
+      const mismatch=employees.filter(e=>employeeNameMatches(e,norm(name)) && e.idUnique && String(e.idUnique)!==String(idUnique));
+      if(mismatch.length){
+        mismatch.forEach(e=>seenIds.add(e.id));
+        uniqueIdConflicts.push({name,current:mismatch.map(e=>String(e.idUnique)).join(', '),incoming:String(idUnique),otherOwner:'Même nom, ID EMS différent — vérification manuelle'});
+        return;
+      }
+    }
     if(!byId && nameMatches.length>1){
       // Homonymes impossibles à départager : on n'applique RIEN automatiquement.
       nameMatches.forEach(e=>seenIds.add(e.id));
@@ -3813,6 +3861,9 @@ function parseEmsTableForImport(text){
       return;
     }
     if(existing) seenIds.add(existing.id);
+    if(existing && norm(existing.name)!==norm(name) && !employeeNameMatches(existing,norm(name))){
+      toRename.push({id:existing.id,oldName:existing.name,newName:name,idUnique});
+    }
 
     // ID unique EMS : dès qu'un employé déjà connu est retrouvé dans le
     // tableau EMS, on mémorise son ID unique s'il n'en avait pas encore.
@@ -3842,6 +3893,10 @@ function parseEmsTableForImport(text){
     if(!GRADE_ORDER.includes(gradeRaw)){ unrecognized.push({name, grade:gradeRaw}); return; }
 
     if(existing){
+      if(existing.licencie){
+        toReactivate.push({id:existing.id,name:existing.name,newGrade:gradeRaw});
+        return;
+      }
       if(!existing.licencie && existing.grade !== gradeRaw){
         toPromote.push({id:existing.id, name:existing.name, oldGrade:existing.grade, newGrade:gradeRaw});
       } else {
@@ -3862,11 +3917,11 @@ function parseEmsTableForImport(text){
   // partielle collée par erreur), on ne propose AUCUNE suppression — sinon
   // tout le roster se retrouverait proposé à la suppression à tort.
   const totalLignesReconnues = seenIds.size + found.length + skippedWdv.length + unrecognized.length + ambiguous.length;
-  const toRemove = totalLignesReconnues >= 15
-    ? employees.filter(e => !e.licencie && !seenIds.has(e.id)).map(e => ({id:e.id, name:e.name}))
-    : [];
-
-  return {found, skippedWdv, alreadyKnown, unrecognized, toPromote, toLicencier, toRemove, ambiguous, uniqueIdUpdates, uniqueIdConflicts};
+  // Un collage ponctuel peut être partiel ou paginé. Ne proposer aucune suppression
+  // d'accès pour une absence de ligne : elle ne prouve pas un départ.
+  const toRemove = [];
+  const absentCount = totalLignesReconnues >= 15 ? employees.filter(e=>!e.licencie&&!seenIds.has(e.id)).length : 0;
+  return {found,skippedWdv,alreadyKnown,unrecognized,toPromote,toLicencier,toReactivate,toRemove,ambiguous,uniqueIdUpdates,uniqueIdConflicts,toRename,absentCount,extracted};
 }
 
 // Départ rapide (29/09) : une personne recrutée qui repart avant une semaine
@@ -3938,17 +3993,37 @@ function applyUniqueIdMemoryUpdates(result){
 
 function renderImportResults(result){
   const box = document.getElementById("importResults");
-  const nothing = !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length) && !(result.uniqueIdApplied&&result.uniqueIdApplied.length) && !(result.uniqueIdConflicts&&result.uniqueIdConflicts.length);
+  const nothing = !(result.toReactivate&&result.toReactivate.length) && !(result.toRename&&result.toRename.length) && !(result.uniqueIdUpdates&&result.uniqueIdUpdates.length) && !result.extracted.rows.length && !result.found.length && !result.skippedWdv.length && !result.alreadyKnown.length && !result.unrecognized.length && !result.toPromote.length && !result.toLicencier.length && !result.toRemove.length && !(result.ambiguous&&result.ambiguous.length) && !(result.uniqueIdApplied&&result.uniqueIdApplied.length) && !(result.uniqueIdConflicts&&result.uniqueIdConflicts.length);
   if(nothing){
     box.innerHTML = `<div class="empty-msg">Rien reconnu — vérifie que le texte collé contient bien les colonnes "Employé" et "Grade" du tableau EMS.</div>`;
     return;
   }
 
   window._pendingImport = result.found;
+  window._pendingRename = result.toRename||[];
+  window._pendingReactivate = result.toReactivate||[];
   window._pendingPromote = result.toPromote;
   window._pendingLicencier = result.toLicencier;
   window._pendingRemove = result.toRemove;
   let html = "";
+  html += `<div class="empty-msg"><b>✅ ${result.extracted.rows.length} fiches lues</b> (${result.extracted.mode==='stacked'?'nouveau tableau EMS':'ancien tableau à colonnes'}). ${result.extracted.errors.length?`⚠ ${result.extracted.errors.length} ligne(s) à vérifier. `:''}<br>🆔 Les nombres courts sont des ID EMS. Les ID Discord sont conservés depuis le Roster ou demandés pour les nouveaux employés. Aucune écriture Cloud automatique.</div>`;
+  if(result.extracted.errors.length){
+    html += `<div class="empty-msg" style="color:var(--amber)">⚠ Champs incomplets : ${result.extracted.errors.slice(0,8).map(x=>esc(x.folder)).join(' ; ')}. Ces fiches ne sont pas importées.</div>`;
+  }
+  if(result.absentCount){
+    html += `<div class="empty-msg">ℹ️ ${result.absentCount} fiche(s) du Roster non retrouvée(s) dans le collage : <b>aucune suppression ni révocation automatique</b>.</div>`;
+  }
+  if(result.uniqueIdUpdates && result.uniqueIdUpdates.length){
+    html += `<div class="empty-msg" style="color:var(--green)">🪪 ${result.uniqueIdUpdates.length} ID unique(s) EMS peuvent être liés aux fiches existantes. <button type="button" class="btn-ghost btn-small" id="emsApplyIds">Mémoriser ces ID (après vérification)</button></div>`;
+  }
+  if(result.toReactivate && result.toReactivate.length){
+    html += `<div style="font-weight:700;font-size:.85rem;margin:12px 0">↩️ ${result.toReactivate.length} retour(s) actif(s) détecté(s) : réactivation manuelle uniquement.</div>`;
+    html += result.toReactivate.map((r,i)=>`<div class="edit-row" data-reactivate-row="${i}"><span>${esc(r.name)} : ancien dossier archivé → <b>${esc(r.newGrade)}</b></span><button type="button" class="btn-primary btn-small" data-reactivate="${i}">Réactiver l’accès</button></div>`).join('');
+  }
+  if(result.toRename && result.toRename.length){
+    html += `<div style="font-weight:700;font-size:.85rem;margin:10px 0">✏️ ${result.toRename.length} changement(s) de nom RP détecté(s) (ID EMS identique) :</div>`;
+    html += result.toRename.map((r,i)=>`<div class="edit-row" data-rename-row="${i}"><span>${esc(r.oldName)} → <b>${esc(r.newName)}</b> (EMS ${esc(r.idUnique)})</span><button type="button" class="btn-primary btn-small" data-rename-apply="${i}">Appliquer le nom</button></div>`).join('');
+  }
 
   if(result.uniqueIdApplied && result.uniqueIdApplied.length){
     html += `<div class="empty-msg" style="color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,transparent);">🪪 <b>${result.uniqueIdApplied.length} ID unique(s) EMS mémorisé(s)</b> dans le Roster. Ils resteront attachés aux fiches même si un prochain tableau ne renvoie pas l'ID.</div>`;
@@ -3971,16 +4046,16 @@ function renderImportResults(result){
     html += `<button class="btn-primary btn-small" id="btnApplyAllPromote" style="margin-top:8px;">Tout mettre à jour</button>`;
   }
   if(result.toLicencier.length){
-    html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;">🚪 ${result.toLicencier.length} passage(s) en WDV détecté(s) — à licencier :</div>`;
+    html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;">🚪 ${result.toLicencier.length} passage(s) en WDV — désactivation d'accès à confirmer (sans supprimer les dossiers) :</div>`;
     html += result.toLicencier.map((p,i)=>`
       <div class="edit-row" data-licencier-row="${i}">
         <span style="min-width:150px;font-weight:600;">${esc(p.name)}</span>
         <span class="grade-badge" style="background:var(--red);">WDV</span>
-        <button class="btn-danger btn-small" data-licencier-apply="${i}">Licencier</button>
+        <button class="btn-danger btn-small" data-licencier-apply="${i}">Désactiver l’accès</button>
         ${(()=>{ const qd = quickDepartureInfo(p); return qd ? `<span style="color:var(--amber);font-size:0.78rem;font-weight:600;">⚠ ${esc(quickDepartureWording(qd))}</span> <button class="btn-ghost btn-small" data-copy-quickdep="${i}">Copier pour Discord</button>` : ""; })()}
       </div>
     `).join("");
-    html += `<button class="btn-danger btn-small" id="btnApplyAllLicencier" style="margin-top:8px;">Tout licencier</button>`;
+    html += `<button class="btn-danger btn-small" id="btnApplyAllLicencier" style="margin-top:8px;">Désactiver les accès WDV confirmés</button>`;
   }
   if(result.toRemove.length){
     html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;color:var(--red);">🗑️ ${result.toRemove.length} employé(s) absent(s) de ce tableau — dossier probablement supprimé sur le site :</div>`;
@@ -3998,8 +4073,8 @@ function renderImportResults(result){
       <div class="edit-row" data-pending-row="${i}">
         <span class="grade-badge" style="background:${GRADE_COLOR[f.grade]};color:${GRADE_TEXT_COLOR[f.grade]};">${f.grade}</span>
         <span style="min-width:150px;font-weight:600;">${esc(f.name)}</span>
-        <input type="text" data-pending-id="${i}" placeholder="ID Discord">
-        <button class="btn-primary btn-small" data-pending-add="${i}">Ajouter</button>
+        <input type="text" data-pending-id="${i}" placeholder="ID Discord (17–20 chiffres)" inputmode="numeric" autocomplete="off">
+        <button class="btn-primary btn-small" data-pending-add="${i}">Ajouter / lier</button>
       </div>
     `).join("");
     html += `<button class="btn-primary btn-small" id="btnAddAllPending" style="margin-top:8px;">Ajouter tous ceux avec un ID rempli</button>`;
@@ -4017,6 +4092,33 @@ function renderImportResults(result){
     html += `<div class="empty-msg" style="color:var(--amber);">Grade non reconnu, ignoré(s) : ${result.unrecognized.map(u=>`${esc(u.name)} (${esc(u.grade)})`).join(", ")}</div>`;
   }
   box.innerHTML = html;
+  box.querySelectorAll('[data-reactivate]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(!rosterCloudConfirmed||!hasCap('manage_roster')){toast('Modification du Roster non autorisée.');return;}
+    const r=window._pendingReactivate[Number(btn.dataset.reactivate)];
+    const e=r&&employees.find(x=>x.id===r.id);if(!e||!e.licencie) return;
+    if(!confirm(`Réactiver ${e.name} (${r.newGrade}) ? Attention : ses anciennes autorisations individuelles Gain de Temps peuvent redevenir actives.`)) return;
+    e.licencie=false;e.licencieDate=null;e.grade=r.newGrade;
+    logHistory('Réactivation (tableau EMS)',e.name,`Grade ${r.newGrade}, permissions Discord conservées`);
+    saveState();renderAll();btn.closest('[data-reactivate-row]')?.remove();
+    toast(`${e.name} réactivé localement — Sauvegarder`);
+  }));
+  box.querySelector('#emsApplyIds')?.addEventListener('click',ev=>{
+    if(!rosterCloudConfirmed || !hasCap('manage_roster')){toast('Modification réservée aux personnes autorisées, avec Firebase connecté.');return;}
+    const items=applyUniqueIdMemoryUpdates(result);
+    if(items.length){ev.currentTarget.disabled=true;ev.currentTarget.textContent=`✓ ${items.length} ID mémorisés localement — Sauvegarder`;} else toast('Aucun ID nouveau à mémoriser.');
+  });
+  box.querySelectorAll('[data-rename-apply]').forEach(btn=>btn.addEventListener('click',()=>{
+    if(!rosterCloudConfirmed || !hasCap('manage_roster')){toast('Accès modification refusé.');return;}
+    const r=window._pendingRename[Number(btn.dataset.renameApply)];
+    const e=r&&employees.find(x=>x.id===r.id); if(!e) return;
+    if(!confirm(`Modifier le nom RP de ${e.name} en ${r.newName} ? L’ID Discord et les permissions resteront identiques.`)) return;
+    const old=e.name;
+    e.name=r.newName;
+    e.aliases=Array.from(new Set([...(Array.isArray(e.aliases)?e.aliases:[]),old])).filter(a=>norm(a)!==norm(e.name));
+    saveState();renderAll();btn.closest('[data-rename-row]')?.remove();
+    logHistory('Nom RP (tableau EMS)',e.name,`${old} → ${e.name} (ID Discord conservé)`);
+    toast('Nom mis à jour. Clique sur Sauvegarder.');
+  }));
 
   box.querySelectorAll("[data-pending-add]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -4024,20 +4126,42 @@ function renderImportResults(result){
       const idInput = box.querySelector(`[data-pending-id="${i}"]`);
       const discordId = idInput.value.trim();
       if(!discordId){ toast("ID Discord requis"); return; }
+      if(!/^\d{16,22}$/.test(discordId)){ toast("Saisis le vrai ID Discord (16 à 22 chiffres), pas l’ID unique EMS."); return; }
       const f = window._pendingImport[i];
+      if(!f){toast('Fiche introuvable : relance l’analyse.');return;}
       const impError = validateEmployeeFields(f.name, discordId);
       if(impError){ toast(impError); return; }
+      if(!rosterCloudConfirmed||!hasCap('manage_roster')){toast('Modification du Roster non autorisée.');return;}
+      const matchedByDiscord=employees.find(e=>!e.licencie&&String(e.discordId)===discordId);
+      if(matchedByDiscord){
+        if(matchedByDiscord.idUnique && String(matchedByDiscord.idUnique)!==String(f.idUnique)){
+          toast(`⚠ Conflit : ${matchedByDiscord.name} possède déjà un autre ID unique EMS. Vérification manuelle.`); return;
+        }
+        const oldName=matchedByDiscord.name,oldGrade=matchedByDiscord.grade;
+        if(!confirm(`Ce compte Discord appartient déjà à ${oldName} (${oldGrade}).\n\nLier l'ID EMS ${f.idUnique} à cette fiche et actualiser le nom en ${f.name} (${f.grade}) ?\nSon ID Discord et ses autorisations seront conservés.`)) return;
+        matchedByDiscord.idUnique=f.idUnique||matchedByDiscord.idUnique||null;
+        if(norm(oldName)!==norm(f.name)){
+          matchedByDiscord.aliases=Array.from(new Set([...(Array.isArray(matchedByDiscord.aliases)?matchedByDiscord.aliases:[]),oldName])).filter(a=>norm(a)!==norm(f.name));
+        }
+        matchedByDiscord.name=f.name; matchedByDiscord.grade=f.grade;
+        logHistory('Liaison compte Discord / ID EMS', f.name, `Compte existant conservé : ${oldName} → ${f.name}, ${oldGrade} → ${f.grade}`);
+        saveState();renderAll();btn.closest('[data-pending-row]')?.remove();
+        toast(`${f.name} lié à son compte Discord existant — Sauvegarder`);
+        return;
+      }
       const impDup = findDuplicateEmployee(f.name, discordId);
-      if(impDup && !confirm(`${impDup.employee.name} (${impDup.employee.grade}) est déjà dans le roster avec ${impDup.why}. Ajouter quand même ?`)) return;
+      if(impDup){toast(`⚠ ${f.name} existe déjà (${impDup.why}) — traite ce conflit manuellement.`);return;}
+      if(!rosterCloudConfirmed||!hasCap('manage_roster')){toast('Modification du Roster non autorisée.');return;}
       employees.push({id:uid(), name:f.name, discordId, grade:f.grade, role:"", licencie:false, licencieDate:null, idUnique:f.idUnique||null});
       saveState(); renderAll();
       btn.closest("[data-pending-row]").remove();
-      logHistory("Ajout", f.name, `Grade ${f.grade}, ID ${discordId} (import EMS)`);
-      toast(`${f.name} ajouté`);
+      logHistory("Ajout", f.name, `Grade ${f.grade}, ID Discord ${discordId}, ID unique EMS ${f.idUnique||'—'}`);
+      toast(`${f.name} ajouté — clique sur Sauvegarder`);
     });
   });
   const btnAll = document.getElementById("btnAddAllPending");
   if(btnAll) btnAll.addEventListener("click", ()=>{
+    if(!rosterCloudConfirmed||!hasCap('manage_roster')){toast('Modification du Roster non autorisée.');return;}
     let count = 0;
     const skippedGroup = [];
     box.querySelectorAll("[data-pending-row]").forEach(row=>{
@@ -4049,7 +4173,7 @@ function renderImportResults(result){
       if(!f) return;
       // Ajout groupé : jamais de doublon ni de champ invalide silencieux —
       // ces lignes restent à l'écran, avec une raison claire.
-      const groupError = validateEmployeeFields(f.name, discordId) || (findDuplicateEmployee(f.name, discordId) ? "déjà dans le roster (même nom ou même ID Discord)" : null);
+      const groupError = (!/^\d{16,22}$/.test(discordId) ? "ID Discord invalide (16 à 22 chiffres attendus)" : null) || validateEmployeeFields(f.name, discordId) || (findDuplicateEmployee(f.name, discordId) ? "déjà dans le roster (même nom ou même ID Discord) — liaison individuelle requise" : null);
       if(groupError){ skippedGroup.push(`${f.name} : ${groupError}`); return; }
       employees.push({id:uid(), name:f.name, discordId, grade:f.grade, role:"", licencie:false, licencieDate:null, idUnique:f.idUnique||null});
       logHistory("Ajout", f.name, `Grade ${f.grade}, ID ${discordId} (import EMS groupé)`);
@@ -4094,12 +4218,12 @@ function renderImportResults(result){
     if(!p) return;
     const e = employees.find(x=>x.id===p.id);
     if(!e) return;
-    employees = employees.filter(x=>x.id!==p.id);
+    if(!confirm(`Désactiver l'accès Gain de Temps de ${e.name} (WDV) ? Sa fiche restera archivée et l'ID Discord sera conservé.`)) return;
+    e.licencie=true; e.licencieDate=new Date().toISOString().slice(0,10);
     saveState(); renderAll();
     if(row) row.remove();
-    const qdSingle = quickDepartureInfo(p);
-    logHistory("Licenciement (WDV)", e.name, "détecté à l'import EMS" + (qdSingle ? ` — DÉPART RAPIDE : ${quickDepartureWording(qdSingle)}` : ""));
-    toast(`${e.name} licencié (WDV) et retiré du roster`);
+    logHistory("Accès désactivé (WDV)", e.name, "décision manuelle sur import EMS ; fiche conservée");
+    toast(`${e.name} : accès désactivé localement, sauvegarde requise`);
   };
   box.querySelectorAll("[data-licencier-apply]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -4109,11 +4233,12 @@ function renderImportResults(result){
   });
   const btnAllLicencier = document.getElementById("btnApplyAllLicencier");
   if(btnAllLicencier) btnAllLicencier.addEventListener("click", ()=>{
-    const count = window._pendingLicencier.length;
-    const idsToLicencier = new Set(window._pendingLicencier.map(p=>p.id));
-    window._pendingLicencier.forEach(p=>{ const qd = quickDepartureInfo(p); logHistory("Licenciement (WDV)", p.name, "détecté à l'import EMS, groupé" + (qd ? ` — DÉPART RAPIDE : ${quickDepartureWording(qd)}` : "")); });
-    employees = employees.filter(x=>!idsToLicencier.has(x.id));
-    if(count){ saveState(); renderAll(); toast(`${count} licenciement(s) appliqué(s), retirés du roster`); }
+    const targets=window._pendingLicencier.filter(p=>employees.some(e=>e.id===p.id&&!e.licencie));
+    if(!targets.length) return;
+    if(!confirm(`Désactiver ${targets.length} accès WDV ? Les fiches resteront dans le Roster.`)) return;
+    const ids=new Set(targets.map(p=>p.id));
+    employees.filter(e=>ids.has(e.id)).forEach(e=>{e.licencie=true;e.licencieDate=new Date().toISOString().slice(0,10);logHistory('Accès désactivé (WDV)',e.name,'décision groupée depuis le tableau EMS');});
+    saveState();renderAll();toast(`${targets.length} accès désactivés localement — Sauvegarder pour publier`);
   });
 
   // ── Dossiers absents du tableau collé (suppression proposée) ──
@@ -4383,18 +4508,9 @@ document.getElementById("filterGrade").addEventListener("change", renderAll);
 document.getElementById("btnAnalyzeEms").addEventListener("click", ()=>{
   const text = document.getElementById("emsTableInput").value;
   const result = parseEmsTableForImport(text);
-  applyUniqueIdMemoryUpdates(result);
+  // Analyse uniquement : aucune modification de données, d'activités ou
+  // d'absences, ni écriture Firebase, tant qu'une action n'est pas confirmée.
   renderImportResults(result);
-  // Un seul collage sert aussi à détecter les absences pour les onglets
-  // Formateur/Psychologue — plus besoin de recoller le tableau une
-  // deuxième fois ailleurs (demandé le 07/09).
-  weekAbsences = parseWeekAbsences(text);
-  saveWeekAbsences();
-  renderActiviteTab("formateur"); renderActiviteTab("psychologue");
-  // (03/10) Le même collage sert aussi à détecter les absences de plus
-  // de 3 jours pour le nouvel onglet Absences — synchronise directement
-  // vers le cloud (ajoute seulement les nouvelles, jamais de doublon).
-  syncQualifyingAbsences(text);
 });
 
 document.getElementById("btnCopyList").addEventListener("click", ()=>{
