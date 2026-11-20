@@ -1,0 +1,20 @@
+ROSTER EMS — VERSION FOURNIE LE 20/11/2026 + LOGS PRIVES GAIN DE TEMPS
+=====================================================================
+
+BASE : EMS-Roster-main(2).zip fourni par l'utilisateur.
+
+MODIFICATIONS UNIQUES :
+- Ajout d'un bloc « Journal privé Gain de Temps EMS » dans l'onglet Logs d'index.html ;
+- Ajout de netlify/functions/gain-activity-logs.js (lecture sécurisée des événements Cloud).
+
+Aucune autre fonction, aucun thème, aucun CSS/JS externe, aucune donnée et aucun rapport n'a été retiré ou remplacé. Tous les fichiers supplémentaires de la dernière version sont conservés.
+
+ACCES : uniquement Discord OWNER avec ID correspondant à l'identité propriétaire du Roster, vérifié par session signée côté fonction Netlify. Les autres grades reçoivent 403.
+
+FIREBASE : les règles gainTemps/activityLogs du TXT de la V5.1 doivent déjà être publiées. Sans ces règles ou les variables Netlify, le journal sera indisponible.
+
+HISTORIQUE : 30 jours, 1000 événements les plus récents sont interrogés; un filtre ID Discord et une limite d'affichage de 500 s'appliquent. Ne remonte pas les actions précédant le déploiement de Gain de Temps V5.1.
+
+DEPLOIEMENT : ce ZIP contient les fichiers sources ET la fonction Netlify. Un déploiement de site statique par glisser-déposer n'est pas suffisant pour publier les fonctions. Déployer le projet via le workflow Netlify habituel (Git/CLI) et vérifier la fonction gain-activity-logs.
+
+TESTS REALISES : comparaison intégrale des archives, syntaxe Node des fonctions et script inséré, contrôles 401/403 locaux. Connexion réelle Firebase/Discord non testée.
