@@ -1,0 +1,20 @@
+ROSTER EMS COMPLET — CORRECTION JOURNAL GAIN DE TEMPS FIREBASE 401
+
+Déployer cette version COMPLETE du Roster selon votre système habituel de déploiement.
+Aucun changement de structure de fichiers : le site est directement à la racine du ZIP.
+
+- Le journal Gain de Temps, réservé à l'OWNER réel, lit les logs Firebase via le
+  compte de service OAuth2 dans une fonction Netlify (jamais côté navigateur).
+- La liste des employés autorisés continue de provenir du Roster et de ses permissions.
+- Si l'ancienne règle Firebase n'a pas l'index actorDiscordId, la lecture se replie
+  sur une lecture serveur complète pour conserver l'affichage. Sur un gros historique,
+  les index Firebase restent recommandés pour accélérer le chargement.
+- La liaison Pillbox, la synchronisation et les fonctionnalités existantes sont préservées.
+
+AVANT TEST : vérifier que les fonctions Netlify du Roster sont bien déployées et
+que son compte de service FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY a accès à
+la même Realtime Database. Aucune clé secrète n'est incluse dans ce ZIP.
+
+TESTS HORS PRODUCTION : permission DG refusée, autorisation OWNER, lecture et
+pagination de 430 logs, récupération sans index. Pas de test sur Firebase en ligne.
+Tests Roster généraux : 63/71 passent (8 échecs déjà présents auparavant).
