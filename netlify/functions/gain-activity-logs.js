@@ -3,6 +3,7 @@
 const {verify}=require('./session-token');
 const {createFirebaseCustomToken}=require('./firebase-token');
 const {OWNER_DISCORD_ID}=require('./permissions');
+const {firebaseAdminFetch}=require('./firebase-admin-rest');
 const BASE='https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app';
 const LOG_PATH='/gainTemps/activityLogs';
 const LAST_DAYS=30;
@@ -39,9 +40,16 @@ async function getToken(session){
  return token;
 }
 async function fetchDb(path,token,query=''){
- const r=await fetch(`${BASE}/${path}.json?auth=${encodeURIComponent(token)}${query}`);
+ const isPrivateLog=path==='gainTemps/activityLogs';
+ const url=isPrivateLog?`${BASE}/${path}.json?${query.replace(/^&/,'')}`:`${BASE}/${path}.json?auth=${encodeURIComponent(token)}${query}`;
+ let r=isPrivateLog?await firebaseAdminFetch(url):await fetch(url);
+ // La V5.3 pouvait echouer en HTTP 400 si les anciennes regles n'avaient pas
+ // l'index actorDiscordId. En secours, lecture complete puis filtrage OWNER cote serveur.
+ if(isPrivateLog&&r.status===400&&query.includes('actorDiscordId')){
+   r=await firebaseAdminFetch(`${BASE}/${path}.json`);
+ }
  if(!r.ok){
-   const error=r.status===401||r.status===403?`Lecture Firebase refusée (${r.status}) : vérifie les règles gainTemps/activityLogs et le jeton d'audit`:`Lecture Firebase indisponible (${r.status})`;
+   const error=r.status===401||r.status===403?`Lecture Firebase refusée (${r.status}) : vérifie les droits du compte de service Firebase du Roster`:`Lecture Firebase indisponible (${r.status})`;
    throw Object.assign(new Error(error),{statusCode:502});
  }
  return (await r.json())||{};
@@ -55,7 +63,9 @@ exports.handler=async function(event){
  const action=String(body.action||'logs');
  if(!['users','logs','diagnostic'].includes(action))return json(400,{error:'Action inconnue'});
  try{
-  const token=await getToken(session);
+  // Seul le chargement des utilisateurs utilise encore les jetons Firebase Auth;
+  // les logs passent par OAuth2 du compte de service (cote serveur uniquement).
+  const token=action==='users'?await getToken(session):null;
   if(action==='diagnostic'){
    const db=await fetchDb('gainTemps/activityLogs',token,'&orderBy=%22%24key%22&limitToLast=2');
    const items=Object.values(db||{}).filter(x=>x&&typeof x==='object');
