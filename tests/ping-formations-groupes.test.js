@@ -44,4 +44,14 @@ test("un licencié ou exclu n'est jamais ping même avec un ajout manuel",()=>{
  const a={...staff[2],pingPilote:true,licencie:true}, b={...staff[2],pingPilote:true,excludeFromPingLists:true};
  assert.strictEqual(ping.getPingListEmployees("pilote",[a,b]).employees.length,0);
 });
+test("formateurs = référence Discord (pas tous les grades MC/ADD/CD...)",()=>{
+ const trop={id:"9",name:"Ancien formateur",discordId:"979045795959554098",grade:"MC"};
+ const ok={id:"8",name:"Papy",discordId:"514871271352434699",grade:"DG"};
+ [ "formateurPilote","formateurMup" ].forEach(k=>{
+  const ids=ping.getPingListEmployees(k,[trop,ok]).employees.map(e=>e.id);
+  assert.deepStrictEqual(ids,["8"]);
+  assert.deepStrictEqual(ping.getPingListEmployees(k,[{...trop,[ping.PING_MANUAL_FIELD[k]]:true}]).employees.map(e=>e.id),["9"]);
+ });
+ assert.strictEqual(ping.PING_FORMATEUR_DISCORD_IDS.size,10);
+});
 console.log("Tests formations/ajouts terminés.");
