@@ -59,6 +59,18 @@
           "licencieDate": {
             ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
           },
+          "excludeFromPingLists": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
+          "pingPilote": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
+          "pingCoPilote": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
+          "pingMup": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
           "idUnique": {
             ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
           },
