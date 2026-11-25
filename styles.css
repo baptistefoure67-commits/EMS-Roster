@@ -1089,3 +1089,18 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important}
 .ping-missing div{padding:3px 8px}
 .ping-grade-heading{padding:7px 9px;margin-top:7px;border-bottom:1px solid var(--border-soft);font-size:.72rem;font-weight:900;color:var(--text-dim);letter-spacing:.04em}
 .ping-grade-group:first-child .ping-grade-heading{margin-top:0}
+
+
+/* Espace dédié aux listes de ping — même langage visuel que les onglets EMS. */
+.ping-hub-card{position:relative;overflow:hidden;padding:18px 20px!important;margin-bottom:14px;background:linear-gradient(115deg,var(--panel),color-mix(in srgb,var(--theme-primary) 7%,var(--panel)))!important;border-color:color-mix(in srgb,var(--theme-primary) 24%,var(--border))!important}
+.ping-hub-heading{display:flex;align-items:center;gap:14px;min-width:0}
+.ping-hub-icon{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:14px;background:color-mix(in srgb,var(--theme-primary) 13%,var(--panel-2));border:1px solid color-mix(in srgb,var(--theme-primary) 28%,var(--border));font-size:1.35rem;box-shadow:0 5px 18px color-mix(in srgb,var(--theme-primary) 10%,transparent)}
+.ping-hub-copy{flex:1;min-width:0}
+.ping-hub-copy .special-title{font-size:1.05rem;margin-bottom:4px}
+.ping-hub-meta{display:flex;align-items:center;gap:8px;margin:12px 0 0 60px;color:var(--text-dim);font-size:.73rem;flex-wrap:wrap}
+.ping-live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 15%,transparent)}
+.ping-hub-separator{opacity:.5}
+#tabPingListsBtn{position:relative}
+#tabPingListsBtn:not(.active)::before{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--theme-primary);opacity:0;transition:opacity .18s}
+#tabPingListsBtn:hover::before,#tabPingListsBtn.active::before{opacity:1}
+@media(max-width:620px){.ping-hub-heading{flex-wrap:wrap}.ping-hub-heading>.btn-primary{margin-left:60px}.ping-hub-meta{margin-left:0}}
