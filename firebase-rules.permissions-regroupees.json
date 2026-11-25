@@ -71,6 +71,12 @@
           "pingMup": {
             ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
           },
+          "pingFormateurPilote": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
+          "pingFormateurMup": {
+            ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isBoolean())"
+          },
           "idUnique": {
             ".validate": "auth != null && auth.token.level == 'OWNER' || (newData.isString() && newData.val().length < 30)"
           },
