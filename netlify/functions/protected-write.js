@@ -205,7 +205,7 @@ exports.handler = async function (event) {
       const { id } = payload || {};
       const idx = employees.findIndex((e) => String(e.id) === String(id));
       if (idx === -1) return json(404, { error: "Employé introuvable." });
-      const FIELDS = { pilote: "pingPilote", coPilote: "pingCoPilote", mup: "pingMup" };
+      const FIELDS = { pilote: "pingPilote", coPilote: "pingCoPilote", mup: "pingMup", formateurPilote: "pingFormateurPilote", formateurMup: "pingFormateurMup" };
       const before = { ...employees[idx] };
       const changed = [];
       for (const [k, field] of Object.entries(FIELDS)) {
@@ -294,7 +294,7 @@ function validateEmployees(employees){
     if(typeof e?.name!=="string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
     if(typeof e?.discordId!=="string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
     if(typeof e?.grade!=="string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e?.grade}")`);
-    ["pingPilote","pingCoPilote","pingMup"].forEach(f=>{ if(e?.[f] !== undefined && typeof e[f] !== "boolean") problems.push(`champ ${f} invalide`); });
+    ["pingPilote","pingCoPilote","pingMup","pingFormateurPilote","pingFormateurMup"].forEach(f=>{ if(e?.[f] !== undefined && typeof e[f] !== "boolean") problems.push(`champ ${f} invalide`); });
     if(e?.excludeFromPingLists !== undefined && typeof e.excludeFromPingLists !== "boolean") problems.push("exclusion des listes de ping invalide");
     if(problems.length) bad.push(`${e?.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
   });
