@@ -3,11 +3,11 @@ const EMPLOYES_ROLE_ID = "1168614318846267492";
 const EXCLUDED_FROM_PING_LISTS = ["451073171194511370"];
 const PING_LIST_GRADE_ORDER = ["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"];
 const PING_LIST_CONFIG = {
-  pilote: { label:"Pilotes", title:"LISTE PILOTES", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"] },
-  coPilote: { label:"Co-Pilotes", title:"LISTE CO-PILOTES", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"] },
-  formateurPilote: { label:"Formateurs Pilote", title:"LISTE FORMATEURS PILOTE", grades:["DG","D","CD","ADD","MC","RF","MF"] },
-  mup: { label:"M.U.P", title:"LISTE M.U.P", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M"] },
-  formateurMup: { label:"Formateurs M.U.P", title:"LISTE FORMATEURS M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] }
+  pilote: { label:"Pilotes", title:"LISTE des Pilotes", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"] },
+  coPilote: { label:"Co-Pilotes", title:"LISTE des Co-Pilotes", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"] },
+  formateurPilote: { label:"Formateurs Pilote", title:"LISTE des Formateurs Pilote", grades:["DG","D","CD","ADD","MC","RF","MF"] },
+  mup: { label:"M.U.P", title:"LISTE des M.U.P", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M"] },
+  formateurMup: { label:"Formateurs M.U.P", title:"LISTE des Formateurs M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] }
 };
 const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","pilote","coPilote"];
 const PING_FORMATION_MEMBERSHIP = {
@@ -50,12 +50,12 @@ function buildPingListText(key, source=employees, date=new Date(), includeUpdate
   const cfg=PING_LIST_CONFIG[key]; if(!cfg) throw new Error("Liste de ping inconnue.");
   const {employees:list}=getPingListEmployees(key,source);
   const blocks=list.map(e=>`<@${String(e.discordId).trim()}>`);
-  const body=blocks.length ? `**${cfg.title} :**\n\n${blocks.join("\n\n")}` : `**${cfg.title} :**`;
-  return includeUpdate ? `${body}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")} <@&${EMPLOYES_ROLE_ID}>` : body;
+  const body=blocks.length ? `**${cfg.title} :**\n\n${blocks.join("\n")}` : `**${cfg.title} :**`;
+  return includeUpdate ? `${body}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>` : body;
 }
 function buildAllPingListsText(source=employees,date=new Date()) {
   const blocks=PING_COPY_ORDER.map(k=>buildPingListText(k,source,date,false));
-  return `${blocks.join("\n\n")}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")} <@&${EMPLOYES_ROLE_ID}>`;
+  return `${blocks.join("\n\n")}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>`;
 }
 function renderPingLists() {
   const host=document.getElementById("pingListsGrid"); if(!host || typeof employees==="undefined") return;
@@ -65,7 +65,7 @@ function renderPingLists() {
     const total=preview.length;
     const grouped=PING_LIST_GRADE_ORDER.map(grade=>({grade,people:preview.filter(e=>e.grade===grade)})).filter(group=>group.people.length);
     const groupedHtml=grouped.map(group=>`<div class="ping-grade-group"><div class="ping-grade-heading">${esc(group.grade)} — ${esc(GRADE_LABEL[group.grade]||group.grade)}</div>${group.people.map(e=>`<div class="special-row"><span><b>${esc(e.name)}</b></span><span class="sub">${pingValidDiscordId(e.discordId)?"":"ID manquant"}</span></div>`).join("")}</div>`).join("");
-    return `<section class="card ping-list-card"><div class="special-head"><div><div class="special-title">${cfg.label}</div><div class="special-sub">${total} employé(s)${(key==="pilote"||key==="coPilote")&&!PING_FORMATION_MEMBERSHIP.loaded?" · formations en cours de chargement":""}</div></div><button class="btn-primary btn-small" type="button" data-ping-copy="${key}">Copier</button></div><div class="special-list ping-list-preview">${total?groupedHtml:'<div class="empty-msg">Aucun employé trouvé.</div>'}</div><details class="ping-missing"><summary>ID manquants : ${missing.length}</summary>${missing.length?missing.map(e=>`<div>${esc(e.name)} (${esc(e.grade)})</div>`).join(""):'<span class="sub">Aucun ID manquant.</span>'}</details></section>`;
+    return `<section class="card ping-list-card"><div class="ping-card-top"><div class="ping-card-title-wrap"><div class="special-title">LISTE des ${esc(cfg.label)}</div><div class="special-sub">${data.employees.length} membre(s) à ping${(key==="pilote"||key==="coPilote")&&!PING_FORMATION_MEMBERSHIP.loaded?" · formations en cours de chargement":""}</div></div><span class="ping-count">${data.employees.length}</span></div><div class="ping-card-actions"><button class="btn-primary btn-small" type="button" data-ping-copy="${key}">⧉ Copier la liste</button><span class="ping-preview-label">Aperçu des membres</span></div><div class="special-list ping-list-preview">${total?groupedHtml:'<div class="empty-msg">Aucun employé trouvé.</div>'}</div><details class="ping-missing"><summary>ID manquants : ${missing.length}</summary>${missing.length?missing.map(e=>`<div>${esc(e.name)} (${esc(e.grade)})</div>`).join(""):'<span class="sub">Aucun ID manquant.</span>'}</details></section>`;
   }).join("");
 }
 async function copyPingText(text) {
