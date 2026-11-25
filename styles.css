@@ -1078,3 +1078,14 @@ body.roster-anims-off .sync-monitor-led,body.roster-anims-off .sync-hospital-doo
 #liaisonOverlay[hidden]{display:none!important}
 #liaisonOverlay>.liaison-dialog{position:relative!important;flex:0 0 auto!important;width:min(460px,calc(100vw - 36px))!important;max-width:460px!important;max-height:calc(100dvh - 36px)!important;margin:auto!important;overflow:auto!important}
 html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important}
+
+/* Listes de ping Discord — reprend les cartes et contrôles Formation/Opération */
+.ping-lists-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px}
+.ping-list-card{min-width:0;padding:13px!important}
+.ping-list-preview{max-height:210px;overflow:auto;margin-top:10px;padding-right:4px}
+.ping-list-preview .special-row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px 9px}
+.ping-missing{margin-top:9px;color:var(--text-dim);font-size:.76rem}
+.ping-missing summary{cursor:pointer;user-select:none}
+.ping-missing div{padding:3px 8px}
+.ping-grade-heading{padding:7px 9px;margin-top:7px;border-bottom:1px solid var(--border-soft);font-size:.72rem;font-weight:900;color:var(--text-dim);letter-spacing:.04em}
+.ping-grade-group:first-child .ping-grade-heading{margin-top:0}
