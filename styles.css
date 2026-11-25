@@ -1104,3 +1104,16 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important}
 #tabPingListsBtn:not(.active)::before{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--theme-primary);opacity:0;transition:opacity .18s}
 #tabPingListsBtn:hover::before,#tabPingListsBtn.active::before{opacity:1}
 @media(max-width:620px){.ping-hub-heading{flex-wrap:wrap}.ping-hub-heading>.btn-primary{margin-left:60px}.ping-hub-meta{margin-left:0}}
+
+/* Cartes de listes : hiérarchie visuelle plus lisible et actions explicites. */
+.ping-list-card{display:flex;flex-direction:column;gap:9px;padding:15px!important;border:1px solid var(--border)!important;background:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 28%,var(--panel)),var(--panel))!important}
+.ping-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ping-card-title-wrap{min-width:0}
+.ping-card-title-wrap .special-title{font-size:.92rem;line-height:1.35}
+.ping-card-title-wrap .special-sub{margin-top:4px}
+.ping-count{display:grid;place-items:center;min-width:36px;height:36px;padding:0 9px;border-radius:11px;background:color-mix(in srgb,var(--theme-primary) 13%,var(--panel-2));border:1px solid color-mix(in srgb,var(--theme-primary) 28%,var(--border));font-size:.9rem;font-weight:850;color:var(--text)}
+.ping-card-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ping-preview-label{font-size:.69rem;color:var(--text-faint);font-weight:700;letter-spacing:.035em;text-transform:uppercase}
+.ping-list-preview{max-height:230px;border:1px solid var(--border-soft);border-radius:10px;background:color-mix(in srgb,var(--panel-2) 30%,transparent);padding:7px!important}
+.ping-list-preview .special-row{border-radius:6px}
+.ping-missing{padding-top:2px;border-top:1px solid var(--border-soft)}
