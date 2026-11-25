@@ -80,7 +80,7 @@ test("Copier tout contient cinq blocs et une seule date finale",()=>{
 });
 console.log("Tous les tests des listes de ping sont terminés.");
 
-test("Pilote et Co-Pilote sont distingués par les formations validées existantes",()=>{
+test("le parseur historique conserve les catégories de formation Pilote et Co-Pilote",()=>{
  const membership=formation.buildPingMembership({
   a:{type:"pilote",traineeId:"1",traineeDiscordId:"100000000000000001"},
   b:{type:"copilote",traineeId:"2",traineeDiscordId:"100000000000000002"},
@@ -92,18 +92,17 @@ test("Pilote et Co-Pilote sont distingués par les formations validées existant
  assert(!membership.piloteDiscordIds.includes("100000000000000002"));
  assert(!membership.copiloteDiscordIds.includes("100000000000000001"));
 });
-test("appartenance pilote/co-pilote produit deux listes réellement distinctes",()=>{
- const p=ping.PING_FORMATION_MEMBERSHIP;
- p.loaded=true;
- p.piloteEmployeeIds=new Set(["1"]); p.piloteDiscordIds=new Set();
- p.copiloteEmployeeIds=new Set(["2"]); p.copiloteDiscordIds=new Set();
- const people=[
-  {id:"1",name:"Alice Alpha",discordId:"100000000000000001",grade:"M"},
-  {id:"2",name:"Benoit Beta",discordId:"100000000000000002",grade:"M"}
- ];
- assert.deepStrictEqual(ping.getPingListEmployees("pilote",people).employees.map(e=>e.id),["1"]);
- assert.deepStrictEqual(ping.getPingListEmployees("coPilote",people).employees.map(e=>e.id),["2"]);
- p.loaded=false; p.piloteEmployeeIds.clear(); p.copiloteEmployeeIds.clear();
+test("les compositions Pilotes et Co-Pilotes correspondent aux références Discord",()=>{
+ const ids=[...ping.PING_PILOTE_DISCORD_IDS,...ping.PING_COPILOTE_DISCORD_IDS];
+ const people=[...new Set(ids)].map((discordId,i)=>({id:String(i+1),name:"Employé "+i,discordId,grade:"M"}));
+ const pilotes=ping.getPingListEmployees("pilote",people).employees.map(e=>e.discordId);
+ const copilotes=ping.getPingListEmployees("coPilote",people).employees.map(e=>e.discordId);
+ assert.strictEqual(ping.PING_PILOTE_DISCORD_IDS.size,17);
+ assert.strictEqual(ping.PING_COPILOTE_DISCORD_IDS.size,25);
+ assert.deepStrictEqual(new Set(pilotes),ping.PING_PILOTE_DISCORD_IDS);
+ assert.deepStrictEqual(new Set(copilotes),ping.PING_COPILOTE_DISCORD_IDS);
+ assert([...ping.PING_PILOTE_DISCORD_IDS].every(id=>ping.PING_COPILOTE_DISCORD_IDS.has(id)),"Tous les Pilotes doivent aussi figurer dans Co-Pilotes selon les références fournies");
+ assert.strictEqual(ping.PING_COPILOTE_DISCORD_IDS.size-ping.PING_PILOTE_DISCORD_IDS.size,8);
 });
 
 test("une liste vide conserve un espacement propre sans lignes parasites",()=>{
