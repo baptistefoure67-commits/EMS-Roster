@@ -2210,7 +2210,22 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
         </div>
         <button type="button" class="btn-primary" id="btnPingCopyAll">⧉ Copier tout</button>
       </div>
+      <div class="ping-hub-meta" style="margin-top:12px;gap:10px">
+        <button type="button" class="btn-primary btn-small" data-ping-group="formationPilote">⧉ Copier Formation Pilote - Co-Pilote</button>
+        <button type="button" class="btn-primary btn-small" data-ping-group="formationMup">⧉ Copier Formation MUP</button>
+      </div>
       <div class="ping-hub-meta"><span class="ping-live-dot"></span> Membres synchronisés automatiquement <span class="ping-hub-separator">•</span> Tri par grade puis prénom <span class="ping-hub-separator">•</span> Cliquez sur « Copier » pour obtenir le format Discord prêt à envoyer.</div>
+    </div>
+    <div class="card" id="pingAddCard" hidden style="margin-bottom:14px;padding:14px 16px">
+      <div class="special-title">➕ Ajouter quelqu'un à une liste</div>
+      <div class="special-sub" style="margin-bottom:10px">Choisis l'employé, puis la ou les listes : Pilote, Co-Pilote et/ou MUP. Cocher Pilote coche aussi Co-Pilote (tous les Pilotes actuels sont aussi Co-Pilotes) — décoche-le si besoin.</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <select id="pingAddSelect" style="min-width:220px"><option value="">Choisir un employé…</option></select>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddPilote"> Pilote</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddCoPilote"> Co-Pilote</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddMup"> MUP</label>
+        <button type="button" class="btn-primary btn-small" id="btnPingAdd">Ajouter</button>
+      </div>
     </div>
     <div id="pingListsGrid" class="ping-lists-grid"></div>
   </div>
