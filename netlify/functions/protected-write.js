@@ -164,7 +164,7 @@ exports.handler = async function (event) {
     let pendingLog = null;
 
     if (action === "editEmployee") {
-      const { id, name, discordId, grade, role, aliases } = payload || {};
+      const { id, name, discordId, grade, role, aliases, excludeFromPingLists } = payload || {};
       const idx = employees.findIndex((e) => String(e.id) === String(id));
       if (idx === -1) return json(404, { error: "Employé introuvable." });
       const before = { ...employees[idx] };
@@ -188,6 +188,7 @@ exports.handler = async function (event) {
         grade: grade || employees[idx].grade,
         role: role !== undefined ? role : employees[idx].role,
         aliases: (cleanAliases && cleanAliases.length) ? cleanAliases : undefined,
+        ...(typeof excludeFromPingLists === "boolean" ? { excludeFromPingLists } : {}),
       };
       if (employees[idx].aliases === undefined) delete employees[idx].aliases;
       pendingLog = {
@@ -260,13 +261,14 @@ exports.handler = async function (event) {
 };
 
 function validateEmployees(employees){
-  const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|INF|A|WDV|STG)$/;
+  const GRADE_RE = /^(DG|D|CD|ADD|MC|RL|RF|RP|MLP|MP|MF|M|BNVL|INF|A|WDV|STG)$/;
   const bad=[];
   (employees||[]).forEach((e,i)=>{
     const problems=[];
     if(typeof e?.name!=="string" || !e.name.trim() || e.name.length>=100 || /[<>]/.test(e.name)) problems.push("nom invalide ou vide");
     if(typeof e?.discordId!=="string" || !e.discordId.trim() || e.discordId.length>=30) problems.push("ID Discord vide ou invalide");
     if(typeof e?.grade!=="string" || !GRADE_RE.test(e.grade)) problems.push(`grade invalide ("${e?.grade}")`);
+    if(e?.excludeFromPingLists !== undefined && typeof e.excludeFromPingLists !== "boolean") problems.push("exclusion des listes de ping invalide");
     if(problems.length) bad.push(`${e?.name || `(sans nom, position ${i})`} : ${problems.join(", ")}`);
   });
   // (24/10, audit) Deux fiches ACTIVES ne peuvent plus partager le même ID
