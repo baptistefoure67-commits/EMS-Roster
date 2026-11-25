@@ -37,6 +37,14 @@ const PING_COPILOTE_DISCORD_IDS = new Set([
   "1311123243775557652", "1124004082143735888", "1535715965914841158",
   "971134294963683358"
 ]);
+// Formateurs : liste de référence (IDs Discord), plus basée sur le seul grade —
+// avoir un grade MC/ADD/CD... ne veut pas dire être encore médecin formateur.
+const PING_FORMATEUR_DISCORD_IDS = new Set([
+  "514871271352434699", "408669016039882752", "873209274023690303",
+  "861557966083850250", "701698983466106903", "881570935679909918",
+  "871023722520264714", "263758146177204225", "753895886559510588",
+  "1155340672077926463"
+]);
 function pingValidDiscordId(value) { return /^\d{17,20}$/.test(String(value||"").trim()); }
 function pingFirstName(name) { return String(name||"").trim().split(/\s+/)[0] || ""; }
 function pingCompareEmployees(a,b) {
@@ -53,7 +61,7 @@ function pingIsExcluded(e) {
 //   true  = ajouté à la main dans la liste (même hors référence / hors grade)
 //   false = retiré à la main de la liste
 //   absent = composition de référence (IDs Discord) ou filtre par grade
-const PING_MANUAL_FIELD = { pilote:"pingPilote", coPilote:"pingCoPilote", mup:"pingMup" };
+const PING_MANUAL_FIELD = { pilote:"pingPilote", coPilote:"pingCoPilote", mup:"pingMup", formateurPilote:"pingFormateurPilote", formateurMup:"pingFormateurMup" };
 function pingManualFlag(e,key) {
   const f=PING_MANUAL_FIELD[key]; if(!f||!e) return undefined;
   return typeof e[f]==="boolean" ? e[f] : undefined;
@@ -70,6 +78,7 @@ function getPingListEmployees(key, source=employees) {
     if(!allowed.has(e.grade)) return false;
     if(key==="pilote") return PING_PILOTE_DISCORD_IDS.has(String(e.discordId||"").trim());
     if(key==="coPilote") return PING_COPILOTE_DISCORD_IDS.has(String(e.discordId||"").trim());
+    if(key==="formateurPilote"||key==="formateurMup") return PING_FORMATEUR_DISCORD_IDS.has(String(e.discordId||"").trim());
     return true;
   });
   const valid=list.filter(e=>pingValidDiscordId(e.discordId)).sort(pingCompareEmployees);
@@ -144,16 +153,16 @@ if (typeof document !== "undefined") document.addEventListener("click",async ev=
   }
   if(ev.target.closest("#btnPingAdd")){
     const sel=document.getElementById("pingAddSelect"), id=sel&&sel.value;
-    const flags={pilote:document.getElementById("pingAddPilote").checked,coPilote:document.getElementById("pingAddCoPilote").checked,mup:document.getElementById("pingAddMup").checked};
+    const flags={pilote:document.getElementById("pingAddPilote").checked,coPilote:document.getElementById("pingAddCoPilote").checked,mup:document.getElementById("pingAddMup").checked,formateurPilote:document.getElementById("pingAddFormateurPilote").checked,formateurMup:document.getElementById("pingAddFormateurMup").checked};
     if(!id){ if(typeof toast==="function") toast("Choisis d'abord un employé."); return; }
-    if(!flags.pilote&&!flags.coPilote&&!flags.mup){ if(typeof toast==="function") toast("Coche au moins une liste : Pilote, Co-Pilote ou MUP."); return; }
+    if(!Object.values(flags).some(Boolean)){ if(typeof toast==="function") toast("Coche au moins une liste."); return; }
     const btnAdd=ev.target.closest("#btnPingAdd"); btnAdd.disabled=true;
     try {
       const payload={}; Object.keys(flags).forEach(k=>{ if(flags[k]) payload[k]=true; });
       const e=await pingSetMembership(id,payload);
       const noIdWarn=pingValidDiscordId(e.discordId)?"":" (⚠ ID Discord manquant : il ne sera pas ping)";
       if(typeof toast==="function") toast(`✓ ${e.name} ajouté${noIdWarn}`);
-      ["pingAddPilote","pingAddCoPilote","pingAddMup"].forEach(i=>{document.getElementById(i).checked=false;}); sel.value="";
+      ["pingAddPilote","pingAddCoPilote","pingAddMup","pingAddFormateurPilote","pingAddFormateurMup"].forEach(i=>{document.getElementById(i).checked=false;}); sel.value="";
     } catch(err) { if(typeof toast==="function") toast("✕ Ajout impossible : "+err.message); }
     finally { btnAdd.disabled=false; }
     return;
@@ -177,4 +186,4 @@ if (typeof document !== "undefined") {
   }
   setInterval(renderPingLists,3000);
 }
-if(typeof module!=="undefined") module.exports={PING_COPY_GROUPS,PING_MANUAL_FIELD,buildPingGroupText,pingManualFlag,PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_PILOTE_DISCORD_IDS,PING_COPILOTE_DISCORD_IDS,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
+if(typeof module!=="undefined") module.exports={PING_FORMATEUR_DISCORD_IDS,PING_COPY_GROUPS,PING_MANUAL_FIELD,buildPingGroupText,pingManualFlag,PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_PILOTE_DISCORD_IDS,PING_COPILOTE_DISCORD_IDS,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
