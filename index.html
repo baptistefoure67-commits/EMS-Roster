@@ -2187,7 +2187,6 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   <div id="rosterLastUpdated" style="font-size:0.74rem;color:var(--text-faint);margin:0 0 16px;"></div>
 
   <div class="tabbar">
-    <button type="button" class="tab-btn" id="tabPingListsBtn">📣 Listes de ping</button>
     <button type="button" class="tab-btn active" id="tabRosterBtn">📋 Roster</button>
     <button type="button" class="tab-btn" id="tabSignalementBtn">🔒 Signalement</button>
     <button type="button" class="tab-btn" id="tabOperationBtn">🎓 Opération</button>
@@ -2195,6 +2194,7 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
     <button type="button" class="tab-btn" id="tabPsychologueBtn">🧠 Psychologue</button>
     <button type="button" class="tab-btn" id="tabAbsencesBtn">📅 Absences</button>
     <button type="button" class="tab-btn" id="tabLogsBtn" style="display:none;">🗒️ Logs</button>
+    <button type="button" class="tab-btn" id="tabPingListsBtn">📣 Listes de ping</button>
     <button type="button" class="tab-btn" id="tabPermissionsBtn" style="display:none;">🔑 Permissions</button>
     <button type="button" class="tab-btn" id="tabReglagesPaieBtn" style="display:none;">⚙️ Réglages des paies</button>
     <button type="button" class="tab-btn" id="tabTrollBtn" style="display:none;">🎭 Mode troll</button>
@@ -2206,11 +2206,11 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
         <div class="ping-hub-icon" aria-hidden="true">📣</div>
         <div class="ping-hub-copy">
           <div class="special-title">Listes de ping Discord</div>
-          <div class="special-sub">Centre de génération des listes EMS. Les membres sont récupérés automatiquement depuis le Roster et les formations validées.</div>
+          <div class="special-sub">Générez les messages Discord prêts à envoyer. Les membres sont récupérés automatiquement depuis le Roster et les formations validées.</div>
         </div>
         <button type="button" class="btn-primary" id="btnPingCopyAll">⧉ Copier tout</button>
       </div>
-      <div class="ping-hub-meta"><span class="ping-live-dot"></span> Synchronisé avec les employés du Roster <span class="ping-hub-separator">•</span> Tri automatique par grade et prénom</div>
+      <div class="ping-hub-meta"><span class="ping-live-dot"></span> Membres synchronisés automatiquement <span class="ping-hub-separator">•</span> Tri par grade puis prénom <span class="ping-hub-separator">•</span> Cliquez sur « Copier » pour obtenir le format Discord prêt à envoyer.</div>
     </div>
     <div id="pingListsGrid" class="ping-lists-grid"></div>
   </div>
@@ -6745,7 +6745,7 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 });
 
 
-const TAB_IDS = ["PingLists","Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
+const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","PingLists","Permissions","ReglagesPaie","Troll"];
 function switchTab(active){
   if(active === "PingLists" && !hasCap("view_roster")) return;
   TAB_IDS.forEach(name=>{
