@@ -428,19 +428,42 @@ function buildCommitPatch(enriched, history, currentActivity, currentSpecial, cu
   return {patch,newRecords,activityData,trainerCredits:credits};
 }
 
+
+function buildPingMembership(history){
+  const piloteDiscordIds=new Set(), copiloteDiscordIds=new Set();
+  const piloteEmployeeIds=new Set(), copiloteEmployeeIds=new Set();
+  Object.values(history||{}).forEach(record=>{
+    if(!record || typeof record!=='object') return;
+    const type=record.type;
+    if(type!=='pilote' && type!=='copilote') return;
+    const prefix=type==='pilote'?'pilote':'copilote';
+    const discordId=String(record.traineeDiscordId||'').trim();
+    if(/^\\d{17,20}$/.test(discordId)) (prefix==='pilote'?piloteDiscordIds:copiloteDiscordIds).add(discordId);
+    if(record.traineeId!=null) (prefix==='pilote'?piloteEmployeeIds:copiloteEmployeeIds).add(String(record.traineeId));
+  });
+  return {piloteDiscordIds:[...piloteDiscordIds],copiloteDiscordIds:[...copiloteDiscordIds],piloteEmployeeIds:[...piloteEmployeeIds],copiloteEmployeeIds:[...copiloteEmployeeIds]};
+}
+
 exports.handler=async function(event){
   const {SESSION_SECRET,FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY,FIREBASE_WEB_API_KEY}=process.env;
   if(!SESSION_SECRET||!FIREBASE_CLIENT_EMAIL||!FIREBASE_PRIVATE_KEY||!FIREBASE_WEB_API_KEY) return json(500,{error:'Configuration serveur manquante.'});
   if(event.httpMethod!=='POST') return json(405,{error:'POST requis.'});
   let body={}; try{body=JSON.parse(event.body||'{}');}catch(e){return json(400,{error:'JSON invalide.'});}
   const session=verify(body.token,SESSION_SECRET); if(!session) return json(401,{error:'Session invalide ou expirée.'});
-  if(!(await canFor(session,'manage_formateur_category'))) return json(403,{error:'Permission « Gérer la catégorie Formateur » requise.'});
   const action=String(body.action||'preview');
+  const canReadPingHistory = action==='ping-membership' && await canFor(session,'view_roster');
+  if(!canReadPingHistory && !(await canFor(session,'manage_formateur_category'))) return json(403,{error:'Permission « Gérer la catégorie Formateur » requise.'});
   const rawText=String(body.text||'');
   if(rawText.length>MAX_TEXT) return json(413,{error:'Collage trop volumineux.'});
   try{
     const idToken=await getFirebaseIdToken(session.discordId,session.level,FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY,FIREBASE_WEB_API_KEY);
     const auth=url=>`${url}?auth=${idToken}`;
+    if(action==='ping-membership'){
+      const historyRes=await fetch(auth(HISTORY_URL));
+      if(!historyRes.ok) return json(502,{error:`Historique des formations illisible (${historyRes.status}).`});
+      const history=(await historyRes.json().catch(()=>null))||{};
+      return json(200,{ok:true,...buildPingMembership(history)});
+    }
     const [rosterRes,histRes,activityRes,specialRes,formationOperationRes]=await Promise.all([
       fetch(auth(ROSTER_URL)),fetch(auth(HISTORY_URL)),fetch(auth(ACTIVITY_URL)),fetch(auth(SPECIAL_URL)),fetch(auth(FORMATION_OPERATION_URL)),
     ]);
@@ -455,6 +478,7 @@ exports.handler=async function(event){
     const currentSpecial=(await specialRes.json().catch(()=>null))||{};
     const currentFormationOperation=(await formationOperationRes.json().catch(()=>null))||{};
     if(action==='history') return json(200,{ok:true,recent:recentHistory(history,50),stats:historyStats(history)});
+
     const parsed=parseDiscordFormationText(rawText);
     const enriched=enrichParsed(parsed,employees,history);
     const summary=summarize(enriched);
@@ -530,4 +554,4 @@ exports.handler=async function(event){
   }catch(err){ return json(500,{error:err.message||String(err)}); }
 };
 
-exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,extractGradeTag,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,TYPE_LABELS};
+exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,extractGradeTag,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,buildPingMembership,TYPE_LABELS};
