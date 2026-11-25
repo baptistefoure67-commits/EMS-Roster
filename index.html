@@ -2187,6 +2187,7 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   <div id="rosterLastUpdated" style="font-size:0.74rem;color:var(--text-faint);margin:0 0 16px;"></div>
 
   <div class="tabbar">
+    <button type="button" class="tab-btn" id="tabPingListsBtn">📣 Listes de ping</button>
     <button type="button" class="tab-btn active" id="tabRosterBtn">📋 Roster</button>
     <button type="button" class="tab-btn" id="tabSignalementBtn">🔒 Signalement</button>
     <button type="button" class="tab-btn" id="tabOperationBtn">🎓 Opération</button>
@@ -2199,11 +2200,22 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
     <button type="button" class="tab-btn" id="tabTrollBtn" style="display:none;">🎭 Mode troll</button>
   </div>
 
-  <div id="rosterView">
-  <div class="card" id="pingListsCard" style="margin-bottom:16px;">
-    <div class="special-head"><div><div class="special-title">📣 Listes de ping Discord</div><div class="special-sub">Listes générées automatiquement depuis les employés actifs du Roster.</div></div><button type="button" class="btn-primary" id="btnPingCopyAll">Copier tout</button></div>
+  <div id="pingListsView" style="display:none;">
+    <div class="card ping-hub-card">
+      <div class="ping-hub-heading">
+        <div class="ping-hub-icon" aria-hidden="true">📣</div>
+        <div class="ping-hub-copy">
+          <div class="special-title">Listes de ping Discord</div>
+          <div class="special-sub">Centre de génération des listes EMS. Les membres sont récupérés automatiquement depuis le Roster et les formations validées.</div>
+        </div>
+        <button type="button" class="btn-primary" id="btnPingCopyAll">⧉ Copier tout</button>
+      </div>
+      <div class="ping-hub-meta"><span class="ping-live-dot"></span> Synchronisé avec les employés du Roster <span class="ping-hub-separator">•</span> Tri automatique par grade et prénom</div>
+    </div>
     <div id="pingListsGrid" class="ping-lists-grid"></div>
   </div>
+
+  <div id="rosterView">
   <div class="card">
     <div class="toolbar">
       <div class="search">
@@ -6733,8 +6745,9 @@ document.getElementById("btnSaveAll").addEventListener("click", async (e)=>{
 });
 
 
-const TAB_IDS = ["Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
+const TAB_IDS = ["PingLists","Roster","Signalement","Operation","Formateur","Psychologue","Absences","Logs","Permissions","ReglagesPaie","Troll"];
 function switchTab(active){
+  if(active === "PingLists" && !hasCap("view_roster")) return;
   TAB_IDS.forEach(name=>{
     document.getElementById(`tab${name}Btn`).classList.toggle("active", name===active);
     document.getElementById(`${name.charAt(0).toLowerCase()+name.slice(1)}View`).style.display = (name===active) ? "" : "none";
@@ -8271,6 +8284,9 @@ let currentUserDiscordId = null;
 let currentUserName = null;
 const PERMISSIONS_TAB_CAPS = ["manage_permissions","request_individual_permission","force_logout"];
 function applyCapsUi(){
+  const canViewRoster = hasCap("view_roster");
+  document.getElementById("tabPingListsBtn").style.display = canViewRoster ? "" : "none";
+  if(!canViewRoster && document.getElementById("pingListsView")?.style.display !== "none") switchTab("Roster");
   document.getElementById("tabLogsBtn").style.display = hasCap("view_logs") ? "" : "none";
   document.getElementById("tabPermissionsBtn").style.display = (PERMISSIONS_TAB_CAPS.some(hasCap) || ["D","DG","OWNER"].includes(currentUserLevel)) ? "" : "none";
   // (14/10) Le Mode troll n'apparaît plus JAMAIS comme bouton dans la
