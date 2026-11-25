@@ -3973,7 +3973,10 @@ function parseEmsTableForImport(text){
   // d'accès pour une absence de ligne : elle ne prouve pas un départ.
   const toRemove = [];
   const absentCount = totalLignesReconnues >= 15 ? employees.filter(e=>!e.licencie&&!seenIds.has(e.id)).length : 0;
-  return {found,skippedWdv,alreadyKnown,unrecognized,toPromote,toLicencier,toReactivate,toRemove,ambiguous,uniqueIdUpdates,uniqueIdConflicts,toRename,absentCount,extracted};
+  // Liste nominative des actifs absents du collage (jamais appliquée automatiquement :
+  // chaque départ est confirmé un par un, voir « Absents du tableau » dans l'aperçu).
+  const absentList = totalLignesReconnues >= 15 ? employees.filter(e=>!e.licencie&&!seenIds.has(e.id)).map(e=>({id:e.id,name:e.name,grade:e.grade})) : [];
+  return {found,skippedWdv,alreadyKnown,unrecognized,toPromote,toLicencier,toReactivate,toRemove,ambiguous,uniqueIdUpdates,uniqueIdConflicts,toRename,absentCount,absentList,extracted};
 }
 
 // Départ rapide (29/09) : une personne recrutée qui repart avant une semaine
@@ -4057,6 +4060,7 @@ function renderImportResults(result){
   window._pendingPromote = result.toPromote;
   window._pendingLicencier = result.toLicencier;
   window._pendingRemove = result.toRemove;
+  window._pendingAbsent = result.absentList||[];
   let html = "";
   html += `<div class="empty-msg"><b>✅ ${result.extracted.rows.length} fiches lues</b> (${result.extracted.mode==='stacked'?'nouveau tableau EMS':'ancien tableau à colonnes'}). ${result.extracted.errors.length?`⚠ ${result.extracted.errors.length} ligne(s) à vérifier. `:''}<br>🆔 Les nombres courts sont des ID EMS. Les ID Discord sont conservés depuis le Roster ou demandés pour les nouveaux employés. Aucune écriture Cloud automatique.</div>`;
   if(result.extracted.errors.length){
@@ -4064,6 +4068,15 @@ function renderImportResults(result){
   }
   if(result.absentCount){
     html += `<div class="empty-msg">ℹ️ ${result.absentCount} fiche(s) du Roster non retrouvée(s) dans le collage : <b>aucune suppression ni révocation automatique</b>.</div>`;
+  }
+  if(result.absentList && result.absentList.length){
+    html += `<div style="font-weight:600;font-size:0.85rem;margin:14px 0 8px;">🚪 ${result.absentList.length} fiche(s) active(s) du Roster absente(s) du tableau — à licencier si elles ont bien quitté l'EMS (confirmation une par une) :</div>`;
+    html += result.absentList.map((p,i)=>`
+      <div class="edit-row" data-absent-row="${i}">
+        <span style="min-width:150px;font-weight:600;">${esc(p.name)}</span>
+        <span class="grade-badge" style="background:${GRADE_COLOR[p.grade]||'var(--panel-2)'};color:${GRADE_TEXT_COLOR[p.grade]||'inherit'};">${esc(p.grade)}</span>
+        <button class="btn-danger btn-small" data-absent-apply="${i}">Licencier (absent du tableau)</button>
+      </div>`).join("");
   }
   if(result.uniqueIdUpdates && result.uniqueIdUpdates.length){
     html += `<div class="empty-msg" style="color:var(--green)">🪪 ${result.uniqueIdUpdates.length} ID unique(s) EMS peuvent être liés aux fiches existantes. <button type="button" class="btn-ghost btn-small" id="emsApplyIds">Mémoriser ces ID (après vérification)</button></div>`;
@@ -4281,6 +4294,19 @@ function renderImportResults(result){
     btn.addEventListener("click", ()=>{
       const i = +btn.getAttribute("data-licencier-apply");
       applyLicencier(i, btn.closest("[data-licencier-row]"));
+    });
+  });
+  box.querySelectorAll("[data-absent-apply]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const p = (window._pendingAbsent||[])[+btn.getAttribute("data-absent-apply")];
+      const e = p && employees.find(x=>x.id===p.id);
+      if(!e || e.licencie) return;
+      if(!confirm(`Licencier ${e.name} ? Il n'apparaît plus dans le tableau EMS. Sa fiche sera classée dans les licenciés, sans effacer son historique.`)) return;
+      e.licencie=true; e.licencieDate=new Date().toISOString().slice(0,10);
+      saveState(); renderAll();
+      btn.closest("[data-absent-row]")?.remove();
+      logHistory("Licenciement", e.name, "absent du tableau EMS ; confirmé manuellement ; fiche conservée");
+      toast(`${e.name} : licencié localement — clique sur Sauvegarder pour confirmer.`);
     });
   });
   const btnAllLicencier = document.getElementById("btnApplyAllLicencier");
