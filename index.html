@@ -2218,12 +2218,14 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
     </div>
     <div class="card" id="pingAddCard" hidden style="margin-bottom:14px;padding:14px 16px">
       <div class="special-title">➕ Ajouter quelqu'un à une liste</div>
-      <div class="special-sub" style="margin-bottom:10px">Choisis l'employé, puis la ou les listes : Pilote, Co-Pilote et/ou MUP. Cocher Pilote coche aussi Co-Pilote (tous les Pilotes actuels sont aussi Co-Pilotes) — décoche-le si besoin.</div>
+      <div class="special-sub" style="margin-bottom:10px">Choisis l'employé, puis la ou les listes : Pilote, Co-Pilote, MUP et/ou Formateur. Cocher Pilote coche aussi Co-Pilote (tous les Pilotes actuels sont aussi Co-Pilotes) — décoche-le si besoin.</div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <select id="pingAddSelect" style="min-width:220px"><option value="">Choisir un employé…</option></select>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddPilote"> Pilote</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddCoPilote"> Co-Pilote</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddMup"> MUP</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddFormateurPilote"> Formateur Pilote</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddFormateurMup"> Formateur MUP</label>
         <button type="button" class="btn-primary btn-small" id="btnPingAdd">Ajouter</button>
       </div>
     </div>
