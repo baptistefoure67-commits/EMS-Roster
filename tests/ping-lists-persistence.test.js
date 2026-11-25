@@ -20,7 +20,7 @@ delete require.cache[require.resolve(path.join(DIR,"protected-write.js"))];
 const handler=require(path.join(DIR,"protected-write.js")).handler;
 async function call(payload){
  const token=sign({discordId:"1",name:"Test",level:"ADD",exp:Date.now()+3600000},process.env.SESSION_SECRET);
- const r=await handler({httpMethod:"POST",body:JSON.stringify({token,action:"editEmployee",payload})});
+ const r=await handler({httpMethod:"POST",body:JSON.stringify({token,action:payload.pilote!==undefined||payload.coPilote!==undefined||payload.mup!==undefined?"setPingFormations":"editEmployee",payload})});
  return{status:r.statusCode,data:JSON.parse(r.body)};
 }
 (async()=>{
@@ -36,4 +36,17 @@ async function call(payload){
  r=await call({id:"emp1"});
  assert.strictEqual(r.status,200);assert.strictEqual(db.rosterEmsData.employees[0].excludeFromPingLists,undefined);
  console.log("✅ ancien employé sans champ conservé sans migration destructive");
+
+ reset();
+ r=await call({id:"emp1",pilote:true,coPilote:true,mup:true});
+ assert.strictEqual(r.status,200);
+ assert.strictEqual(db.rosterEmsData.employees[0].pingPilote,true);
+ assert.strictEqual(db.rosterEmsData.employees[0].pingCoPilote,true);
+ assert.strictEqual(db.rosterEmsData.employees[0].pingMup,true);
+ console.log("✅ setPingFormations ajoute Pilote / Co-Pilote / MUP");
+ r=await call({id:"emp1",pilote:null});
+ assert.strictEqual(r.status,200);
+ assert.strictEqual(db.rosterEmsData.employees[0].pingPilote,undefined);
+ assert.strictEqual(db.rosterEmsData.employees[0].pingMup,true);
+ console.log("✅ setPingFormations null retire l'ajout sans toucher aux autres listes");
 })().catch(e=>{console.error(e);process.exit(1);});
