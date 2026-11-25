@@ -10,10 +10,28 @@ const PING_LIST_CONFIG = {
   formateurMup: { label:"Formateurs M.U.P", title:"LISTE des Formateurs M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] }
 };
 const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","pilote","coPilote"];
-const PING_FORMATION_MEMBERSHIP = {
-  piloteDiscordIds:new Set(), copiloteDiscordIds:new Set(),
-  piloteEmployeeIds:new Set(), copiloteEmployeeIds:new Set(), loaded:false
-};
+// Référentiel validé des compositions réellement utilisées sur Discord.
+// L'appartenance est liée au Discord ID (stable), pas au nom RP ni à une
+// supposition basée sur le grade. Un membre peut être dans les deux listes.
+const PING_PILOTE_DISCORD_IDS = new Set([
+  "514871271352434699", "408669016039882752", "873209274023690303",
+  "861557966083850250", "701698983466106903", "881570935679909918",
+  "871023722520264714", "263758146177204225", "888085010949738536",
+  "336843152679763968", "911686634351759370", "753895886559510588",
+  "1155340672077926463", "1277978622094872598", "1449159028944011416",
+  "269573630063542284", "1568011061443961056"
+]);
+const PING_COPILOTE_DISCORD_IDS = new Set([
+  "514871271352434699", "408669016039882752", "873209274023690303",
+  "861557966083850250", "701698983466106903", "227444055594893312",
+  "881570935679909918", "871023722520264714", "263758146177204225",
+  "747513913221972081", "888085010949738536", "336843152679763968",
+  "911686634351759370", "1414581879193210962", "753895886559510588",
+  "1155340672077926463", "1277978622094872598", "1018286479002325072",
+  "1449159028944011416", "269573630063542284", "1568011061443961056",
+  "1311123243775557652", "1124004082143735888", "1535715965914841158",
+  "971134294963683358"
+]);
 function pingValidDiscordId(value) { return /^\d{17,20}$/.test(String(value||"").trim()); }
 function pingFirstName(name) { return String(name||"").trim().split(/\s+/)[0] || ""; }
 function pingCompareEmployees(a,b) {
@@ -34,12 +52,8 @@ function getPingListEmployees(key, source=employees) {
   // employé de cette version du Roster : ne pas inventer l'appartenance.
   const list=(Array.isArray(source)?source:[]).filter(e=>{
     if(!e || pingIsExcluded(e) || !allowed.has(e.grade)) return false;
-    if(key==="pilote" || key==="coPilote") {
-      const prefix=key==="pilote"?"pilote":"copilote";
-      if(!PING_FORMATION_MEMBERSHIP.loaded) return false;
-      return PING_FORMATION_MEMBERSHIP[prefix+"DiscordIds"].has(String(e.discordId||"").trim()) ||
-        PING_FORMATION_MEMBERSHIP[prefix+"EmployeeIds"].has(String(e.id));
-    }
+    if(key==="pilote") return PING_PILOTE_DISCORD_IDS.has(String(e.discordId||"").trim());
+    if(key==="coPilote") return PING_COPILOTE_DISCORD_IDS.has(String(e.discordId||"").trim());
     return true;
   });
   const valid=list.filter(e=>pingValidDiscordId(e.discordId)).sort(pingCompareEmployees);
@@ -83,17 +97,10 @@ if (typeof document !== "undefined") document.addEventListener("click",async ev=
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded",()=>{
     renderPingLists();
-    if(typeof formationDiscordRequest==="function") formationDiscordRequest("ping-membership","").then(data=>{
-      PING_FORMATION_MEMBERSHIP.piloteDiscordIds=new Set(data.piloteDiscordIds||[]);
-      PING_FORMATION_MEMBERSHIP.copiloteDiscordIds=new Set(data.copiloteDiscordIds||[]);
-      PING_FORMATION_MEMBERSHIP.piloteEmployeeIds=new Set(data.piloteEmployeeIds||[]);
-      PING_FORMATION_MEMBERSHIP.copiloteEmployeeIds=new Set(data.copiloteEmployeeIds||[]);
-      PING_FORMATION_MEMBERSHIP.loaded=true; renderPingLists();
-    }).catch(err=>{console.warn("Appartenance Pilote/Co-Pilote indisponible :",err);});
   });
   if (typeof hasCap === "function" && !hasCap("view_roster")) {
     document.addEventListener("DOMContentLoaded",()=>{const c=document.getElementById("pingListsCard");if(c)c.hidden=true;});
   }
   setInterval(renderPingLists,3000);
 }
-if(typeof module!=="undefined") module.exports={PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_FORMATION_MEMBERSHIP,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
+if(typeof module!=="undefined") module.exports={PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_PILOTE_DISCORD_IDS,PING_COPILOTE_DISCORD_IDS,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
