@@ -58,17 +58,25 @@ test("texte copié suit exactement le tri de la fonction de génération",()=>{
 test("format exact du bloc individuel",()=>{
  const only=[{name:"Aaron Stopenski",discordId:"408669016039882752",grade:"DG"}];
  assert.strictEqual(ping.buildPingListText("mup",only,date),
- "**LISTE M.U.P :**\n\n<@408669016039882752>\n\nMis à jour le 25/11/2026 <@&1168614318846267492>");
+ "**LISTE des M.U.P :**\n\n<@408669016039882752>\n\nMis à jour le 25/11/2026\n<@&1168614318846267492>");
+});
+test("format Discord : pings sur lignes consécutives, titre exact et rôle sur sa propre ligne",()=>{
+ const only=[
+  {name:"Aaron Stopenski",discordId:"408669016039882752",grade:"DG"},
+  {name:"Baptiste Fore",discordId:"514871271352434699",grade:"DG"}
+ ];
+ assert.strictEqual(ping.buildPingListText("formateurPilote",only,date),
+  "**LISTE des Formateurs Pilote :**\n\n<@408669016039882752>\n<@514871271352434699>\n\nMis à jour le 25/11/2026\n<@&1168614318846267492>");
 });
 test("Copier tout contient cinq blocs et une seule date finale",()=>{
  const text=ping.buildAllPingListsText(sample,date);
  assert.strictEqual((text.match(/Mis à jour le/g)||[]).length,1);
  assert.strictEqual((text.match(/\*\*LISTE /g)||[]).length,5);
- assert(text.endsWith("Mis à jour le 25/11/2026 <@&1168614318846267492>"));
- assert(text.indexOf("LISTE M.U.P")<text.indexOf("LISTE FORMATEURS M.U.P"));
- assert(text.indexOf("LISTE FORMATEURS M.U.P")<text.indexOf("LISTE FORMATEURS PILOTE"));
- assert(text.indexOf("LISTE FORMATEURS PILOTE")<text.indexOf("LISTE PILOTES"));
- assert(text.indexOf("LISTE PILOTES")<text.indexOf("LISTE CO-PILOTES"));
+ assert(text.endsWith("Mis à jour le 25/11/2026\n<@&1168614318846267492>"));
+ assert(text.indexOf("LISTE des M.U.P")<text.indexOf("LISTE des Formateurs M.U.P"));
+ assert(text.indexOf("LISTE des Formateurs M.U.P")<text.indexOf("LISTE des Formateurs Pilote"));
+ assert(text.indexOf("LISTE des Formateurs Pilote")<text.indexOf("LISTE des Pilotes"));
+ assert(text.indexOf("LISTE des Pilotes")<text.indexOf("LISTE des Co-Pilotes"));
 });
 console.log("Tous les tests des listes de ping sont terminés.");
 
@@ -100,5 +108,5 @@ test("appartenance pilote/co-pilote produit deux listes réellement distinctes",
 
 test("une liste vide conserve un espacement propre sans lignes parasites",()=>{
  assert.strictEqual(ping.buildPingListText("mup",[],date),
- "**LISTE M.U.P :**\n\nMis à jour le 25/11/2026 <@&1168614318846267492>");
+ "**LISTE des M.U.P :**\n\nMis à jour le 25/11/2026\n<@&1168614318846267492>");
 });
