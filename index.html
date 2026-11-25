@@ -2200,6 +2200,10 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   </div>
 
   <div id="rosterView">
+  <div class="card" id="pingListsCard" style="margin-bottom:16px;">
+    <div class="special-head"><div><div class="special-title">📣 Listes de ping Discord</div><div class="special-sub">Listes générées automatiquement depuis les employés actifs du Roster.</div></div><button type="button" class="btn-primary" id="btnPingCopyAll">Copier tout</button></div>
+    <div id="pingListsGrid" class="ping-lists-grid"></div>
+  </div>
   <div class="card">
     <div class="toolbar">
       <div class="search">
@@ -2226,6 +2230,7 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
         <input type="text" id="newDiscordId" placeholder="ID Discord (ex: 1168...)">
         <select id="newGrade"></select>
         <select id="newRole"><option value="">— rôle (optionnel) —</option></select>
+        <label style="display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--text-dim);"><input type="checkbox" id="newExcludeFromPingLists"> Exclure des listes de ping automatiques</label>
         <button class="btn-primary" id="btnAdd">Ajouter</button>
       </div>
     </details>
@@ -2828,7 +2833,7 @@ const GRADE_ALIASES = { "SENSEI":"DG", "DIR":"D" };
 const GRADE_LABEL = {
   DG:"Directeur Général", D:"Directeur", CD:"Co-Directeur", ADD:"Assistant de Direction",
   MC:"Médecin Chef", RL:"Responsable Légiste", RF:"Responsable Formateur", RP:"Responsable Psychologue",
-  MLP:"Médecin Légiste Pompier", MP:"Médecin Psychologue", MF:"Médecin Formateur", M:"Médecin",
+  MLP:"Médecin Légiste Pompier", MP:"Médecin Psychologue", MF:"Médecin Formateur", M:"Médecin", BNVL:"Bénévole",
   INF:"Infirmier", A:"Ambulancier", WDV:"WDV", STG:"Stagiaire",
 };
 // Libellés personnalisés (CD/D/OWNER) — appliqués PAR-DESSUS les valeurs
@@ -3465,7 +3470,8 @@ function applySpecialListAction(check){
 function populateGradeSelects(){
   const selects = [document.getElementById("newGrade"), document.getElementById("filterGrade")];
   const newGradeSel = document.getElementById("newGrade");
-  newGradeSel.innerHTML = GRADE_ORDER.map(g=>`<option value="${g}">${g} — ${esc(GRADE_LABEL[g])}</option>`).join("");
+  const editableGrades = [...GRADE_ORDER.slice(0,GRADE_ORDER.indexOf("INF")), "BNVL", ...GRADE_ORDER.slice(GRADE_ORDER.indexOf("INF"))];
+  newGradeSel.innerHTML = editableGrades.map(g=>`<option value="${g}">${g} — ${esc(GRADE_LABEL[g]||g)}</option>`).join("");
   const filterSel = document.getElementById("filterGrade");
   const keepValue = filterSel.value;
   filterSel.innerHTML = `<option value="">Tous les grades</option>` +
@@ -3745,7 +3751,7 @@ function editRowHtml(e){
   return `
     <div class="edit-row">
       <select data-edit-grade="${e.id}">
-        ${GRADE_ORDER.map(g=>`<option value="${g}" ${g===e.grade?'selected':''}>${g} — ${esc(GRADE_LABEL[g])}</option>`).join("")}
+        ${[...GRADE_ORDER.slice(0,GRADE_ORDER.indexOf("INF")), "BNVL", ...GRADE_ORDER.slice(GRADE_ORDER.indexOf("INF"))].map(g=>`<option value="${g}" ${g===e.grade?'selected':''}>${g} — ${esc(GRADE_LABEL[g]||g)}</option>`).join("")}
       </select>
       <select data-edit-role="${e.id}">
         <option value="">— rôle (aucun) —</option>
@@ -3755,6 +3761,7 @@ function editRowHtml(e){
       <input type="text" data-edit-discord="${e.id}" value="${esc(e.discordId)}" style="min-width:160px;">
       <span class="emp-id emp-id-unique ${e.idUnique?'':'missing'}" ${e.idUnique?`data-copy-id="${esc(e.idUnique)}"`:''} title="ID unique EMS mémorisé depuis le tableau EMS"><span class="emp-id-label">ID Unique</span>${e.idUnique?esc(e.idUnique):'—'}</span>
       <input type="text" data-edit-aliases="${e.id}" value="${esc((e.aliases||[]).join(", "))}" placeholder="Anciens noms (mariage, wipe...), séparés par des virgules" title="Anciens noms de cette personne — permet au Roster de la reconnaître sous son ancien nom ET son nouveau (import du tableau EMS, recherche)." style="min-width:220px;">
+      <label style="display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--text-dim);"><input type="checkbox" data-edit-exclude-pings="${e.id}" ${e.excludeFromPingLists===true?"checked":""}> Exclure des listes de ping automatiques</label>
       ${currentUserLevel === "OWNER" && e.discordId ? `<span style="font-size:.76rem;color:var(--text-dim);font-weight:800;">⏱️ Gain de Temps : <b data-gain-access-status="${e.id}" style="color:var(--text-faint);">…</b></span><button type="button" class="btn-ghost btn-small" data-gain-access-toggle="${e.id}">Vérifier l’accès</button>` : ""}
       <button class="btn-primary btn-small" data-save="${e.id}">Enregistrer</button>
       <button class="btn-ghost btn-small" data-cancel="${e.id}">Annuler</button>
@@ -4366,7 +4373,9 @@ document.addEventListener("click", (ev)=>{
           // revérifie le jeton et le grade avant d'écrire quoi que ce
           // soit sur Firebase (demandé le 07/09 — protection réelle,
           // pas juste un blocage visuel).
-          await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole, aliases:newAliases });
+          const excludeFromPingLists = !!slot.querySelector(`[data-edit-exclude-pings="${id}"]`)?.checked;
+          await protectedAction("editEmployee", { id, name:newName, discordId:newDiscordId, grade:newGrade, role:newRole, aliases:newAliases, excludeFromPingLists });
+          e.excludeFromPingLists = excludeFromPingLists;
           e.name = newName; e.discordId = newDiscordId; e.grade = newGrade; e.role = newRole; e.aliases = newAliases;
           const changes = [];
           if(before.name!==e.name) changes.push(`nom "${before.name}" → "${e.name}"`);
@@ -4509,12 +4518,14 @@ document.getElementById("btnAdd").addEventListener("click", ()=>{
   if(!/^\d{5,25}$/.test(discordId)){
     if(!confirm(`"${discordId}" ne ressemble pas à un ID Discord habituel (uniquement des chiffres). Ajouter quand même ?`)) return;
   }
-  employees.push({id:uid(), name, discordId, grade, role, licencie:false, licencieDate:null});
+  const excludeFromPingLists = !!document.getElementById("newExcludeFromPingLists").checked;
+  employees.push({id:uid(), name, discordId, grade, role, licencie:false, licencieDate:null, excludeFromPingLists});
   saveState(); renderAll();
   logHistory("Ajout", name, `Grade ${grade}, ID ${discordId} (manuel)`);
   document.getElementById("newName").value = "";
   document.getElementById("newDiscordId").value = "";
   document.getElementById("newRole").value = "";
+  document.getElementById("newExcludeFromPingLists").checked = false;
   toast(`${name} ajouté`);
 });
 
@@ -9416,5 +9427,5 @@ document.addEventListener("keydown", (e)=>{
  document.getElementById('logoutBtn')?.addEventListener('click',reset);
 })();
 </script>
-</body>
+<script src="./ping-lists.js"></script>\n</body>
 </html>
