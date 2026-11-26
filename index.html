@@ -1826,6 +1826,112 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   #liaisonOverlay>.liaison-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;}
 }
 </style>
+<style id="ping-lists-design-v2">
+#pingListsView{--pl-radius:16px}
+#pingListsView .ping-hero{position:relative;overflow:hidden;padding:22px 24px;margin-bottom:16px;border-radius:var(--pl-radius);border:1px solid color-mix(in srgb,var(--theme-primary) 30%,var(--border));background:radial-gradient(120% 140% at 0% 0%,color-mix(in srgb,var(--theme-primary) 20%,transparent),transparent 60%),linear-gradient(160deg,var(--panel),var(--panel-2));box-shadow:0 14px 40px rgba(0,0,0,.28)}
+#pingListsView .ping-hero-top{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+#pingListsView .ping-hero-icon{width:54px;height:54px;flex:0 0 54px;display:grid;place-items:center;font-size:1.6rem;border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--theme-primary) 40%,var(--panel-2)),color-mix(in srgb,var(--theme-primary) 12%,var(--panel-2)));border:1px solid color-mix(in srgb,var(--theme-primary) 45%,transparent);box-shadow:0 8px 22px color-mix(in srgb,var(--theme-primary) 25%,transparent)}
+#pingListsView .ping-hero-copy{flex:1;min-width:220px}
+#pingListsView .ping-hero-copy h2{margin:0 0 4px;font-size:1.25rem;font-weight:850;letter-spacing:-.01em}
+#pingListsView .ping-hero-copy p{margin:0;color:var(--text-dim);font-size:.82rem}
+#pingListsView .ping-live{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-size:.72rem;font-weight:700;color:var(--text-dim);background:color-mix(in srgb,var(--panel-2) 70%,transparent);border:1px solid var(--border-soft)}
+#pingListsView .ping-live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 18%,transparent)}
+#pingListsView .ping-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:18px}
+#pingListsView .ping-action{display:flex;align-items:center;gap:12px;text-align:left;padding:13px 15px;border-radius:14px;cursor:pointer;color:var(--text);font:inherit;background:color-mix(in srgb,var(--panel-2) 78%,transparent);border:1px solid var(--border);transition:transform .15s,border-color .15s,box-shadow .15s,background .15s}
+#pingListsView .ping-action:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--theme-primary) 60%,var(--border));box-shadow:0 10px 24px rgba(0,0,0,.3)}
+#pingListsView .ping-action:active{transform:translateY(0)}
+#pingListsView .ping-action-main{background:linear-gradient(135deg,var(--theme-primary),color-mix(in srgb,var(--theme-primary) 55%,#000));border-color:transparent;color:#fff}
+#pingListsView .ping-action-ico{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:11px;font-size:1.1rem;background:rgba(255,255,255,.1)}
+#pingListsView .ping-action-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+#pingListsView .ping-action-txt b{font-size:.88rem;font-weight:800}
+#pingListsView .ping-action-txt small{font-size:.7rem;opacity:.72}
+#pingListsView .ping-rules{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+#pingListsView .ping-rule{padding:5px 11px;border-radius:999px;font-size:.7rem;font-weight:650;color:var(--text-dim);background:color-mix(in srgb,var(--panel-2) 60%,transparent);border:1px dashed var(--border)}
+#pingListsView .ping-add{margin-bottom:18px;padding:18px 20px;border-radius:var(--pl-radius);border:1px solid var(--border);background:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 35%,var(--panel)),var(--panel))}
+#pingListsView .ping-add[hidden]{display:none}
+#pingListsView .ping-add-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+#pingListsView .ping-add-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:color-mix(in srgb,var(--green) 15%,var(--panel-2));border:1px solid color-mix(in srgb,var(--green) 35%,transparent)}
+#pingListsView .ping-add-head h3{margin:0;font-size:.95rem;font-weight:800}
+#pingListsView .ping-add-head p{margin:3px 0 0;font-size:.74rem;color:var(--text-dim)}
+#pingListsView .ping-add-body{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+#pingListsView .ping-add-select{min-width:240px;flex:1 1 240px;padding:10px 12px;border-radius:11px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);font:inherit}
+#pingListsView .ping-chips{display:flex;flex-wrap:wrap;gap:8px;flex:2 1 380px}
+#pingListsView .ping-chip{position:relative;cursor:pointer}
+#pingListsView .ping-chip input{position:absolute;opacity:0;pointer-events:none}
+#pingListsView .ping-chip span{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;font-size:.78rem;font-weight:700;color:var(--text-dim);background:var(--panel-2);border:1px solid var(--border);transition:all .15s}
+#pingListsView .ping-chip:hover span{border-color:color-mix(in srgb,var(--theme-primary) 55%,var(--border))}
+#pingListsView .ping-chip input:checked+span{color:#fff;background:linear-gradient(135deg,var(--theme-primary),color-mix(in srgb,var(--theme-primary) 55%,#000));border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--theme-primary) 30%,transparent)}
+#pingListsView .ping-chip input:focus-visible+span{outline:2px solid var(--theme-primary-bright,var(--theme-primary));outline-offset:2px}
+#pingListsView .ping-chip.is-disabled{cursor:not-allowed}
+#pingListsView .ping-chip.is-disabled span{opacity:.35;text-decoration:line-through}
+#pingListsView .ping-add-btn{padding:10px 22px;border-radius:11px;border:none;cursor:pointer;font:inherit;font-weight:800;color:#06241a;background:linear-gradient(135deg,#34d399,#10b981);box-shadow:0 8px 20px rgba(16,185,129,.25)}
+#pingListsView .ping-add-btn:hover{filter:brightness(1.08)}
+#pingListsView .ping-add-btn:disabled{opacity:.5;cursor:wait}
+#pingListsView .ping-lists-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;margin-top:0}
+#pingListsView .ping-card{--ping-accent:#60a5fa;display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;border-radius:var(--pl-radius);border:1px solid var(--border);border-top:3px solid var(--ping-accent);background:radial-gradient(90% 70% at 100% 0%,color-mix(in srgb,var(--ping-accent) 10%,transparent),transparent 60%),linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 30%,var(--panel)),var(--panel));box-shadow:0 10px 28px rgba(0,0,0,.22);transition:transform .15s,box-shadow .15s}
+#pingListsView .ping-card:hover{transform:translateY(-2px);box-shadow:0 16px 36px rgba(0,0,0,.3)}
+#pingListsView .ping-card-head{display:flex;align-items:center;gap:12px}
+#pingListsView .ping-card-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;font-size:1.2rem;border-radius:13px;background:color-mix(in srgb,var(--ping-accent) 16%,var(--panel-2));border:1px solid color-mix(in srgb,var(--ping-accent) 40%,transparent)}
+#pingListsView .ping-card-titles{flex:1;min-width:0}
+#pingListsView .ping-card-titles h3{margin:0;font-size:.92rem;font-weight:850;line-height:1.25}
+#pingListsView .ping-card-titles p{margin:3px 0 0;font-size:.7rem;color:var(--text-dim)}
+#pingListsView .ping-count{display:grid;place-items:center;min-width:38px;height:38px;padding:0 10px;border-radius:12px;font-size:.95rem;font-weight:900;color:var(--ping-accent);background:color-mix(in srgb,var(--ping-accent) 12%,var(--panel-2));border:1px solid color-mix(in srgb,var(--ping-accent) 38%,transparent)}
+#pingListsView .ping-copy-btn{width:100%;padding:10px 14px;border-radius:12px;border:1px solid color-mix(in srgb,var(--ping-accent) 50%,transparent);cursor:pointer;font:inherit;font-size:.82rem;font-weight:800;color:var(--text);background:color-mix(in srgb,var(--ping-accent) 14%,var(--panel-2));transition:all .15s}
+#pingListsView .ping-copy-btn:hover{background:var(--ping-accent);color:#06101f;box-shadow:0 8px 20px color-mix(in srgb,var(--ping-accent) 35%,transparent)}
+#pingListsView .ping-list-preview{max-height:300px;overflow:auto;padding:4px 6px 6px;border-radius:12px;border:1px solid var(--border-soft);background:color-mix(in srgb,var(--panel-2) 45%,transparent);scrollbar-width:thin}
+#pingListsView .ping-grade-heading{display:flex;align-items:center;gap:8px;padding:10px 6px 5px;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);border:none;margin:0}
+#pingListsView .ping-grade-pill{padding:2px 8px;border-radius:7px;font-size:.66rem;font-weight:900;letter-spacing:.02em;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+#pingListsView .ping-grade-count{margin-left:auto;font-weight:700;opacity:.7}
+#pingListsView .ping-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;transition:background .12s}
+#pingListsView .ping-row:hover{background:color-mix(in srgb,var(--ping-accent) 9%,transparent)}
+#pingListsView .ping-avatar{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:50%;font-size:.66rem;font-weight:900;color:var(--ping-accent);background:color-mix(in srgb,var(--ping-accent) 15%,var(--panel-2));border:1px solid color-mix(in srgb,var(--ping-accent) 35%,transparent)}
+#pingListsView .ping-name{flex:1;min-width:0;font-size:.82rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pingListsView .ping-tags{display:inline-flex;align-items:center;gap:6px}
+#pingListsView .ping-tag{padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:800;color:var(--ping-accent);background:color-mix(in srgb,var(--ping-accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--ping-accent) 32%,transparent)}
+#pingListsView .ping-tag-warn{color:var(--amber,#f59e0b);background:color-mix(in srgb,var(--amber,#f59e0b) 12%,transparent);border-color:color-mix(in srgb,var(--amber,#f59e0b) 35%,transparent)}
+#pingListsView .ping-remove{width:22px;height:22px;display:grid;place-items:center;padding:0;border-radius:50%;cursor:pointer;font-size:.62rem;color:var(--text-dim);background:transparent;border:1px solid var(--border)}
+#pingListsView .ping-remove:hover{color:#fff;background:var(--red,#ef4444);border-color:transparent}
+#pingListsView .ping-empty{padding:22px 10px;text-align:center;font-size:.78rem;color:var(--text-faint)}
+#pingListsView .ping-missing{font-size:.72rem;color:var(--text-dim)}
+@media(max-width:620px){#pingListsView .ping-hero{padding:16px}#pingListsView .ping-lists-grid{grid-template-columns:1fr}#pingListsView .ping-add-body{flex-direction:column;align-items:stretch}}
+@media(prefers-reduced-motion:reduce){#pingListsView *{transition:none!important}}
+</style>
+<style id="ping-lists-design-v3">
+#pingListsView .ping-preview-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px;font-size:.74rem;color:var(--text-dim);font-weight:700}
+#pingListsView .ping-mini{padding:6px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:.72rem;font-weight:750;color:var(--text);background:color-mix(in srgb,var(--panel-2) 80%,transparent);border:1px solid var(--border);transition:all .15s}
+#pingListsView .ping-mini:hover{border-color:color-mix(in srgb,var(--theme-primary) 60%,var(--border));background:color-mix(in srgb,var(--theme-primary) 14%,var(--panel-2))}
+#pingListsView .ping-card-btns{display:flex;gap:8px}
+#pingListsView .ping-card-btns .ping-copy-btn{flex:1}
+#pingListsView .ping-eye-btn{width:42px;flex:0 0 42px;border-radius:12px;cursor:pointer;font-size:1rem;background:var(--panel-2);border:1px solid var(--border);color:var(--text);transition:all .15s}
+#pingListsView .ping-eye-btn:hover{border-color:var(--ping-accent);box-shadow:0 6px 16px color-mix(in srgb,var(--ping-accent) 28%,transparent)}
+#pingListsView .ping-preview{margin-bottom:16px;padding:16px 18px;border-radius:var(--pl-radius);border:1px solid color-mix(in srgb,var(--theme-primary) 40%,var(--border));background:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 40%,var(--panel)),var(--panel));box-shadow:0 12px 32px rgba(0,0,0,.28)}
+#pingListsView .ping-preview[hidden]{display:none}
+#pingListsView .ping-preview-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+#pingListsView .ping-preview-head h3{margin:0;font-size:.95rem;font-weight:850}
+#pingListsView .ping-preview-head p{margin:3px 0 0;font-size:.72rem;color:var(--text-dim)}
+#pingListsView .ping-preview-actions{display:flex;gap:8px;align-items:center}
+#pingListsView .ping-preview-copy{padding:8px 14px;border-radius:10px;border:none;cursor:pointer;font:inherit;font-size:.78rem;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--theme-primary),color-mix(in srgb,var(--theme-primary) 55%,#000))}
+#pingListsView .ping-preview-close{width:32px;height:32px;border-radius:50%;cursor:pointer;color:var(--text-dim);background:transparent;border:1px solid var(--border)}
+#pingListsView .ping-preview-close:hover{background:var(--red,#ef4444);color:#fff;border-color:transparent}
+#pingListsView .ping-preview-msg{max-height:420px;overflow:auto;padding:14px 16px;border-radius:12px;background:#313338;color:#dbdee1;font-family:"gg sans","Segoe UI",system-ui,sans-serif;font-size:.88rem;line-height:1.5;word-break:break-word}
+#pingListsView .ping-mention{display:inline-block;padding:0 4px;border-radius:4px;font-weight:500;color:#c9cdfb;background:rgba(88,101,242,.3)}
+#pingListsView .ping-mention-role{color:#f1c5ff;background:rgba(203,102,255,.25)}
+#pingListsView .ping-mention-unknown{color:#ffd9a3;background:rgba(245,158,11,.28)}
+#pingListsView .ping-history{margin-top:22px;padding:18px 20px;border-radius:var(--pl-radius);border:1px solid var(--border);background:linear-gradient(180deg,color-mix(in srgb,var(--panel-2) 35%,var(--panel)),var(--panel))}
+#pingListsView .ping-history-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+#pingListsView .ping-history-head h3{margin:0;font-size:.95rem;font-weight:850}
+#pingListsView .ping-history-head p{margin:3px 0 0;font-size:.72rem;color:var(--text-dim)}
+#pingListsView .ping-history-body{max-height:360px;overflow:auto;scrollbar-width:thin}
+#pingListsView .ping-hist-row{display:flex;gap:12px;align-items:flex-start;padding:10px 6px;border-bottom:1px solid var(--border-soft)}
+#pingListsView .ping-hist-row:last-child{border-bottom:none}
+#pingListsView .ping-hist-ico{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;border-radius:9px;font-size:.85rem;background:var(--panel-2);border:1px solid var(--border)}
+#pingListsView .ping-hist-main{min-width:0;flex:1}
+#pingListsView .ping-hist-line{font-size:.82rem}
+#pingListsView .ping-hist-line span{color:var(--text-dim)}
+#pingListsView .ping-hist-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px;font-size:.68rem;color:var(--text-faint)}
+#pingListsView .ping-hist-meta .ping-tag{--ping-accent:var(--theme-primary)}
+#pingListsView .ping-empty-warn{color:var(--amber,#f59e0b)}
+</style>
 </head>
 <body>
 <div id="themeAmbientOverlay" class="theme-ambient-overlay" hidden aria-hidden="true"><div class="theme-ambient-backdrop"></div><div class="theme-ambient-glow"></div><div class="theme-ambient-particles" id="themeAmbientParticles"></div></div>
@@ -2201,35 +2307,56 @@ html.liaison-modal-open,body.liaison-modal-open{overflow:hidden!important;}
   </div>
 
   <div id="pingListsView" style="display:none;">
-    <div class="card ping-hub-card">
-      <div class="ping-hub-heading">
-        <div class="ping-hub-icon" aria-hidden="true">📣</div>
-        <div class="ping-hub-copy">
-          <div class="special-title">Listes de ping Discord</div>
-          <div class="special-sub">Générez les messages Discord prêts à envoyer. Les membres sont récupérés automatiquement depuis le Roster. Pilotes et Co-Pilotes suivent les compositions Discord de référence.</div>
+    <section class="ping-hero">
+      <div class="ping-hero-top">
+        <div class="ping-hero-icon" aria-hidden="true">📣</div>
+        <div class="ping-hero-copy">
+          <h2>Listes de ping Discord</h2>
+          <p>Messages prêts à envoyer, générés depuis le Roster. Tri par grade puis par prénom.</p>
         </div>
-        <button type="button" class="btn-primary" id="btnPingCopyAll">⧉ Copier tout</button>
+        <div class="ping-live"><span class="ping-live-dot"></span>Synchronisé avec le Roster</div>
       </div>
-      <div class="ping-hub-meta" style="margin-top:12px;gap:10px">
-        <button type="button" class="btn-primary btn-small" data-ping-group="formationPilote">⧉ Copier Formation Pilote - Co-Pilote</button>
-        <button type="button" class="btn-primary btn-small" data-ping-group="formationMup">⧉ Copier Formation MUP</button>
+      <div class="ping-actions">
+        <button type="button" class="ping-action ping-action-main" id="btnPingCopyAll"><span class="ping-action-ico">⧉</span><span class="ping-action-txt"><b>Copier tout</b><small>Les 5 listes en un seul message</small></span></button>
+        <button type="button" class="ping-action" data-ping-group="formationPilote"><span class="ping-action-ico">✈️</span><span class="ping-action-txt"><b>Formation Pilote - Co-Pilote</b><small>Formateurs · Pilotes · Co-Pilotes</small></span></button>
+        <button type="button" class="ping-action" data-ping-group="formationMup"><span class="ping-action-ico">🚑</span><span class="ping-action-txt"><b>Formation MUP</b><small>M.U.P · Formateurs M.U.P</small></span></button>
       </div>
-      <div class="ping-hub-meta"><span class="ping-live-dot"></span> Membres synchronisés automatiquement <span class="ping-hub-separator">•</span> Tri par grade puis prénom <span class="ping-hub-separator">•</span> Cliquez sur « Copier » pour obtenir le format Discord prêt à envoyer.</div>
-    </div>
-    <div class="card" id="pingAddCard" hidden style="margin-bottom:14px;padding:14px 16px">
-      <div class="special-title">➕ Ajouter quelqu'un à une liste</div>
-      <div class="special-sub" style="margin-bottom:10px">Choisis l'employé, puis la ou les listes : Pilote, Co-Pilote, MUP et/ou Formateur. Cocher Pilote coche aussi Co-Pilote (tous les Pilotes actuels sont aussi Co-Pilotes) — décoche-le si besoin.</div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <select id="pingAddSelect" style="min-width:220px"><option value="">Choisir un employé…</option></select>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddPilote"> Pilote</label>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddCoPilote"> Co-Pilote</label>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddMup"> MUP</label>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddFormateurPilote"> Formateur Pilote</label>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pingAddFormateurMup"> Formateur MUP</label>
-        <button type="button" class="btn-primary btn-small" id="btnPingAdd">Ajouter</button>
+      <div class="ping-preview-bar"><span>👁 Aperçu avant copie :</span>
+        <button type="button" class="ping-mini" data-ping-preview="all:all">Tout</button>
+        <button type="button" class="ping-mini" data-ping-preview="group:formationPilote">Formation Pilote - Co-Pilote</button>
+        <button type="button" class="ping-mini" data-ping-preview="group:formationMup">Formation MUP</button>
       </div>
-    </div>
+      <div class="ping-rules">
+        <span class="ping-rule">Co-Pilote : dès Ambulancier</span>
+        <span class="ping-rule">Pilote : dès Infirmier</span>
+        <span class="ping-rule">MUP : dès Médecin</span>
+        <span class="ping-rule">Pas de stagiaires</span>
+        <span class="ping-rule">Un MF devient formateur Pilote + MUP</span>
+      </div>
+    </section>
+    <section class="ping-preview" id="pingPreview" hidden></section>
+    <section class="ping-add" id="pingAddCard" hidden>
+      <div class="ping-add-head">
+        <span class="ping-add-icon" aria-hidden="true">➕</span>
+        <div><h3>Ajouter quelqu'un à une liste</h3><p id="pingAddHint">Choisis un employé : seules les listes auxquelles son grade donne accès restent cochables.</p></div>
+      </div>
+      <div class="ping-add-body">
+        <select id="pingAddSelect" class="ping-add-select"><option value="">Choisir un employé…</option></select>
+        <div class="ping-chips">
+          <label class="ping-chip"><input type="checkbox" id="pingAddPilote"><span>✈️ Pilote</span></label>
+          <label class="ping-chip"><input type="checkbox" id="pingAddCoPilote"><span>🧑‍✈️ Co-Pilote</span></label>
+          <label class="ping-chip"><input type="checkbox" id="pingAddMup"><span>🚑 MUP</span></label>
+          <label class="ping-chip"><input type="checkbox" id="pingAddFormateurPilote"><span>🎓 Formateur Pilote</span></label>
+          <label class="ping-chip"><input type="checkbox" id="pingAddFormateurMup"><span>🎓 Formateur MUP</span></label>
+        </div>
+        <button type="button" class="ping-add-btn" id="btnPingAdd">Ajouter</button>
+      </div>
+    </section>
     <div id="pingListsGrid" class="ping-lists-grid"></div>
+    <section class="ping-history" id="pingHistory">
+      <div class="ping-history-head"><div><h3>🕘 Historique des changements</h3><p>Qui a ajouté ou retiré quelqu'un, et quand (ajouts manuels, formations validées, formateurs automatiques).</p></div><button type="button" class="ping-mini" id="btnPingHistoryRefresh">↻ Actualiser</button></div>
+      <div id="pingHistoryBody" class="ping-history-body"><div class="ping-empty">Chargement…</div></div>
+    </section>
   </div>
 
   <div id="rosterView">
@@ -2527,6 +2654,7 @@ Le grade est facultatif, le nom seul suffit aussi"></textarea>
           <option value="">Toutes les actions</option>
           <option value="connexion">Connexion</option>
           <option value="modification_employe">Modification employé</option>
+          <option value="liste_ping">Liste de ping</option>
           <option value="licenciement">Licenciement</option>
           <option value="signalement_officiel">Signalement officiel</option>
           <option value="proposition_signalement">Proposition de signalement</option>
@@ -4782,6 +4910,18 @@ document.getElementById("btnFormationDiscordImport").addEventListener("click",as
     if(data.activityData&&typeof data.activityData==="object"){
       activiteData=data.activityData; saveActiviteData(); renderActiviteTab("formateur");
     }
+    // Ajout automatique aux listes de ping (Pilote / Co-Pilote / MUP) : on aligne le Roster local
+    // sur ce que le serveur vient d'écrire, sinon une sauvegarde ultérieure l'écraserait.
+    (data.pingAdded||[]).forEach(a=>{
+      const e=employees.find(x=>String(x.id)===String(a.id)); if(!e) return;
+      (a.fields||[]).forEach(f=>{ e[f]=true; });
+    });
+    if((data.pingAdded||[]).length){
+      toast(`📣 Listes de ping : ${data.pingAdded.map(a=>`${a.name} → ${a.lists.join(" + ")}`).join(" ; ")}`);
+      if(typeof renderPingLists==="function") renderPingLists();
+      if(typeof pingLoadHistory==="function") pingLoadHistory(true);
+    }
+    if(data.pingError) toast(`⚠ Formation importée, mais les listes de ping n'ont pas été mises à jour : ${data.pingError}`);
     renderFormationExperienceHistory(data.recent,data.stats);
     const successText=formationImportSuccessText(data);
     status.textContent=successText;
@@ -7087,6 +7227,7 @@ const LOG_ACTION_LABEL = {
   connexion_pillbox: "Connexion (Pillbox)",
   semaine_terminee_pillbox: "Semaine de paie terminée (Pillbox)",
   modification_employe: "Modification employé",
+  liste_ping: "Liste de ping",
   licenciement: "Licenciement",
   signalement_officiel: "Signalement officiel",
   proposition_signalement: "Proposition de signalement",
