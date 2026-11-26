@@ -26,12 +26,13 @@ test("Formation MUP : M.U.P puis Formateurs M.U.P",()=>{
 test("ajout manuel Pilote / Co-Pilote / MUP (même hors référence ou hors grade)",()=>{
  const src=staff.map(e=>({...e}));
  assert(!ping.getPingListEmployees("pilote",src).employees.some(e=>e.id==="3"));
- src[2].pingPilote=true; src[2].pingCoPilote=true; src[3].pingMup=true;
+ src[2].pingPilote=true; src[2].pingCoPilote=true; src[3].pingMup=true; src[3].pingCoPilote=true;
  assert(ping.getPingListEmployees("pilote",src).employees.some(e=>e.id==="3"));
  assert(ping.getPingListEmployees("coPilote",src).employees.some(e=>e.id==="3"));
- assert(ping.getPingListEmployees("mup",src).employees.some(e=>e.id==="4"),"INF ajouté à la main au MUP");
+ assert(!ping.getPingListEmployees("mup",src).employees.some(e=>e.id==="4"),"un infirmier ne peut pas être MUP (dès Médecin)");
+ assert(ping.getPingListEmployees("coPilote",src).employees.some(e=>e.id==="4"),"INF éligible Co-Pilote");
  assert(ping.buildPingGroupText("formationPilote",src,date).includes("<@100000000000000009>"));
- assert(ping.buildPingGroupText("formationMup",src,date).includes("<@100000000000000010>"));
+ assert(!ping.buildPingGroupText("formationMup",src,date).includes("<@100000000000000010>"));
 });
 test("retrait manuel (false) et retour référence (absent)",()=>{
  const a={...staff[0],pingPilote:false};
@@ -53,5 +54,22 @@ test("formateurs = référence Discord (pas tous les grades MC/ADD/CD...)",()=>{
   assert.deepStrictEqual(ping.getPingListEmployees(k,[{...trop,[ping.PING_MANUAL_FIELD[k]]:true}]).employees.map(e=>e.id),["9"]);
  });
  assert.strictEqual(ping.PING_FORMATEUR_DISCORD_IDS.size,10);
+});
+test("jamais de stagiaire ni WDV, même ajouté à la main ; seuils de grade",()=>{
+ const stg={id:"s",name:"Stagiaire",discordId:"100000000000000011",grade:"STG",pingPilote:true,pingCoPilote:true,pingMup:true,pingFormateurMup:true};
+ ["pilote","coPilote","mup","formateurPilote","formateurMup"].forEach(k=>assert.strictEqual(ping.getPingListEmployees(k,[stg]).employees.length,0,k));
+ const amb={id:"a",name:"Ambu",discordId:"100000000000000012",grade:"A",pingPilote:true,pingCoPilote:true};
+ assert.strictEqual(ping.getPingListEmployees("pilote",[amb]).employees.length,0,"Pilote dès Infirmier");
+ assert.strictEqual(ping.getPingListEmployees("coPilote",[amb]).employees.length,1,"Co-Pilote dès Ambulancier");
+ assert(ping.pingEligible({grade:"INF"},"pilote")&&!ping.pingEligible({grade:"INF"},"mup")&&ping.pingEligible({grade:"M"},"mup"));
+});
+test("un médecin formateur (MF) est d'office formateur Pilote et MUP",()=>{
+ const mf={id:"m",name:"Nouveau MF",discordId:"100000000000000013",grade:"MF"};
+ assert.strictEqual(ping.getPingListEmployees("formateurPilote",[mf]).employees.length,1);
+ assert.strictEqual(ping.getPingListEmployees("formateurMup",[mf]).employees.length,1);
+ assert.strictEqual(ping.getPingListEmployees("formateurMup",[{...mf,pingFormateurMup:false}]).employees.length,0,"retrait manuel respecté");
+ const promu={...mf,grade:"MC",pingFormateurPilote:true,pingFormateurMup:true};
+ assert.strictEqual(ping.getPingListEmployees("formateurPilote",[promu]).employees.length,1,"reste formateur après promotion");
+ assert.strictEqual(ping.getPingListEmployees("formateurPilote",[{...promu,pingFormateurPilote:undefined,pingFormateurMup:undefined}]).employees.length,0,"MC jamais formateur sans MF mémorisé");
 });
 console.log("Tests formations/ajouts terminés.");
