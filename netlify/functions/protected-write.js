@@ -9,6 +9,7 @@ const { verify } = require("./session-token");
 const { createFirebaseCustomToken } = require("./firebase-token");
 const { can, LEVELS, canFor } = require("./permissions");
 const { logAction } = require("./logs");
+const { ELIGIBLE: PING_ELIGIBLE, FIELDS: PING_FIELDS, LABELS: PING_LABELS } = require("./ping-rules");
 
 // (11/10 — audit de sécurité) Deux vrais problèmes trouvés dans cette
 // fonction, corrigés ici :
@@ -205,24 +206,25 @@ exports.handler = async function (event) {
       const { id } = payload || {};
       const idx = employees.findIndex((e) => String(e.id) === String(id));
       if (idx === -1) return json(404, { error: "Employé introuvable." });
-      const FIELDS = { pilote: "pingPilote", coPilote: "pingCoPilote", mup: "pingMup", formateurPilote: "pingFormateurPilote", formateurMup: "pingFormateurMup" };
+      const FIELDS = PING_FIELDS;
       const before = { ...employees[idx] };
+      const ELIGIBLE = PING_ELIGIBLE; // Co-Pilote dès Ambulancier, Pilote dès Infirmier, MUP dès Médecin, jamais de stagiaire
       const changed = [];
       for (const [k, field] of Object.entries(FIELDS)) {
         const v = payload ? payload[k] : undefined;
         if (v === undefined) continue;
         if (v !== null && typeof v !== "boolean") return json(400, { error: `Valeur invalide pour « ${k} » (true, false ou null attendu).` });
+        if (v === true && !ELIGIBLE[k].includes(employees[idx].grade)) return json(400, { error: `${employees[idx].name} (${employees[idx].grade}) n'a pas le grade requis pour cette liste (stagiaires exclus ; Co-Pilote dès Ambulancier, Pilote dès Infirmier, MUP dès Médecin).` });
         if (v === null) delete employees[idx][field]; else employees[idx][field] = v;
-        changed.push(`${k}=${v === null ? "référence" : v ? "ajouté" : "retiré"}`);
+        changed.push(`${PING_LABELS[k]} ${v === null ? "remis par défaut" : v ? "ajouté" : "retiré"}`);
       }
       if (!changed.length) return json(400, { error: "Aucune liste précisée." });
+      const source = payload && payload.source === "mf-auto" ? "MF automatique" : "ajout manuel";
       pendingLog = {
-        action: "modification_employe",
+        action: "liste_ping",
         authorDiscordId: session.discordId, authorName: session.name, authorLevel: session.level,
         targetDiscordId: employees[idx].discordId, targetName: employees[idx].name,
-        oldValue: `${before.grade} / ${before.name} / ${before.discordId}`,
-        newValue: `${employees[idx].grade} / ${employees[idx].name} / ${employees[idx].discordId}`,
-        details: `Listes de ping : ${changed.join(", ")}`,
+        details: `${changed.join(", ")} — source : ${source}`,
         idToken,
       };
     } else if (action === "licencier") {
