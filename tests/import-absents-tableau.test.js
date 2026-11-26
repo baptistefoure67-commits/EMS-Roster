@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm');
 const h=fs.readFileSync(__dirname+'/../index.html','utf8');
 function grab(startRe){const m=h.match(startRe);let i=m.index,d=0,started=false,j=i;for(;j<h.length;j++){const c=h[j];if(c=='{'){d++;started=true}else if(c=='}'){d--;if(started&&d==0){j++;break}}}return h.slice(i,j)}
 const lines=h.split('\n');
-const code=[lines[2855],lines[2860],grab(/function norm\(s\)/),grab(/function employeeNameMatches/),grab(/function cleanEmsName/),grab(/function splitEmsLine/),grab(/function extractEmsRowsForImport/),grab(/function parseEmsTableForImport/)].join('\n');
+const code=[lines.find(l=>l.startsWith('const GRADE_ORDER')),lines.find(l=>l.startsWith('const GRADE_ALIASES')),grab(/function norm\(s\)/),grab(/function employeeNameMatches/),grab(/function cleanEmsName/),grab(/function splitEmsLine/),grab(/function extractEmsRowsForImport/),grab(/function parseEmsTableForImport/)].join('\n');
 const rows=[
 ["..[D] Tio War","","tio-war",81533,"D"],["[A] James Cruz","","james-cruz",263534,"A"],["[A] Leon Kennedy","Avertissement 2","léon-kennedy",151475,"A"],
 ["[A] Miguel Rodriguez","","miguel-rodriguez",74890,"A"],["[A] Nima Babidi","Avertissement 3","nima-babidi",94192,"A"],["[A] Peter Nox","Avertissement 1","peter-nox",265476,"WDV"],
