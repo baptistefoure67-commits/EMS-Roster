@@ -22,6 +22,7 @@ const { verify } = require('./session-token');
 const { createFirebaseCustomToken } = require('./firebase-token');
 const { canFor } = require('./permissions');
 const { logAction } = require('./logs');
+const { applyPingFlags, LABELS: PING_LABELS } = require('./ping-rules');
 
 const BASE = 'https://paie-terminal-pillbox-default-rtdb.europe-west1.firebasedatabase.app';
 const ROSTER_URL = `${BASE}/rosterEmsData.json`;
@@ -429,6 +430,24 @@ function buildCommitPatch(enriched, history, currentActivity, currentSpecial, cu
 }
 
 
+// Après une formation Pilote / Co-Pilote / MUP validée : la personne formée est ajoutée
+// automatiquement à la bonne liste de ping (grade éligible requis, jamais de stagiaire).
+async function applyPingToRoster(idToken, newRecords){
+  const wanted=(newRecords||[]).filter(r=>['pilote','copilote','mup'].includes(r.type));
+  if(!wanted.length) return {added:[],skipped:[]};
+  for(let attempt=0; attempt<COMMIT_ATTEMPTS; attempt++){
+    const cur=await getWithEtag(ROSTER_URL,idToken);
+    const list=Array.isArray(cur.value?.employees)?cur.value.employees.map(e=>({...e})):null;
+    if(!list) throw new Error('Roster illisible');
+    const res=applyPingFlags(list,wanted);
+    if(!res.changed) return {added:[],skipped:res.skipped};
+    const putRes=await putIfMatch(ROSTER_URL,idToken,{employees:res.employees,savedAt:Math.max(Date.now(),cur.value.savedAt||0)},cur.etag);
+    if(putRes.ok) return {added:res.added,skipped:res.skipped};
+    if(putRes.status!==412){ const t=await putRes.text().catch(()=>''); throw new Error(`écriture ${putRes.status} ${t.slice(0,120)}`); }
+  }
+  throw new Error('conflit persistant sur le Roster');
+}
+
 function buildPingMembership(history){
   const piloteDiscordIds=new Set(), copiloteDiscordIds=new Set();
   const piloteEmployeeIds=new Set(), copiloteEmployeeIds=new Set();
@@ -543,15 +562,26 @@ exports.handler=async function(event){
       await fetch(`${BASE}/.json?auth=${idToken}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(opPatch)}).catch(()=>{});
     }
 
+    let pingAdded=[], pingSkipped=[], pingError=null;
+    try{
+      const pr=await applyPingToRoster(idToken,newRecords);
+      pingAdded=pr.added; pingSkipped=pr.skipped;
+      for(const a of pingAdded){
+        const emp=employees.find(e=>String(e.id)===String(a.id));
+        await logAction({action:'liste_ping',authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,targetDiscordId:emp?.discordId,targetName:a.name,details:`${a.lists.map(l=>PING_LABELS[l]+' ajouté').join(', ')} — source : formation validée${a.trainerName?` (formateur : ${a.trainerName})`:''}`,idToken}).catch(()=>{});
+      }
+    }catch(err){ pingError=err.message||String(err); }
+
     const finalHistoryForDisplay={...freshHistoryValue};
     for(const r of newRecords) finalHistoryForDisplay[r.fingerprint]=historyPatch[`rosterFormationExperience/${r.fingerprint}`];
     await logAction({action:'import_formations_discord',authorDiscordId:session.discordId,authorName:session.name,authorLevel:session.level,details:`${newRecords.length} activité(s) importée(s) (${summary.operations||0} opération(s), ${summary.recruitments||0} recrutement(s)), ${Object.keys(credits).length} crédit(s) Formateur`,idToken}).catch(()=>{});
     return json(200,{ok:true,summary:summarize(finalEnriched),imported:newRecords.length,records:finalEnriched,
       operationEmployeeIds:newOperationRecords.map(r=>r.trainee.id),
+      pingAdded:pingAdded.map(a=>({id:a.id,name:a.name,fields:a.fields,lists:a.lists.map(l=>PING_LABELS[l])})),pingSkipped:pingSkipped.map(x=>({name:x.name,grade:x.grade})),pingError,
       activityData:Object.keys(credits).length?activityData:null,
       importResults:newRecords.map(r=>({type:r.type,typeLabel:r.typeLabel,trainerName:r.trainer.name,traineeName:r.trainee.name,activityCredited:r.activityEligible,operationAdded:r.type==='operation',unrecognized:r.type==='unknown'})),
       recent:recentHistory(finalHistoryForDisplay,30),stats:historyStats(finalHistoryForDisplay)});
   }catch(err){ return json(500,{error:err.message||String(err)}); }
 };
 
-exports._test={norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,extractGradeTag,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,buildPingMembership,TYPE_LABELS};
+exports._test={applyPingToRoster,norm,cleanDisplayName,parseDateLabel,formationTypeFromLine,formationKeyFromLine,isRecruitmentLine,recruitmentTraineeFromLine,parseDiscordFormationText,matchEmployee,extractGradeTag,fingerprintFor,enrichParsed,summarize,employeeKey,parseFormationOperationText,matchFormationOperationEmployee,buildFormationOperationText,creditsFor,applyCredits,buildCommitPatch,historyStats,buildPingMembership,TYPE_LABELS};
