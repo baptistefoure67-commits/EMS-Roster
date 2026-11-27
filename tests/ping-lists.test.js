@@ -20,7 +20,7 @@ const sample=[
 ];
 const date=new Date(2026,10,25);
 function test(name,fn){try{fn();console.log("✅",name);}catch(e){console.error("❌",name);throw e;}}
-test("configuration contient cinq listes",()=>assert.strictEqual(Object.keys(ping.PING_LIST_CONFIG).length,5));
+test("configuration contient six listes (5 listes de formation + Opération)",()=>assert.strictEqual(Object.keys(ping.PING_LIST_CONFIG).length,6));
 test("filtrage des grades M.U.P",()=>assert(ping.getPingListEmployees("mup",sample).employees.every(e=>ping.PING_LIST_CONFIG.mup.grades.includes(e.grade))));
 test("filtrage des grades Formateurs M.U.P",()=>assert(ping.getPingListEmployees("formateurMup",sample).employees.every(e=>ping.PING_LIST_CONFIG.formateurMup.grades.includes(e.grade))));
 test("filtrage des grades Formateurs Pilote",()=>assert(ping.getPingListEmployees("formateurPilote",sample).employees.every(e=>ping.PING_LIST_CONFIG.formateurPilote.grades.includes(e.grade))));
