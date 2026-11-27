@@ -61,12 +61,40 @@ await test("aperçu : noms à la place des ID, rôle Employés, gras, échappeme
  const src=[{name:"Aaron <b>",discordId:"408669016039882752",grade:"DG"}];
  const html=ping.buildPingPreviewHtml("**LISTE des M.U.P :**\n\n<@408669016039882752>\n<@999999999999999999>\n\nMis à jour\n<@&1168614318846267492>",src);
  assert(html.includes("<strong>LISTE des M.U.P :</strong>"));
- assert(html.includes("@Aaron &lt;b&gt;")&&!html.includes("<b>"));
+ assert(html.includes("@[DG] Aaron &lt;b&gt;")&&!html.includes("<b>"),"grade entre crochets avant le nom");
  assert(html.includes("@inconnu")&&html.includes("@Employés")&&!html.includes("408669016039882752"));
 });
 await test("historique : rendu des lignes (ajout / retrait / source)",()=>{
  const html=ping.buildPingHistoryHtml([{targetName:"Léa",details:"Pilote retiré — source : ajout manuel",authorName:"Papy",createdAt:Date.now()}]);
  assert(html.includes("➖")&&html.includes("Léa")&&html.includes("ajout manuel")&&html.includes("par Papy"));
+});
+await test("liste d'ajout : masque ceux qui ont déjà tout, garde Aiden (Pilote manquant), jamais de stagiaire",()=>{
+ const full={id:"f",name:"Complet",discordId:"100000000000000020",grade:"M",pingPilote:true,pingCoPilote:true,pingMup:true};
+ const mfFull={id:"g",name:"MF complet",discordId:"100000000000000021",grade:"MF",pingPilote:true,pingCoPilote:true,pingMup:true,pingFormateurPilote:true,pingFormateurMup:true};
+ const aiden={id:"a",name:"Aiden",discordId:"227444055594893312",grade:"MC"}; // Co-Pilote de référence, pas Pilote
+ const stg={id:"s",name:"Stag",discordId:"100000000000000022",grade:"STG"};
+ const retire={...full,id:"r",name:"Retiré",pingPilote:false};
+ const r=ping.pingAddableEmployees([full,mfFull,aiden,stg,retire]);
+ const names=r.people.map(e=>e.name);
+ assert(!names.includes("Complet")&&!names.includes("MF complet")&&!names.includes("Stag"));
+ assert(names.includes("Aiden")&&names.includes("Retiré"),"retiré à la main => redevient ajoutable");
+ assert.strictEqual(r.hidden,2);
+ assert(ping.pingAddableLists(aiden).includes("pilote")&&!ping.pingAddableLists(aiden).includes("coPilote"));
+});
+await test("liste Opération : suit la sélection « Formation Opération » du Roster, format ping",()=>{
+ const src=[
+  {id:"1",name:"Aaron",discordId:"873209274023690303",grade:"CD"},
+  {id:"2",name:"Léa",discordId:"1311123243775557652",grade:"INF"},
+  {id:"3",name:"Pas coché",discordId:"100000000000000030",grade:"M"},
+  {id:"4",name:"Sans ID",discordId:"",grade:"M"},
+  {id:"5",name:"Licencié",discordId:"100000000000000031",grade:"M",licencie:true}];
+ const ids=new Set(["1","2","4","5"]);
+ const txt=ping.buildPingListText("operation",src,new Date(2026,10,27),false,ids);
+ assert.strictEqual(txt,"**LISTE Opération :**\n\n<@873209274023690303>\n<@1311123243775557652>");
+ assert(ping.buildPingListText("operation",src,new Date(2026,10,27),true,ids).endsWith("Mis à jour le 27/11/2026\n<@&1168614318846267492>"));
+ assert.strictEqual(ping.getPingListEmployees("operation",src,ids).missingIds.length,1,"sans ID signalé");
+ assert.strictEqual(ping.getPingListEmployees("operation",src,new Set()).employees.length,0);
+ assert(!ping.buildAllPingListsText(src,new Date()).includes("Opération"),"Copier tout inchangé");
 });
 console.log("Tests ajout automatique / aperçu / historique terminés.");
 })().catch(e=>{console.error(e);process.exit(1);});
