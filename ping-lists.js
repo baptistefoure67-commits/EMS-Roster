@@ -8,6 +8,7 @@ const PING_LIST_CONFIG = {
   formateurPilote: { label:"Formateurs Pilote", title:"LISTE des Formateurs Pilote", grades:["DG","D","CD","ADD","MC","RF","MF"] },
   mup: { label:"M.U.P", title:"LISTE des M.U.P", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M"] },
   formateurMup: { label:"Formateurs M.U.P", title:"LISTE des Formateurs M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] },
+  formateurOperation: { label:"Formateurs Opération", title:"LISTE des Formateurs Opération", grades:["DG","D","CD","ADD","MC","RF","MF"], rolePingId:"1575893973287964827" },
   // Formation Opération : pas de règle de grade ni de référence figée, la liste suit la
   // catégorie « Formation Opération » du Roster (les employés cochés dans cet onglet).
   operation: { label:"Opération", title:"LISTE Opération", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A","STG"] }
@@ -19,9 +20,10 @@ const PING_LIST_META = {
   formateurPilote: { icon:"🎓", accent:"#f59e0b", rule:"Médecins formateurs" },
   mup: { icon:"🚑", accent:"#34d399", rule:"À partir de Médecin" },
   formateurMup: { icon:"🎓", accent:"#fb7185", rule:"Médecins formateurs" },
+  formateurOperation: { icon:"🎯", accent:"#a78bfa", rule:"Même composition que Formateurs Pilote et M.U.P" },
   operation: { icon:"🎯", accent:"#a78bfa", rule:"Catégorie Formation Opération du Roster" }
 };
-const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","pilote","coPilote"];
+const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","formateurOperation","pilote","coPilote"];
 // Messages "formation" : plusieurs listes dans un seul message Discord, une seule date finale.
 const PING_COPY_GROUPS = {
   formationPilote: { label:"Formation Pilote - Co-Pilote", keys:["formateurPilote","pilote","coPilote"] },
@@ -101,7 +103,7 @@ function getPingListEmployees(key, source=employees, operationIds=null) {
     if(key==="coPilote") return PING_COPILOTE_DISCORD_IDS.has(id);
     // Formateurs : un médecin formateur (MF) l'est d'office pour Pilote ET MUP ;
     // une fois promu, il reste formateur (mémorisé par la liste de référence / l'ajout automatique).
-    if(key==="formateurPilote"||key==="formateurMup") return e.grade==="MF" || PING_FORMATEUR_DISCORD_IDS.has(id);
+    if(key==="formateurPilote"||key==="formateurMup"||key==="formateurOperation") return e.grade==="MF" || PING_FORMATEUR_DISCORD_IDS.has(id);
     return true;
   });
   const valid=list.filter(e=>pingValidDiscordId(e.discordId)).sort(pingCompareEmployees);
@@ -113,7 +115,8 @@ function buildPingListText(key, source=employees, date=new Date(), includeUpdate
   const {employees:list}=getPingListEmployees(key,source,operationIds);
   const blocks=list.map(e=>`<@${String(e.discordId).trim()}>`);
   const body=blocks.length ? `**${cfg.title} :**\n\n${blocks.join("\n")}` : `**${cfg.title} :**`;
-  return includeUpdate ? `${body}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>` : body;
+  const rolePing=cfg.rolePingId ? `\n<@&${cfg.rolePingId}>` : "";
+  return includeUpdate ? `${body}${rolePing}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>` : `${body}${rolePing}`;
 }
 function buildAllPingListsText(source=employees,date=new Date()) {
   const blocks=PING_COPY_ORDER.map(k=>buildPingListText(k,source,date,false));
@@ -145,7 +148,7 @@ function pingEscape(v){ return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":
 function buildPingPreviewHtml(text, source=employees) {
   const byId=new Map((Array.isArray(source)?source:[]).map(e=>[String(e.discordId||"").trim(),e]));
   return pingEscape(text)
-    .replace(/&lt;@&amp;(\d+)&gt;/g,(m,id)=>`<span class="ping-mention ping-mention-role">@${id===EMPLOYES_ROLE_ID?"Employés":"rôle"}</span>`)
+    .replace(/&lt;@&amp;(\d+)&gt;/g,(m,id)=>`<span class="ping-mention ping-mention-role">@${id===EMPLOYES_ROLE_ID?"Employés":id==="1575893973287964827"?"Formateurs Opération":"rôle"}</span>`)
     .replace(/&lt;@(\d+)&gt;/g,(m,id)=>{const e=byId.get(id);return e?`<span class="ping-mention">@${e.grade?`[${pingEscape(e.grade)}] `:""}${pingEscape(e.name)}</span>`:`<span class="ping-mention ping-mention-unknown" title="ID absent du Roster">@inconnu (${id.slice(-4)})</span>`;})
     .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
     .replace(/\n/g,"<br>");
