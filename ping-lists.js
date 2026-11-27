@@ -7,7 +7,10 @@ const PING_LIST_CONFIG = {
   coPilote: { label:"Co-Pilotes", title:"LISTE des Co-Pilotes", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A"] },
   formateurPilote: { label:"Formateurs Pilote", title:"LISTE des Formateurs Pilote", grades:["DG","D","CD","ADD","MC","RF","MF"] },
   mup: { label:"M.U.P", title:"LISTE des M.U.P", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M"] },
-  formateurMup: { label:"Formateurs M.U.P", title:"LISTE des Formateurs M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] }
+  formateurMup: { label:"Formateurs M.U.P", title:"LISTE des Formateurs M.U.P", grades:["DG","D","CD","ADD","MC","RF","MF"] },
+  // Formation Opération : pas de règle de grade ni de référence figée, la liste suit la
+  // catégorie « Formation Opération » du Roster (les employés cochés dans cet onglet).
+  operation: { label:"Opération", title:"LISTE Opération", grades:["DG","D","CD","ADD","MC","RF","RP","RL","MF","MP","MLP","M","BNVL","INF","A","STG"] }
 };
 // Présentation + condition d'accès affichées sur chaque carte.
 const PING_LIST_META = {
@@ -15,7 +18,8 @@ const PING_LIST_META = {
   coPilote: { icon:"🧑‍✈️", accent:"#818cf8", rule:"À partir d'Ambulancier" },
   formateurPilote: { icon:"🎓", accent:"#f59e0b", rule:"Médecins formateurs" },
   mup: { icon:"🚑", accent:"#34d399", rule:"À partir de Médecin" },
-  formateurMup: { icon:"🎓", accent:"#fb7185", rule:"Médecins formateurs" }
+  formateurMup: { icon:"🎓", accent:"#fb7185", rule:"Médecins formateurs" },
+  operation: { icon:"🎯", accent:"#a78bfa", rule:"Catégorie Formation Opération du Roster" }
 };
 const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","pilote","coPilote"];
 // Messages "formation" : plusieurs listes dans un seul message Discord, une seule date finale.
@@ -79,11 +83,16 @@ function pingManualFlag(e,key) {
 function pingEligible(e,key) {
   const cfg=PING_LIST_CONFIG[key]; return !!(cfg && e && cfg.grades.includes(e.grade));
 }
-function getPingListEmployees(key, source=employees) {
+// Employés cochés dans l'onglet « Formation Opération » du Roster (Set d'ID d'employé).
+function pingOperationIds() {
+  return (typeof specialSelected!=="undefined" && specialSelected instanceof Set) ? specialSelected : new Set();
+}
+function getPingListEmployees(key, source=employees, operationIds=null) {
   const cfg=PING_LIST_CONFIG[key];
   if(!cfg) return {employees:[],missingIds:[]};
   const list=(Array.isArray(source)?source:[]).filter(e=>{
     if(!e || pingIsExcluded(e) || !pingEligible(e,key)) return false;
+    if(key==="operation") return (operationIds||pingOperationIds()).has(e.id);
     const manual=pingManualFlag(e,key);
     if(manual===true) return true;
     if(manual===false) return false;
@@ -99,9 +108,9 @@ function getPingListEmployees(key, source=employees) {
   const missing=list.filter(e=>!pingValidDiscordId(e.discordId)).sort(pingCompareEmployees);
   return {employees:valid,missingIds:missing};
 }
-function buildPingListText(key, source=employees, date=new Date(), includeUpdate=true) {
+function buildPingListText(key, source=employees, date=new Date(), includeUpdate=true, operationIds=null) {
   const cfg=PING_LIST_CONFIG[key]; if(!cfg) throw new Error("Liste de ping inconnue.");
-  const {employees:list}=getPingListEmployees(key,source);
+  const {employees:list}=getPingListEmployees(key,source,operationIds);
   const blocks=list.map(e=>`<@${String(e.discordId).trim()}>`);
   const body=blocks.length ? `**${cfg.title} :**\n\n${blocks.join("\n")}` : `**${cfg.title} :**`;
   return includeUpdate ? `${body}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>` : body;
@@ -137,7 +146,7 @@ function buildPingPreviewHtml(text, source=employees) {
   const byId=new Map((Array.isArray(source)?source:[]).map(e=>[String(e.discordId||"").trim(),e]));
   return pingEscape(text)
     .replace(/&lt;@&amp;(\d+)&gt;/g,(m,id)=>`<span class="ping-mention ping-mention-role">@${id===EMPLOYES_ROLE_ID?"Employés":"rôle"}</span>`)
-    .replace(/&lt;@(\d+)&gt;/g,(m,id)=>{const e=byId.get(id);return e?`<span class="ping-mention">@${pingEscape(e.name)}</span>`:`<span class="ping-mention ping-mention-unknown" title="ID absent du Roster">@inconnu (${id.slice(-4)})</span>`;})
+    .replace(/&lt;@(\d+)&gt;/g,(m,id)=>{const e=byId.get(id);return e?`<span class="ping-mention">@${e.grade?`[${pingEscape(e.grade)}] `:""}${pingEscape(e.name)}</span>`:`<span class="ping-mention ping-mention-unknown" title="ID absent du Roster">@inconnu (${id.slice(-4)})</span>`;})
     .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
     .replace(/\n/g,"<br>");
 }
@@ -226,18 +235,32 @@ async function pingAutoFormateurSync() {
     }
   } finally { window.__pingSyncBusy=false; }
 }
+const PING_ADD_KEYS = ["pilote","coPilote","mup","formateurPilote","formateurMup"];
+function pingIsMember(e,key) {
+  const r=getPingListEmployees(key,[e]); return r.employees.length>0 || r.missingIds.length>0;
+}
+// Listes encore ajoutables : grade éligible ET pas déjà dedans.
+function pingAddableLists(e) { return PING_ADD_KEYS.filter(k=>pingEligible(e,k) && !pingIsMember(e,k)); }
+// Qui proposer dans « Ajouter quelqu'un » : on masque ceux qui ont déjà toutes leurs listes (et les stagiaires / WDV).
+function pingAddableEmployees(source=employees) {
+  const eligible=(Array.isArray(source)?source:[]).filter(e=>e && !e.licencie && !pingIsExcluded(e) && PING_ADD_KEYS.some(k=>pingEligible(e,k)));
+  const people=eligible.filter(e=>pingAddableLists(e).length>0).sort(pingCompareEmployees);
+  return {people, hidden:eligible.length-people.length};
+}
 const PING_ADD_CHECKS = { pilote:"pingAddPilote", coPilote:"pingAddCoPilote", mup:"pingAddMup", formateurPilote:"pingAddFormateurPilote", formateurMup:"pingAddFormateurMup" };
+let pingAddHiddenCount=0;
 function pingUpdateAddChecks() {
   const sel=document.getElementById("pingAddSelect"); if(!sel || typeof employees==="undefined") return;
   const e=employees.find(x=>String(x.id)===String(sel.value));
   const hint=document.getElementById("pingAddHint");
+  const addable=e?pingAddableLists(e):[];
   Object.keys(PING_ADD_CHECKS).forEach(k=>{
     const input=document.getElementById(PING_ADD_CHECKS[k]); if(!input) return;
-    const ok=!e || pingEligible(e,k);
+    const ok=!e || addable.includes(k);
     input.disabled=!ok; if(!ok) input.checked=false;
-    const chip=input.closest(".ping-chip"); if(chip) chip.classList.toggle("is-disabled",!ok);
+    const chip=input.closest(".ping-chip"); if(chip){ chip.classList.toggle("is-disabled",!ok); chip.title=ok?"":(e&&pingEligible(e,k)?"Déjà dans cette liste":"Grade insuffisant pour cette liste"); }
   });
-  if(hint) hint.textContent=e ? `Grade ${e.grade} : les listes grisées demandent un grade plus élevé.` : "Choisis un employé : seules les listes auxquelles son grade donne accès restent cochables.";
+  if(hint) hint.textContent=e ? `Grade ${e.grade} : les listes grisées sont déjà acquises ou demandent un grade plus élevé.` : `Choisis un employé : seules les listes qui lui manquent restent cochables.${pingAddHiddenCount?` ${pingAddHiddenCount} personne(s) ayant déjà toutes leurs listes sont masquées.`:""}`;
 }
 function renderPingAddCard() {
   const host=document.getElementById("pingAddCard"); if(!host || typeof employees==="undefined") return;
@@ -246,9 +269,9 @@ function renderPingAddCard() {
   const sel=document.getElementById("pingAddSelect"); if(!sel) return;
   if(document.activeElement===sel) return; // ne pas perturber la saisie
   const keep=sel.value;
-  // Jamais de stagiaires (STG) ni WDV : aucun accès aux formations.
-  const people=employees.filter(e=>e && !e.licencie && !pingIsExcluded(e) && Object.keys(PING_ADD_CHECKS).some(k=>pingEligible(e,k))).sort(pingCompareEmployees);
-  const sig=people.map(e=>e.id+e.name+e.grade).join("|");
+  // Jamais de stagiaires (STG) ni WDV ; on masque aussi ceux qui ont déjà toutes leurs listes.
+  const {people,hidden}=pingAddableEmployees(); pingAddHiddenCount=hidden;
+  const sig=people.map(e=>e.id+e.name+e.grade+pingAddableLists(e).join(",")).join("|");
   if(sel.dataset.sig!==sig){
     sel.innerHTML='<option value="">Choisir un employé…</option>'+people.map(e=>`<option value="${esc(e.id)}">[${esc(e.grade)}] ${esc(e.name)}${pingValidDiscordId(e.discordId)?"":" — ID manquant"}</option>`).join("");
     sel.dataset.sig=sig; if(keep) sel.value=keep;
@@ -340,4 +363,4 @@ if (typeof document !== "undefined") {
   }
   setInterval(renderPingLists,3000);
 }
-if(typeof module!=="undefined") module.exports={buildPingPreviewHtml,pingPreviewText,buildPingHistoryHtml,PING_FORMATEUR_DISCORD_IDS,PING_COPY_GROUPS,PING_MANUAL_FIELD,buildPingGroupText,pingManualFlag,PING_LIST_META,pingEligible,PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_PILOTE_DISCORD_IDS,PING_COPILOTE_DISCORD_IDS,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
+if(typeof module!=="undefined") module.exports={pingAddableEmployees,pingAddableLists,buildPingPreviewHtml,pingPreviewText,buildPingHistoryHtml,PING_FORMATEUR_DISCORD_IDS,PING_COPY_GROUPS,PING_MANUAL_FIELD,buildPingGroupText,pingManualFlag,PING_LIST_META,pingEligible,PING_LIST_CONFIG,EXCLUDED_FROM_PING_LISTS,PING_LIST_GRADE_ORDER,PING_PILOTE_DISCORD_IDS,PING_COPILOTE_DISCORD_IDS,getPingListEmployees,pingCompareEmployees,buildPingListText,buildAllPingListsText,pingValidDiscordId,pingIsExcluded};
