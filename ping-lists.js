@@ -23,11 +23,12 @@ const PING_LIST_META = {
   formateurOperation: { icon:"🎯", accent:"#a78bfa", rule:"Même composition que Formateurs Pilote et M.U.P" },
   operation: { icon:"🎯", accent:"#a78bfa", rule:"Catégorie Formation Opération du Roster" }
 };
-const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","formateurOperation","pilote","coPilote"];
+const PING_COPY_ORDER = ["mup","formateurMup","formateurPilote","formateurOperation","pilote","coPilote","operation"];
 // Messages "formation" : plusieurs listes dans un seul message Discord, une seule date finale.
 const PING_COPY_GROUPS = {
   formationPilote: { label:"Formation Pilote - Co-Pilote", keys:["formateurPilote","pilote","coPilote"] },
-  formationMup: { label:"Formation MUP", keys:["mup","formateurMup"] }
+  formationMup: { label:"Formation MUP", keys:["mup","formateurMup"] },
+  formationOperation: { label:"Formation Opération", keys:["formateurOperation","operation"] }
 };
 // Référentiel validé des compositions réellement utilisées sur Discord.
 // L'appartenance est liée au Discord ID (stable), pas au nom RP ni à une
