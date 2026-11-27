@@ -129,11 +129,22 @@ function buildPingGroupText(groupKey, source=employees, date=new Date()) {
   return `${blocks.join("\n\n")}\n\nMis à jour le ${date.toLocaleDateString("fr-FR")}\n<@&${EMPLOYES_ROLE_ID}>`;
 }
 async function pingSetMembership(employeeId, flags) {
-  // flags : {pilote,coPilote,mup} -> true | false | null (null = revenir à la composition de référence)
-  if(typeof protectedAction!=="function") throw new Error("Session indisponible.");
+  // La liste Opération est pilotée par la sélection officielle « Formation Opération ».
+  // Ajouter/retirer depuis les listes de ping coche/décoche donc cette même sélection.
   const e=(typeof employees!=="undefined"?employees:[]).find(x=>String(x.id)===String(employeeId));
   if(!e) throw new Error("Employé introuvable.");
-  await protectedAction("setPingFormations",{id:employeeId,...flags});
+  if(Object.prototype.hasOwnProperty.call(flags,"operation")){
+    if(typeof specialSelected==="undefined" || !(specialSelected instanceof Set)) throw new Error("Sélection Formation Opération indisponible.");
+    if(flags.operation===true) specialSelected.add(e.id); else specialSelected.delete(e.id);
+    delete flags.operation;
+    if(typeof saveSpecialSelection==="function") saveSpecialSelection();
+    if(typeof saveSpecialSelectionToCloud==="function") await saveSpecialSelectionToCloud();
+    if(typeof renderSpecialSelection==="function") renderSpecialSelection();
+  }
+  if(Object.keys(flags).length){
+    if(typeof protectedAction!=="function") throw new Error("Session indisponible.");
+    await protectedAction("setPingFormations",{id:employeeId,...flags});
+  }
   Object.keys(PING_MANUAL_FIELD).forEach(k=>{
     if(!(k in flags)) return;
     const f=PING_MANUAL_FIELD[k];
@@ -239,7 +250,7 @@ async function pingAutoFormateurSync() {
     }
   } finally { window.__pingSyncBusy=false; }
 }
-const PING_ADD_KEYS = ["pilote","coPilote","mup","formateurPilote","formateurMup"];
+const PING_ADD_KEYS = ["pilote","coPilote","mup","formateurPilote","formateurMup","operation"];
 function pingIsMember(e,key) {
   const r=getPingListEmployees(key,[e]); return r.employees.length>0 || r.missingIds.length>0;
 }
@@ -251,7 +262,7 @@ function pingAddableEmployees(source=employees) {
   const people=eligible.filter(e=>pingAddableLists(e).length>0).sort(pingCompareEmployees);
   return {people, hidden:eligible.length-people.length};
 }
-const PING_ADD_CHECKS = { pilote:"pingAddPilote", coPilote:"pingAddCoPilote", mup:"pingAddMup", formateurPilote:"pingAddFormateurPilote", formateurMup:"pingAddFormateurMup" };
+const PING_ADD_CHECKS = { pilote:"pingAddPilote", coPilote:"pingAddCoPilote", mup:"pingAddMup", formateurPilote:"pingAddFormateurPilote", formateurMup:"pingAddFormateurMup", operation:"pingAddOperation" };
 let pingAddHiddenCount=0;
 function pingUpdateAddChecks() {
   const sel=document.getElementById("pingAddSelect"); if(!sel || typeof employees==="undefined") return;
@@ -329,7 +340,7 @@ if (typeof document !== "undefined") document.addEventListener("click",async ev=
   }
   if(ev.target.closest("#btnPingAdd")){
     const sel=document.getElementById("pingAddSelect"), id=sel&&sel.value;
-    const flags={pilote:document.getElementById("pingAddPilote").checked,coPilote:document.getElementById("pingAddCoPilote").checked,mup:document.getElementById("pingAddMup").checked,formateurPilote:document.getElementById("pingAddFormateurPilote").checked,formateurMup:document.getElementById("pingAddFormateurMup").checked};
+    const flags={pilote:document.getElementById("pingAddPilote").checked,coPilote:document.getElementById("pingAddCoPilote").checked,mup:document.getElementById("pingAddMup").checked,formateurPilote:document.getElementById("pingAddFormateurPilote").checked,formateurMup:document.getElementById("pingAddFormateurMup").checked,operation:document.getElementById("pingAddOperation").checked};
     if(!id){ if(typeof toast==="function") toast("Choisis d'abord un employé."); return; }
     if(!Object.values(flags).some(Boolean)){ if(typeof toast==="function") toast("Coche au moins une liste."); return; }
     const btnAdd=ev.target.closest("#btnPingAdd"); btnAdd.disabled=true;
@@ -338,7 +349,7 @@ if (typeof document !== "undefined") document.addEventListener("click",async ev=
       const e=await pingSetMembership(id,payload);
       const noIdWarn=pingValidDiscordId(e.discordId)?"":" (⚠ ID Discord manquant : il ne sera pas ping)";
       if(typeof toast==="function") toast(`✓ ${e.name} ajouté${noIdWarn}`);
-      ["pingAddPilote","pingAddCoPilote","pingAddMup","pingAddFormateurPilote","pingAddFormateurMup"].forEach(i=>{document.getElementById(i).checked=false;}); sel.value="";
+      ["pingAddPilote","pingAddCoPilote","pingAddMup","pingAddFormateurPilote","pingAddFormateurMup","pingAddOperation"].forEach(i=>{document.getElementById(i).checked=false;}); sel.value="";
     } catch(err) { if(typeof toast==="function") toast("✕ Ajout impossible : "+err.message); }
     finally { btnAdd.disabled=false; }
     return;
